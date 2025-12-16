@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="description" content="Dark Souls-inspired 3D web game built with Three.js">
+    <meta name="theme-color" content="#1a1a2e">
+    <title>Elden Flame - Dark Souls Web Experience</title>
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/hud.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Loading Screen -->
+    <div id="loading-screen">
+        <div class="loading-content">
+            <h1 class="game-title">ELDEN FLAME</h1>
+            <div class="loading-bar-container">
+                <div class="loading-bar" id="loading-bar"></div>
+            </div>
+            <p class="loading-text" id="loading-text">Preparing the Dark World...</p>
+            <p class="loading-tip">Tip: Manage your stamina wisely in combat</p>
+        </div>
+    </div>
+
+    <!-- Start Screen -->
+    <div id="start-screen" style="display: none;">
+        <div class="start-content">
+            <h1 class="game-title">ELDEN FLAME</h1>
+            <p class="subtitle">A Dark Souls Tribute</p>
+            <button id="start-button" class="game-button">ENTER THE ABYSS</button>
+            <div class="controls-hint">
+                <p>WASD - Move | Mouse - Look | Left Click - Attack</p>
+                <p>Shift - Run | Space - Dodge Roll | E - Interact</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Canvas Container -->
+    <div id="game-container">
+        <canvas id="game-canvas"></canvas>
+    </div>
+
+    <!-- HUD Overlay -->
+    <div id="hud" style="display: none;">
+        <!-- Health Bar -->
+        <div class="stat-bar health-bar">
+            <div class="bar-fill" id="health-fill"></div>
+            <span class="bar-text" id="health-text">100/100</span>
+        </div>
+        
+        <!-- Stamina Bar -->
+        <div class="stat-bar stamina-bar">
+            <div class="bar-fill" id="stamina-fill"></div>
+            <span class="bar-text" id="stamina-text">100/100</span>
+        </div>
+        
+
+        
+        <!-- Weapon Display -->
+        <div id="weapon-display">
+            <div class="weapon-icon" id="weapon-icon"></div>
+            <span class="weapon-name" id="weapon-name">Claymore</span>
+        </div>
+        
+        <!-- Damage Numbers Container -->
+        <div id="damage-numbers"></div>
+        
+        <!-- FPS Counter -->
+        <div id="fps-counter">FPS: 60</div>
+        
+        <!-- Boss Health Bar (hidden by default) -->
+        <div id="boss-health" style="display: none;">
+            <span class="boss-name" id="boss-name">DARK KNIGHT</span>
+            <div class="boss-bar">
+                <div class="bar-fill" id="boss-health-fill"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pause Menu -->
+    <div id="pause-menu" style="display: none;">
+        <div class="pause-content">
+            <h2>PAUSED</h2>
+            <button class="game-button" id="resume-button">Resume</button>
+            <button class="game-button" id="settings-button">Settings</button>
+            <button class="game-button" id="quit-button">Quit to Menu</button>
+        </div>
+    </div>
+
+    <!-- Settings Panel -->
+    <div id="settings-panel" style="display: none;">
+        <div class="settings-content">
+            <h2>SETTINGS</h2>
+            <div class="setting-row">
+                <label>Shadow Quality</label>
+                <select id="shadow-quality">
+                    <option value="low">Low</option>
+                    <option value="medium" selected>Medium</option>
+                    <option value="high">High</option>
+                </select>
+            </div>
+            <div class="setting-row">
+                <label>Particle Count</label>
+                <select id="particle-quality">
+                    <option value="low">Low</option>
+                    <option value="medium" selected>Medium</option>
+                    <option value="high">High</option>
+                </select>
+            </div>
+            <div class="setting-row">
+                <label>Post Processing</label>
+                <input type="checkbox" id="post-processing" checked>
+            </div>
+            <div class="setting-row">
+                <label>Mouse Sensitivity</label>
+                <input type="range" id="mouse-sensitivity" min="1" max="10" value="5">
+            </div>
+            <button class="game-button" id="settings-back">Back</button>
+        </div>
+    </div>
+
+    <!-- Death Screen -->
+    <div id="death-screen" style="display: none;">
+        <h1 class="death-text">YOU DIED</h1>
+    </div>
+
+    <!-- Import Map for ES Modules -->
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+    
+    <script type="module" src="js/main.js"></script>
+</body>
+</html>
+

@@ -1,0 +1,278 @@
+/* HUD Styles */
+#hud {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 100;
+}
+
+/* Stat Bars */
+.stat-bar {
+    position: absolute;
+    width: 300px;
+    height: 24px;
+    background: rgba(0, 0, 0, 0.7);
+    border: 2px solid rgba(201, 162, 39, 0.5);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.health-bar {
+    top: 30px;
+    left: 30px;
+}
+
+.stamina-bar {
+    top: 65px;
+    left: 30px;
+    height: 18px;
+}
+
+.bar-fill {
+    height: 100%;
+    transition: width 0.3s ease;
+}
+
+.health-bar .bar-fill {
+    background: linear-gradient(180deg, #c9302c 0%, #8b0000 100%);
+    box-shadow: 0 0 10px rgba(139, 0, 0, 0.5);
+}
+
+.stamina-bar .bar-fill {
+    background: linear-gradient(180deg, #4a7c47 0%, #2d5a27 100%);
+    box-shadow: 0 0 10px rgba(45, 90, 39, 0.5);
+}
+
+.bar-text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 0.75rem;
+    color: white;
+    text-shadow: 1px 1px 2px black;
+}
+
+/* Crosshair */
+#crosshair {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+.crosshair-dot {
+    width: 6px;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.8);
+    border-radius: 50%;
+    box-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
+}
+
+/* Weapon Display */
+#weapon-display {
+    position: absolute;
+    bottom: 30px;
+    right: 30px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: 15px;
+    background: rgba(0, 0, 0, 0.6);
+    border: 1px solid rgba(201, 162, 39, 0.4);
+}
+
+.weapon-icon {
+    width: 60px;
+    height: 60px;
+    background: linear-gradient(135deg, #3a3a4a 0%, #1a1a2a 100%);
+    border: 1px solid rgba(201, 162, 39, 0.6);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.weapon-icon::before {
+    content: '⚔';
+    font-size: 2rem;
+    color: var(--primary-color);
+}
+
+.weapon-name {
+    font-size: 1rem;
+    color: var(--text-color);
+    letter-spacing: 0.1rem;
+}
+
+/* Damage Numbers */
+#damage-numbers {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+
+.damage-number {
+    position: absolute;
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: #ff4444;
+    text-shadow: 2px 2px 4px black, 0 0 10px rgba(255, 0, 0, 0.5);
+    animation: damageFloat 1s ease-out forwards;
+    pointer-events: none;
+}
+
+.damage-number.critical {
+    font-size: 2rem;
+    color: #ffaa00;
+    text-shadow: 2px 2px 4px black, 0 0 15px rgba(255, 170, 0, 0.8);
+}
+
+@keyframes damageFloat {
+    0% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+    50% {
+        opacity: 1;
+        transform: translateY(-30px) scale(1.2);
+    }
+    100% {
+        opacity: 0;
+        transform: translateY(-60px) scale(0.8);
+    }
+}
+
+/* FPS Counter */
+#fps-counter {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.5);
+    font-family: monospace;
+}
+
+/* Boss Health Bar */
+#boss-health {
+    position: absolute;
+    bottom: 100px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 600px;
+    text-align: center;
+}
+
+.boss-name {
+    font-size: 1.5rem;
+    color: var(--primary-color);
+    letter-spacing: 0.3rem;
+    margin-bottom: 10px;
+    display: block;
+    text-shadow: 0 0 10px rgba(201, 162, 39, 0.5);
+}
+
+.boss-bar {
+    width: 100%;
+    height: 20px;
+    background: rgba(0, 0, 0, 0.8);
+    border: 2px solid var(--primary-color);
+}
+
+.boss-bar .bar-fill {
+    background: linear-gradient(180deg, #ffd700 0%, #ff8c00 100%);
+}
+
+/* Pause Menu */
+#pause-menu, #settings-panel {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(10, 10, 15, 0.95);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 500;
+}
+
+.pause-content, .settings-content {
+    text-align: center;
+}
+
+.pause-content h2, .settings-content h2 {
+    font-size: 2.5rem;
+    color: var(--primary-color);
+    margin-bottom: 2rem;
+    letter-spacing: 0.3rem;
+}
+
+/* Settings */
+.setting-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 2rem;
+    margin: 0.5rem 0;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(201, 162, 39, 0.2);
+    min-width: 400px;
+}
+
+.setting-row label {
+    font-size: 1rem;
+    color: var(--text-color);
+}
+
+.setting-row select, .setting-row input[type="range"] {
+    background: rgba(0, 0, 0, 0.5);
+    border: 1px solid var(--primary-color);
+    color: var(--text-color);
+    padding: 0.5rem;
+    font-family: var(--font-gothic);
+}
+
+/* Death Screen */
+#death-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.9);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 600;
+}
+
+.death-text {
+    font-size: 5rem;
+    color: #8b0000;
+    letter-spacing: 1rem;
+    animation: deathFade 3s ease-in-out;
+    text-shadow: 0 0 50px rgba(139, 0, 0, 0.8);
+}
+
+@keyframes deathFade {
+    0% { opacity: 0; transform: scale(0.5); }
+    50% { opacity: 1; transform: scale(1.1); }
+    100% { opacity: 1; transform: scale(1); }
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .game-title { font-size: 2.5rem; }
+    .stat-bar { width: 200px; }
+    .loading-bar-container { width: 280px; }
+    #weapon-display { padding: 10px; }
+    .weapon-icon { width: 40px; height: 40px; }
+    #boss-health { width: 90%; }
+}
+
