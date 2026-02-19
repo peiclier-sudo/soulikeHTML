@@ -219,11 +219,22 @@ function applyLoadedHero(gltf, sourcePath) {
 function loadHeroModel() {
   const loader = new GLTFLoader();
 
-  function toUrl(path) {
-    if (!path || typeof path !== 'string') return null;
-    if (/^https?:\/\//i.test(path)) return path;
-    if (path.startsWith('/')) return path;
-    return `/models/${path}`;
+  function toUrlVariants(path) {
+    if (!path || typeof path !== 'string') return [];
+
+    const clean = path.trim();
+    if (!clean) return [];
+
+    if (/^https?:\/\//i.test(clean)) return [clean];
+
+    // If caller provided an absolute path, respect it exactly.
+    if (clean.startsWith('/')) return [clean];
+
+    // If caller explicitly gave models/*, try both relative + absolute under models.
+    if (clean.startsWith('models/')) return [clean, `/${clean}`];
+
+    // Default behavior: model names are expected inside /models/.
+    return [`models/${clean}`, `/models/${clean}`];
   }
 
   function setFallback(reason) {
@@ -233,11 +244,11 @@ function loadHeroModel() {
   }
 
   function loadCandidates(candidates) {
-    const unique = [...new Set(candidates.map(toUrl).filter(Boolean))];
+    const unique = [...new Set(candidates.flatMap((candidate) => toUrlVariants(candidate)).filter(Boolean))];
 
     if (unique.length === 0) {
       setFallback('NO MODEL PATH CONFIGURED');
-      console.warn('No model path configured. Set models/manifest.json or ?hero=/models/your-file.glb');
+      console.warn('No model path configured. Set models/manifest.json (hero field) or ?hero=/models/your-file.glb');
       return;
     }
 
@@ -437,6 +448,10 @@ function activateDash() {
     state.yaw = Math.atan2(forward.x, forward.z);
     applyCameraKick(0.01);
   }
+
+  chargeStart = null;
+  state.isChargingShot = false;
+  mouseAttackHold = false;
 }
 
 function applyEnemyDamage(amount) {

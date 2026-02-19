@@ -16,7 +16,10 @@ Example:
 ```
 
 ## Optional override
-- URL query: `?hero=/models/MyCharacter.glb`
+- URL query: `?hero=models/MyCharacter.glb`
 - localStorage: `heroModelPath`
 
 The loader now **only** tries configured paths (query/localStorage/manifest), which avoids noisy 404 probes.
+
+
+If your app is served from a sub-path, relative paths are now tried automatically as well.
