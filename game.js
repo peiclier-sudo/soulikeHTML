@@ -505,6 +505,70 @@ function activateDash() {
     state.yaw = Math.atan2(forward.x, forward.z);
     applyCameraKick(0.01);
   }
+
+  chargeStart = null;
+  state.isChargingShot = false;
+  mouseAttackHold = false;
+}
+
+function applyEnemyDamage(amount) {
+  if (state.enemyHitLock > 0 || state.enemyHp <= 0) return;
+  state.enemyHp = Math.max(0, state.enemyHp - amount);
+  state.enemyHitLock = 0.07;
+  enemy.material.color.set(state.enemyHp > 0 ? 0xfb7185 : 0x6b7280);
+  enemy.scale.set(1.06, 1.0, 1.06);
+}
+
+function spawnFireball(power) {
+  const forward = getCameraGroundForward();
+  const spawn = new THREE.Vector3().copy(state.pos).add(new THREE.Vector3(0, 1.15, 0)).add(forward.clone().multiplyScalar(1.0));
+  const radius = THREE.MathUtils.lerp(0.16, 0.48, Math.min((power - 1) / 2.2, 1));
+  const speed = 18 + power * 7;
+
+  const mesh = new THREE.Mesh(
+    new THREE.SphereGeometry(radius, 20, 16),
+    new THREE.MeshStandardMaterial({
+      color: power > 1.3 ? 0xfb7185 : 0xfb923c,
+      emissive: 0xea580c,
+      emissiveIntensity: 1.4,
+      roughness: 0.26,
+      metalness: 0.06,
+    })
+  );
+  mesh.position.copy(spawn);
+  mesh.castShadow = true;
+  scene.add(mesh);
+
+  fireballs.push({
+    mesh,
+    velocity: forward.multiplyScalar(speed),
+    radius,
+    life: 2.0,
+    damage: Math.round(11 + 10 * power),
+    pulse: Math.random() * 3,
+  });
+
+  state.attackTime = power > 1.25 ? 0.48 : 0.26;
+  state.attackPower = power;
+  state.attackRecover = power > 1.25 ? 0.14 : 0.08;
+  applyCameraKick(power > 1.25 ? 0.016 : 0.008);
+}
+
+function releaseFireShot() {
+  if (chargeStart === null || state.attackRecover > 0) return;
+  const held = Math.min((performance.now() - chargeStart) / 1000, 1.8);
+  const charged = held >= 0.32;
+  const cost = charged ? 24 : 10;
+
+  if (state.stamina >= cost) {
+    state.stamina -= cost;
+    const power = charged ? Math.max(1.4, Math.min(3.2, 1.3 + held * 1.2)) : 1;
+    spawnFireball(power);
+  }
+
+  chargeStart = null;
+  state.isChargingShot = false;
+  mouseAttackHold = false;
 }
 
 function applyEnemyDamage(amount) {
