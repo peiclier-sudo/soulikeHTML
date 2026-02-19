@@ -1,0 +1,36 @@
+:root {
+  color-scheme: dark;
+  font-family: Inter, system-ui, Arial, sans-serif;
+}
+body {
+  margin: 0;
+  background: #070b12;
+  color: #ecf1ff;
+}
+.layout {
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  gap: 16px;
+  padding: 16px;
+}
+.panel {
+  background: #111827;
+  border: 1px solid #2c3c52;
+  border-radius: 12px;
+  padding: 16px;
+}
+#game {
+  width: 100%;
+  height: auto;
+  border: 1px solid #2c3c52;
+  border-radius: 12px;
+  background: #070b12;
+}
+#hud {
+  margin-top: 12px;
+  font-size: 14px;
+  color: #a5b4fc;
+}
+@media (max-width: 1000px) {
+  .layout { grid-template-columns: 1fr; }
+}
