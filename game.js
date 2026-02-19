@@ -47,6 +47,7 @@ const menuDefinitions = {
 let currentScene = 'welcome';
 let characterMixer = null;
 let characterModelLoaded = false;
+let heroModelStatus = 'LOADING HERO';
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x070d1a);
@@ -179,40 +180,55 @@ firestaff.position.set(0.46, 1.24, 0.08);
 firestaff.rotation.z = 0.48;
 characterVisualRoot.add(firestaff);
 
+function applyLoadedHero(gltf, sourcePath) {
+  const modelRoot = new THREE.Group();
+  modelRoot.name = 'hero-model-root';
+  modelRoot.add(gltf.scene);
+  modelRoot.scale.setScalar(1.05);
+  modelRoot.position.y = 0;
+  modelRoot.rotation.y = Math.PI;
+
+  gltf.scene.traverse((obj) => {
+    if (!obj.isMesh) return;
+    obj.castShadow = true;
+    obj.receiveShadow = true;
+  });
+
+  characterVisualRoot.visible = false;
+  player.add(modelRoot);
+  characterModelLoaded = true;
+  heroModelStatus = `GLB HERO (${sourcePath})`;
+
+  if (gltf.animations && gltf.animations.length > 0) {
+    characterMixer = new THREE.AnimationMixer(gltf.scene);
+    const idle = characterMixer.clipAction(gltf.animations[0]);
+    idle.play();
+  }
+}
+
 function loadHeroModel() {
   const loader = new GLTFLoader();
-  loader.load(
-    '/models/hero.glb',
-    (gltf) => {
-      const modelRoot = new THREE.Group();
-      modelRoot.name = 'hero-model-root';
-      modelRoot.add(gltf.scene);
-      modelRoot.scale.setScalar(1.05);
-      modelRoot.position.y = 0;
-      modelRoot.rotation.y = Math.PI;
+  const candidatePaths = ['/models/hero.glb', 'models/hero.glb', '/models/Hero.glb', 'models/Hero.glb'];
 
-      gltf.scene.traverse((obj) => {
-        if (!obj.isMesh) return;
-        obj.castShadow = true;
-        obj.receiveShadow = true;
-      });
-
-      characterVisualRoot.visible = false;
-      player.add(modelRoot);
-      characterModelLoaded = true;
-
-      if (gltf.animations && gltf.animations.length > 0) {
-        characterMixer = new THREE.AnimationMixer(gltf.scene);
-        const idle = characterMixer.clipAction(gltf.animations[0]);
-        idle.play();
-      }
-    },
-    undefined,
-    () => {
+  function tryPath(index) {
+    if (index >= candidatePaths.length) {
       characterModelLoaded = false;
       characterVisualRoot.visible = true;
+      heroModelStatus = 'FALLBACK HERO (hero.glb NOT FOUND)';
+      console.warn('Unable to load hero model. Tried:', candidatePaths.join(', '));
+      return;
     }
-  );
+
+    const path = candidatePaths[index];
+    loader.load(
+      path,
+      (gltf) => applyLoadedHero(gltf, path),
+      undefined,
+      () => tryPath(index + 1)
+    );
+  }
+
+  tryPath(0);
 }
 
 loadHeroModel();
@@ -698,7 +714,7 @@ function update(dt, now) {
   const lock = state.pointerLocked ? 'LOCKED' : 'CLICK CANVAS';
   const dashLabel = bindingLabel(state.dashBinding);
   const dashBindStatus = state.isRebindingDash ? 'PRESS A KEY OR MOUSE BUTTON...' : 'B TO REBIND';
-  const heroStatus = characterModelLoaded ? 'GLB HERO' : 'FALLBACK HERO';
+  const heroStatus = characterModelLoaded ? heroModelStatus : heroModelStatus;
   hud.textContent = `View ${state.viewMode.toUpperCase()} (V) | ${heroStatus} | Mouse ${lock} | Attack Left Click | Dash ${dashLabel} (${dashBindStatus}) | Menu M | Charge ${hold}s | Stamina ${state.stamina.toFixed(0)} | Dash CD ${state.dashCooldown.toFixed(2)} | Enemy HP ${state.enemyHp}`;
 }
 
