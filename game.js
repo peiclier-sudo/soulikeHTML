@@ -227,21 +227,14 @@ function loadHeroModel() {
 
     if (/^https?:\/\//i.test(clean)) return [clean];
 
-    const variants = [];
+    // If caller provided an absolute path, respect it exactly.
+    if (clean.startsWith('/')) return [clean];
 
-    if (clean.startsWith('/')) {
-      variants.push(clean);
-      variants.push(clean.slice(1));
-    } else {
-      variants.push(clean);
-      variants.push(`/${clean}`);
-      if (!clean.startsWith('models/')) {
-        variants.push(`models/${clean}`);
-        variants.push(`/models/${clean}`);
-      }
-    }
+    // If caller explicitly gave models/*, try both relative + absolute under models.
+    if (clean.startsWith('models/')) return [clean, `/${clean}`];
 
-    return [...new Set(variants)];
+    // Default behavior: model names are expected inside /models/.
+    return [`models/${clean}`, `/models/${clean}`];
   }
 
   function setFallback(reason) {
@@ -255,7 +248,7 @@ function loadHeroModel() {
 
     if (unique.length === 0) {
       setFallback('NO MODEL PATH CONFIGURED');
-      console.warn('No model path configured. Set models/manifest.json or ?hero=models/your-file.glb');
+      console.warn('No model path configured. Set models/manifest.json (hero field) or ?hero=/models/your-file.glb');
       return;
     }
 
