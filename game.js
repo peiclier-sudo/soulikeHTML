@@ -46,6 +46,8 @@ const menuDefinitions = {
 
 let currentScene = 'welcome';
 let characterMixer = null;
+let heroActions = { idle: null, locomotion: null };
+let heroModelRoot = null;
 let characterModelLoaded = false;
 let heroModelStatus = 'LOADING HERO...';
 
@@ -199,6 +201,7 @@ function applyLoadedHero(gltf, sourcePath) {
     modelRoot.position.y -= heroBounds.min.y;
     modelRoot.position.y += 0.08;
   }
+  modelRoot.userData.baseY = modelRoot.position.y;
 
   gltf.scene.traverse((obj) => {
     if (!obj.isMesh) return;
@@ -208,18 +211,35 @@ function applyLoadedHero(gltf, sourcePath) {
 
   characterVisualRoot.visible = false;
   player.add(modelRoot);
+  heroModelRoot = modelRoot;
   characterModelLoaded = true;
   heroModelStatus = `GLB HERO (${sourcePath})`;
 
+  characterMixer = null;
+  heroActions = { idle: null, locomotion: null };
   if (gltf.animations && gltf.animations.length > 0) {
     characterMixer = new THREE.AnimationMixer(gltf.scene);
-    const idle = characterMixer.clipAction(gltf.animations[0]);
-    idle.play();
+
+    const idleClip = gltf.animations.find((clip) => /idle|breath/i.test(clip.name)) || gltf.animations[0];
+    const locomotionClip = gltf.animations.find((clip) => /walk|run|jog|locomotion/i.test(clip.name)) || null;
+
+    heroActions.idle = characterMixer.clipAction(idleClip);
+    heroActions.idle.play();
+
+    if (locomotionClip && locomotionClip !== idleClip) {
+      heroActions.locomotion = characterMixer.clipAction(locomotionClip);
+      heroActions.idle.enabled = true;
+      heroActions.idle.setEffectiveWeight(1);
+      heroActions.locomotion.enabled = true;
+      heroActions.locomotion.setEffectiveWeight(0);
+      heroActions.locomotion.play();
+    }
   }
 }
 
 function loadHeroModel() {
   const loader = new GLTFLoader();
+  const fallbackHeroFile = 'hero.glb';
 
   function toUrlVariants(path) {
     if (!path || typeof path !== 'string') return [];
@@ -273,18 +293,32 @@ function loadHeroModel() {
     tryPath(0);
   }
 
+  function fetchManifest() {
+    const manifestUrls = ['models/manifest.json', '/models/manifest.json'];
+
+    function tryUrl(index) {
+      if (index >= manifestUrls.length) return Promise.resolve({});
+
+      return fetch(manifestUrls[index], { cache: 'no-store' })
+        .then((res) => {
+          if (!res.ok) throw new Error('manifest not found');
+          return res.json();
+        })
+        .catch(() => tryUrl(index + 1));
+    }
+
+    return tryUrl(0);
+  }
+
   const queryHero = new URLSearchParams(window.location.search).get('hero');
   const localStorageHero = window.localStorage.getItem('heroModelPath');
 
-  fetch('/models/manifest.json', { cache: 'no-store' })
-    .then((res) => (res.ok ? res.json() : {}))
-    .catch(() => ({}))
-    .then((manifest) => {
-      const manifestHero = manifest?.hero || null;
-      const manifestPaths = Array.isArray(manifest?.paths) ? manifest.paths : [];
-      const candidates = [queryHero, localStorageHero, manifestHero, ...manifestPaths];
-      loadCandidates(candidates);
-    });
+  fetchManifest().then((manifest) => {
+    const manifestHero = manifest?.hero || fallbackHeroFile;
+    const manifestPaths = Array.isArray(manifest?.paths) ? manifest.paths : [];
+    const candidates = [queryHero, localStorageHero, manifestHero, ...manifestPaths, fallbackHeroFile];
+    loadCandidates(candidates);
+  });
 }
 
 
@@ -516,6 +550,23 @@ function releaseFireShot() {
   mouseAttackHold = false;
 }
 
+
+function updateCharacterAnimation(dt, now, stride) {
+  if (characterMixer && heroActions.idle && heroActions.locomotion) {
+    const locomotionWeight = THREE.MathUtils.damp(heroActions.locomotion.getEffectiveWeight(), stride, 8, dt);
+    heroActions.locomotion.setEffectiveWeight(locomotionWeight);
+    heroActions.idle.setEffectiveWeight(1 - locomotionWeight);
+    heroActions.locomotion.timeScale = THREE.MathUtils.lerp(0.75, 1.3, stride);
+  }
+
+  if (heroModelRoot && !characterMixer) {
+    const bob = Math.sin(now * (4 + stride * 8)) * (0.02 + stride * 0.02);
+    const sway = Math.sin(now * 5) * 0.03 * (0.3 + stride);
+    heroModelRoot.position.y = heroModelRoot.userData.baseY + bob;
+    heroModelRoot.rotation.z = sway;
+  }
+}
+
 window.addEventListener('keydown', (e) => {
   const k = normalizeKey(e);
 
@@ -727,6 +778,8 @@ function update(dt, now) {
   player.position.copy(state.pos);
   player.rotation.y = state.yaw;
   const stride = Math.min(1, new THREE.Vector2(state.vel.x, state.vel.z).length() / state.baseSpeed);
+  updateCharacterAnimation(dt, now, stride);
+
   coat.rotation.z = Math.sin(now * 12) * 0.03 * stride;
   mantle.material.emissiveIntensity = state.isChargingShot ? 0.55 : 0.22;
 
