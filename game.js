@@ -152,6 +152,14 @@ function bindingLabel(binding) {
   return binding;
 }
 
+function getCameraGroundForward() {
+  const forward = new THREE.Vector3();
+  camera.getWorldDirection(forward);
+  forward.y = 0;
+  if (forward.lengthSq() < 0.0001) return new THREE.Vector3(Math.sin(state.yaw), 0, Math.cos(state.yaw));
+  return forward.normalize();
+}
+
 function activateDash() {
   if (state.dashCooldown <= 0 && state.stamina >= 20) {
     state.dashTime = 0.16;
@@ -168,7 +176,7 @@ function applyEnemyDamage(amount) {
 }
 
 function spawnFireball(power) {
-  const forward = new THREE.Vector3(Math.sin(state.cameraYaw), 0, Math.cos(state.cameraYaw)).normalize();
+  const forward = getCameraGroundForward();
   const spawn = new THREE.Vector3().copy(state.pos).add(new THREE.Vector3(0, 1.12, 0)).add(forward.clone().multiplyScalar(1.05));
   const radius = THREE.MathUtils.lerp(0.16, 0.45, Math.min((power - 1) / 2.2, 1));
   const speed = 16 + power * 6;
@@ -357,7 +365,8 @@ function update(dt) {
     state.pos.x += input.x * currentSpeed * dt;
     state.pos.z += input.z * currentSpeed * dt;
   } else if (state.isChargingShot) {
-    desiredYaw = state.cameraYaw;
+    const cameraForward = getCameraGroundForward();
+    desiredYaw = Math.atan2(cameraForward.x, cameraForward.z);
   }
 
   state.yaw = lerpAngle(state.yaw, desiredYaw, state.isChargingShot ? 0.24 : 0.18);
@@ -387,8 +396,9 @@ function update(dt) {
 
   attackArc.visible = state.attackTime > 0 || state.isChargingShot;
   if (attackArc.visible) {
-    attackArc.position.copy(state.pos).add(new THREE.Vector3(Math.sin(state.cameraYaw) * 1.05, 1.0, Math.cos(state.cameraYaw) * 1.05));
-    attackArc.rotation.z = state.cameraYaw;
+    const cameraForward = getCameraGroundForward();
+    attackArc.position.copy(state.pos).add(new THREE.Vector3(cameraForward.x * 1.05, 1.0, cameraForward.z * 1.05));
+    attackArc.rotation.z = Math.atan2(cameraForward.x, cameraForward.z);
     attackArc.material.color.set(state.attackPower > 1.25 || state.isChargingShot ? 0xfb7185 : 0xf97316);
   }
 
