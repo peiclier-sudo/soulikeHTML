@@ -10,12 +10,12 @@ const menuActions = document.getElementById('menu-actions');
 const menuDefinitions = {
   welcome: {
     title: 'SOULLIKE',
-    subtitle: 'A dark mage rises. Begin your journey.',
+    subtitle: 'Ascend from ember to legend.',
     actions: [{ label: 'Enter Dashboard', next: 'dashboard', primary: true }],
   },
   dashboard: {
     title: 'Dashboard',
-    subtitle: 'Choose your next action.',
+    subtitle: 'Choose your path.',
     actions: [
       { label: 'Fight a boss', next: 'boss-select', primary: true },
       { label: 'Parameters', next: 'parameters' },
@@ -25,7 +25,7 @@ const menuDefinitions = {
   },
   'boss-select': {
     title: 'Fight a Boss',
-    subtitle: 'Only one encounter is available right now.',
+    subtitle: 'Only one encounter is available.',
     actions: [
       { label: 'Current Fight Scene', next: 'fight', primary: true },
       { label: 'Back', next: 'dashboard' },
@@ -33,7 +33,7 @@ const menuDefinitions = {
   },
   parameters: {
     title: 'Parameters',
-    subtitle: 'Configuration scene placeholder.',
+    subtitle: 'Settings scene placeholder.',
     actions: [{ label: 'Back', next: 'dashboard', primary: true }],
   },
   inventory: {
@@ -44,6 +44,195 @@ const menuDefinitions = {
 };
 
 let currentScene = 'welcome';
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x070d1a);
+scene.fog = new THREE.Fog(0x070d1a, 24, 130);
+
+const camera = new THREE.PerspectiveCamera(65, canvas.width / canvas.height, 0.1, 220);
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(canvas.width, canvas.height, false);
+renderer.shadowMap.enabled = true;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.03;
+
+const hemi = new THREE.HemisphereLight(0x8eb9ff, 0x0f1218, 0.85);
+scene.add(hemi);
+const moon = new THREE.DirectionalLight(0xdbeafe, 1.25);
+moon.position.set(10, 20, 8);
+moon.castShadow = true;
+scene.add(moon);
+
+const ground = new THREE.Mesh(
+  new THREE.PlaneGeometry(180, 180),
+  new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.9, metalness: 0.02 })
+);
+ground.rotation.x = -Math.PI / 2;
+ground.receiveShadow = true;
+scene.add(ground);
+
+const grid = new THREE.GridHelper(160, 80, 0x334155, 0x1f2937);
+grid.material.opacity = 0.32;
+grid.material.transparent = true;
+scene.add(grid);
+
+const platform = new THREE.Mesh(
+  new THREE.CylinderGeometry(9, 10, 0.28, 60),
+  new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.55, metalness: 0.16, emissive: 0x1d4ed8, emissiveIntensity: 0.1 })
+);
+platform.position.y = 0.14;
+platform.receiveShadow = true;
+scene.add(platform);
+
+const player = new THREE.Group();
+
+const coat = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.28, 0.62, 1.35, 14),
+  new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.68, metalness: 0.08 })
+);
+coat.position.y = 0.86;
+coat.castShadow = true;
+player.add(coat);
+
+const chest = new THREE.Mesh(
+  new THREE.CapsuleGeometry(0.3, 0.4, 5, 8),
+  new THREE.MeshStandardMaterial({ color: 0x1f2937, roughness: 0.5, metalness: 0.18 })
+);
+chest.position.y = 1.34;
+chest.castShadow = true;
+player.add(chest);
+
+const mantle = new THREE.Mesh(
+  new THREE.TorusGeometry(0.35, 0.06, 12, 20),
+  new THREE.MeshStandardMaterial({ color: 0x2563eb, roughness: 0.42, metalness: 0.28, emissive: 0x1d4ed8, emissiveIntensity: 0.22 })
+);
+mantle.position.y = 1.5;
+mantle.rotation.x = Math.PI / 2;
+player.add(mantle);
+
+const head = new THREE.Mesh(
+  new THREE.SphereGeometry(0.2, 18, 14),
+  new THREE.MeshStandardMaterial({ color: 0xe5c39d, roughness: 0.72 })
+);
+head.position.y = 1.75;
+head.castShadow = true;
+player.add(head);
+
+const helmRing = new THREE.Mesh(
+  new THREE.TorusGeometry(0.26, 0.03, 12, 26),
+  new THREE.MeshStandardMaterial({ color: 0x60a5fa, emissive: 0x1d4ed8, emissiveIntensity: 0.45 })
+);
+helmRing.position.y = 2.0;
+helmRing.rotation.x = Math.PI / 2;
+player.add(helmRing);
+
+const crown = new THREE.Mesh(
+  new THREE.ConeGeometry(0.24, 0.6, 18),
+  new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.55, metalness: 0.22 })
+);
+crown.position.y = 2.22;
+crown.rotation.z = -0.1;
+crown.castShadow = true;
+player.add(crown);
+
+const shoulderL = new THREE.Mesh(
+  new THREE.SphereGeometry(0.12, 12, 10),
+  new THREE.MeshStandardMaterial({ color: 0x374151, roughness: 0.5, metalness: 0.25 })
+);
+shoulderL.position.set(-0.32, 1.45, 0.03);
+player.add(shoulderL);
+
+const shoulderR = shoulderL.clone();
+shoulderR.position.x = 0.32;
+player.add(shoulderR);
+
+const firestaff = new THREE.Group();
+const staffShaft = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.045, 0.06, 1.3, 12),
+  new THREE.MeshStandardMaterial({ color: 0x4b3b2b, roughness: 0.75 })
+);
+staffShaft.rotation.z = 0.28;
+firestaff.add(staffShaft);
+
+const staffGuard = new THREE.Mesh(
+  new THREE.TorusGeometry(0.11, 0.02, 10, 20),
+  new THREE.MeshStandardMaterial({ color: 0xf59e0b, emissive: 0xb45309, emissiveIntensity: 0.5 })
+);
+staffGuard.position.y = 0.55;
+staffGuard.rotation.x = Math.PI / 2;
+firestaff.add(staffGuard);
+
+const staffCore = new THREE.Mesh(
+  new THREE.SphereGeometry(0.13, 14, 12),
+  new THREE.MeshStandardMaterial({ color: 0xfb923c, emissive: 0xea580c, emissiveIntensity: 0.9 })
+);
+staffCore.position.y = 0.62;
+firestaff.add(staffCore);
+
+firestaff.position.set(0.46, 1.24, 0.08);
+firestaff.rotation.z = 0.48;
+player.add(firestaff);
+scene.add(player);
+
+const enemy = new THREE.Mesh(
+  new THREE.CapsuleGeometry(0.55, 1.2, 7, 12),
+  new THREE.MeshStandardMaterial({ color: 0xfb7185, roughness: 0.6 })
+);
+enemy.position.set(0, 1.1, -9);
+enemy.castShadow = true;
+scene.add(enemy);
+
+const attackArc = new THREE.Mesh(
+  new THREE.TorusGeometry(1.5, 0.06, 12, 30, Math.PI * 0.9),
+  new THREE.MeshBasicMaterial({ color: 0xf97316 })
+);
+attackArc.visible = false;
+attackArc.rotation.x = Math.PI / 2;
+scene.add(attackArc);
+
+const keys = new Set();
+let chargeStart = null;
+let mouseOrbit = false;
+let mouseAttackHold = false;
+let dashTrailTimer = 0;
+
+const fireballs = [];
+const cameraKick = new THREE.Vector2(0, 0);
+
+const viewModes = ['classic', 'fortnite'];
+const cameraModeConfig = {
+  classic: { dist: 7.2, eyeHeight: 2.3, sideOffset: 0, lookHeight: 1.2 },
+  fortnite: { dist: 4.0, eyeHeight: 1.55, sideOffset: 1.25, lookHeight: 1.4 },
+};
+
+const state = {
+  pos: new THREE.Vector3(0, 0, 4),
+  vel: new THREE.Vector3(0, 0, 0),
+  velY: 0,
+  baseSpeed: 8.3,
+  accel: 42,
+  drag: 19,
+  airControl: 0.45,
+  dashSpeed: 28,
+  dashTime: 0,
+  dashCooldown: 0,
+  dashBinding: 'key:shift',
+  isRebindingDash: false,
+  pointerLocked: false,
+  stamina: 100,
+  attackTime: 0,
+  attackPower: 0,
+  attackRecover: 0,
+  isChargingShot: false,
+  yaw: Math.PI,
+  cameraYaw: Math.PI,
+  cameraPitch: 0.36,
+  enemyHp: 100,
+  enemyHitLock: 0,
+  viewMode: 'classic',
+  camPos: new THREE.Vector3(0, 4.5, 8),
+};
 
 function releasePointerLock() {
   if (document.pointerLockElement === canvas) document.exitPointerLock();
@@ -84,162 +273,6 @@ function changeScene(nextScene) {
     menuActions.appendChild(button);
   });
 }
-
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x0a1220);
-scene.fog = new THREE.Fog(0x0a1220, 20, 110);
-
-const camera = new THREE.PerspectiveCamera(65, canvas.width / canvas.height, 0.1, 200);
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-renderer.setSize(canvas.width, canvas.height, false);
-renderer.shadowMap.enabled = true;
-
-const hemi = new THREE.HemisphereLight(0x9fb7ff, 0x121212, 1.1);
-scene.add(hemi);
-const sun = new THREE.DirectionalLight(0xffffff, 1.2);
-sun.position.set(8, 16, 6);
-sun.castShadow = true;
-scene.add(sun);
-
-const ground = new THREE.Mesh(
-  new THREE.PlaneGeometry(120, 120),
-  new THREE.MeshStandardMaterial({ color: 0x22334a, roughness: 0.9, metalness: 0.05 })
-);
-ground.rotation.x = -Math.PI / 2;
-ground.receiveShadow = true;
-scene.add(ground);
-
-const grid = new THREE.GridHelper(120, 60, 0x4b5f88, 0x334562);
-scene.add(grid);
-
-const player = new THREE.Group();
-
-const robe = new THREE.Mesh(
-  new THREE.CylinderGeometry(0.28, 0.52, 1.2, 12),
-  new THREE.MeshStandardMaterial({ color: 0x4338ca, roughness: 0.72 })
-);
-robe.castShadow = true;
-robe.position.y = 0.75;
-player.add(robe);
-
-const chest = new THREE.Mesh(
-  new THREE.CapsuleGeometry(0.26, 0.36, 4, 8),
-  new THREE.MeshStandardMaterial({ color: 0x6366f1, roughness: 0.5 })
-);
-chest.castShadow = true;
-chest.position.y = 1.25;
-player.add(chest);
-
-const head = new THREE.Mesh(
-  new THREE.SphereGeometry(0.2, 14, 12),
-  new THREE.MeshStandardMaterial({ color: 0xf1c27d, roughness: 0.7 })
-);
-head.castShadow = true;
-head.position.y = 1.67;
-player.add(head);
-
-const hatBrim = new THREE.Mesh(
-  new THREE.CylinderGeometry(0.34, 0.34, 0.035, 20),
-  new THREE.MeshStandardMaterial({ color: 0x1e1b4b, roughness: 0.6 })
-);
-hatBrim.castShadow = true;
-hatBrim.position.y = 1.84;
-player.add(hatBrim);
-
-const hatCone = new THREE.Mesh(
-  new THREE.ConeGeometry(0.22, 0.55, 16),
-  new THREE.MeshStandardMaterial({ color: 0x312e81, roughness: 0.62 })
-);
-hatCone.castShadow = true;
-hatCone.position.y = 2.1;
-hatCone.rotation.z = -0.09;
-player.add(hatCone);
-
-const sleeveL = new THREE.Mesh(
-  new THREE.CapsuleGeometry(0.1, 0.36, 4, 6),
-  new THREE.MeshStandardMaterial({ color: 0x4f46e5, roughness: 0.58 })
-);
-sleeveL.castShadow = true;
-sleeveL.position.set(-0.33, 1.22, 0.04);
-sleeveL.rotation.z = 0.45;
-player.add(sleeveL);
-
-const sleeveR = sleeveL.clone();
-sleeveR.position.x = 0.33;
-sleeveR.rotation.z = -0.45;
-player.add(sleeveR);
-
-const firestaff = new THREE.Group();
-const staffShaft = new THREE.Mesh(
-  new THREE.CylinderGeometry(0.045, 0.06, 1.15, 10),
-  new THREE.MeshStandardMaterial({ color: 0x6b4f3a, roughness: 0.72 })
-);
-staffShaft.rotation.z = 0.2;
-firestaff.add(staffShaft);
-
-const staffCore = new THREE.Mesh(
-  new THREE.SphereGeometry(0.12, 12, 10),
-  new THREE.MeshStandardMaterial({ color: 0xfb923c, emissive: 0xea580c, emissiveIntensity: 0.85 })
-);
-staffCore.position.set(0, 0.58, 0);
-firestaff.add(staffCore);
-
-firestaff.position.set(0.45, 1.18, 0.1);
-firestaff.rotation.z = 0.4;
-player.add(firestaff);
-scene.add(player);
-
-const enemy = new THREE.Mesh(
-  new THREE.CapsuleGeometry(0.5, 1.0, 6, 10),
-  new THREE.MeshStandardMaterial({ color: 0xfb7185, roughness: 0.6 })
-);
-enemy.position.set(0, 1, -7);
-enemy.castShadow = true;
-scene.add(enemy);
-
-const attackArc = new THREE.Mesh(
-  new THREE.TorusGeometry(1.4, 0.05, 8, 32, Math.PI * 0.9),
-  new THREE.MeshBasicMaterial({ color: 0xf97316 })
-);
-attackArc.visible = false;
-attackArc.rotation.x = Math.PI / 2;
-scene.add(attackArc);
-
-const keys = new Set();
-let chargeStart = null;
-let mouseOrbit = false;
-let mouseAttackHold = false;
-const fireballs = [];
-
-const viewModes = ['classic', 'fortnite'];
-const cameraModeConfig = {
-  classic: { dist: 6.6, eyeHeight: 2.2, sideOffset: 0, lookHeight: 1.2 },
-  fortnite: { dist: 3.8, eyeHeight: 1.45, sideOffset: 1.2, lookHeight: 1.4 },
-};
-
-const state = {
-  pos: new THREE.Vector3(0, 0, 4),
-  velY: 0,
-  speed: 7.5,
-  dashSpeed: 22,
-  dashTime: 0,
-  dashCooldown: 0,
-  dashBinding: 'key:shift',
-  isRebindingDash: false,
-  pointerLocked: false,
-  stamina: 100,
-  attackTime: 0,
-  attackPower: 0,
-  isChargingShot: false,
-  yaw: Math.PI,
-  cameraYaw: Math.PI,
-  cameraPitch: 0.38,
-  enemyHp: 100,
-  enemyHitLock: 0,
-  viewMode: 'classic',
-  camPos: new THREE.Vector3(0, 4.5, 8),
-};
 
 function lerpAngle(current, target, alpha) {
   const delta = Math.atan2(Math.sin(target - current), Math.cos(target - current));
@@ -284,56 +317,77 @@ function getCameraGroundForward() {
   return forward.normalize();
 }
 
+function applyCameraKick(strength) {
+  cameraKick.x += (Math.random() - 0.5) * strength * 0.8;
+  cameraKick.y += strength;
+}
+
 function activateDash() {
-  if (state.dashCooldown <= 0 && state.stamina >= 20) {
-    state.dashTime = 0.16;
-    state.dashCooldown = 0.6;
-    state.stamina -= 20;
+  if (state.dashCooldown <= 0 && state.stamina >= 18) {
+    state.dashTime = 0.17;
+    state.dashCooldown = 0.52;
+    state.stamina -= 18;
+    dashTrailTimer = 0.12;
+    const forward = getCameraGroundForward();
+    state.vel.x = forward.x * state.dashSpeed;
+    state.vel.z = forward.z * state.dashSpeed;
+    state.yaw = Math.atan2(forward.x, forward.z);
+    applyCameraKick(0.01);
   }
 }
 
 function applyEnemyDamage(amount) {
   if (state.enemyHitLock > 0 || state.enemyHp <= 0) return;
   state.enemyHp = Math.max(0, state.enemyHp - amount);
-  state.enemyHitLock = 0.08;
-  enemy.material.color.set(state.enemyHp > 0 ? 0xf97393 : 0x6b7280);
+  state.enemyHitLock = 0.07;
+  enemy.material.color.set(state.enemyHp > 0 ? 0xfb7185 : 0x6b7280);
+  enemy.scale.set(1.06, 1.0, 1.06);
 }
 
 function spawnFireball(power) {
   const forward = getCameraGroundForward();
-  const spawn = new THREE.Vector3().copy(state.pos).add(new THREE.Vector3(0, 1.12, 0)).add(forward.clone().multiplyScalar(1.05));
-  const radius = THREE.MathUtils.lerp(0.16, 0.45, Math.min((power - 1) / 2.2, 1));
-  const speed = 16 + power * 6;
+  const spawn = new THREE.Vector3().copy(state.pos).add(new THREE.Vector3(0, 1.15, 0)).add(forward.clone().multiplyScalar(1.0));
+  const radius = THREE.MathUtils.lerp(0.16, 0.48, Math.min((power - 1) / 2.2, 1));
+  const speed = 18 + power * 7;
 
   const mesh = new THREE.Mesh(
-    new THREE.SphereGeometry(radius, 18, 14),
+    new THREE.SphereGeometry(radius, 20, 16),
     new THREE.MeshStandardMaterial({
       color: power > 1.3 ? 0xfb7185 : 0xfb923c,
       emissive: 0xea580c,
-      emissiveIntensity: 1.2,
-      roughness: 0.3,
-      metalness: 0.05,
+      emissiveIntensity: 1.4,
+      roughness: 0.26,
+      metalness: 0.06,
     })
   );
   mesh.position.copy(spawn);
   mesh.castShadow = true;
   scene.add(mesh);
 
-  fireballs.push({ mesh, velocity: forward.multiplyScalar(speed), radius, life: 2.4, damage: Math.round(12 * power) });
+  fireballs.push({
+    mesh,
+    velocity: forward.multiplyScalar(speed),
+    radius,
+    life: 2.0,
+    damage: Math.round(11 + 10 * power),
+    pulse: Math.random() * 3,
+  });
 
-  state.attackTime = power > 1.25 ? 0.42 : 0.24;
+  state.attackTime = power > 1.25 ? 0.48 : 0.26;
   state.attackPower = power;
+  state.attackRecover = power > 1.25 ? 0.14 : 0.08;
+  applyCameraKick(power > 1.25 ? 0.016 : 0.008);
 }
 
 function releaseFireShot() {
-  if (chargeStart === null) return;
+  if (chargeStart === null || state.attackRecover > 0) return;
   const held = Math.min((performance.now() - chargeStart) / 1000, 1.8);
-  const charged = held >= 0.28;
-  const cost = charged ? 26 : 12;
+  const charged = held >= 0.32;
+  const cost = charged ? 24 : 10;
 
   if (state.stamina >= cost) {
     state.stamina -= cost;
-    const power = charged ? Math.max(1.3, Math.min(3.2, 1.3 + held * 1.2)) : 1;
+    const power = charged ? Math.max(1.4, Math.min(3.2, 1.3 + held * 1.2)) : 1;
     spawnFireball(power);
   }
 
@@ -373,7 +427,7 @@ window.addEventListener('keydown', (e) => {
 
   if (e.code === 'Space') {
     e.preventDefault();
-    if (state.pos.y <= 0.001) state.velY = 7.8;
+    if (state.pos.y <= 0.001) state.velY = 8.2;
   }
 
   if (state.dashBinding === keyBinding(k)) activateDash();
@@ -426,17 +480,20 @@ window.addEventListener('mouseup', (e) => {
 window.addEventListener('mousemove', (e) => {
   if (currentScene !== 'fight') return;
   if (!state.pointerLocked && !mouseOrbit) return;
-  const sensitivity = 0.005;
-  const verticalSense = 0.004;
+  const sensitivity = 0.0045;
+  const verticalSense = 0.0038;
   state.cameraYaw -= e.movementX * sensitivity;
-  state.cameraPitch = THREE.MathUtils.clamp(state.cameraPitch + e.movementY * verticalSense, 0.12, 1.05);
+  state.cameraPitch = THREE.MathUtils.clamp(state.cameraPitch + e.movementY * verticalSense, 0.1, 1.05);
 });
 
-function updateFireballs(dt) {
+function updateFireballs(dt, now) {
   for (let i = fireballs.length - 1; i >= 0; i -= 1) {
     const ball = fireballs[i];
     ball.life -= dt;
+    ball.pulse += dt * 10;
     ball.mesh.position.addScaledVector(ball.velocity, dt);
+    const pulseScale = 1 + Math.sin(ball.pulse) * 0.05;
+    ball.mesh.scale.setScalar(pulseScale);
 
     const toEnemy = new THREE.Vector3().subVectors(enemy.position, ball.mesh.position);
     const hitRadius = ball.radius + 0.78;
@@ -454,19 +511,40 @@ function updateFireballs(dt) {
       fireballs.splice(i, 1);
     }
   }
+
+  if (dashTrailTimer > 0) {
+    dashTrailTimer = Math.max(0, dashTrailTimer - dt);
+    if (Math.floor(now * 120) % 2 === 0) {
+      const echo = new THREE.Mesh(
+        new THREE.CapsuleGeometry(0.36, 1.0, 4, 6),
+        new THREE.MeshBasicMaterial({ color: 0x60a5fa, transparent: true, opacity: 0.28 })
+      );
+      echo.position.copy(state.pos).add(new THREE.Vector3(0, 0.92, 0));
+      echo.rotation.y = state.yaw;
+      scene.add(echo);
+      setTimeout(() => {
+        scene.remove(echo);
+        echo.geometry.dispose();
+        echo.material.dispose();
+      }, 80);
+    }
+  }
 }
 
 let prev = performance.now();
 function tick(now) {
   const dt = Math.min((now - prev) / 1000, 0.033);
   prev = now;
-  if (currentScene === 'fight') update(dt);
+
+  if (currentScene === 'fight') update(dt, now / 1000);
+
+  cameraKick.multiplyScalar(Math.pow(0.001, dt));
   renderer.render(scene, camera);
   requestAnimationFrame(tick);
 }
 requestAnimationFrame(tick);
 
-function update(dt) {
+function update(dt, now) {
   let ix = 0;
   let iz = 0;
   if (keys.has('z') || keys.has('w')) iz -= 1;
@@ -474,58 +552,78 @@ function update(dt) {
   if (keys.has('q') || keys.has('a')) ix -= 1;
   if (keys.has('d')) ix += 1;
 
-  const input = new THREE.Vector3(ix, 0, iz);
+  const moveInput = new THREE.Vector3(ix, 0, iz);
+  if (moveInput.lengthSq() > 0) {
+    moveInput.normalize();
+    moveInput.applyAxisAngle(new THREE.Vector3(0, 1, 0), state.cameraYaw);
+  }
+
+  const grounded = state.pos.y <= 0.001;
+  const accel = state.accel * (grounded ? 1 : state.airControl);
+  const targetSpeed = state.baseSpeed * (state.dashTime > 0 ? 1.45 : 1);
+
+  const targetVelX = moveInput.x * targetSpeed;
+  const targetVelZ = moveInput.z * targetSpeed;
+
+  state.vel.x = THREE.MathUtils.damp(state.vel.x, targetVelX, accel, dt);
+  state.vel.z = THREE.MathUtils.damp(state.vel.z, targetVelZ, accel, dt);
+
+  if (moveInput.lengthSq() === 0 && state.dashTime <= 0) {
+    state.vel.x = THREE.MathUtils.damp(state.vel.x, 0, state.drag, dt);
+    state.vel.z = THREE.MathUtils.damp(state.vel.z, 0, state.drag, dt);
+  }
+
+  state.pos.x += state.vel.x * dt;
+  state.pos.z += state.vel.z * dt;
+
   let desiredYaw = state.yaw;
-
-  if (input.lengthSq() > 0) {
-    input.normalize();
-    const yawMatrix = new THREE.Matrix4().makeRotationY(state.cameraYaw);
-    input.applyMatrix4(yawMatrix);
-
-    desiredYaw = Math.atan2(input.x, input.z);
-
-    const currentSpeed = state.dashTime > 0 ? state.dashSpeed : state.speed;
-    state.pos.x += input.x * currentSpeed * dt;
-    state.pos.z += input.z * currentSpeed * dt;
-  } else if (state.isChargingShot) {
+  if (moveInput.lengthSq() > 0) desiredYaw = Math.atan2(moveInput.x, moveInput.z);
+  else if (state.isChargingShot) {
     const cameraForward = getCameraGroundForward();
     desiredYaw = Math.atan2(cameraForward.x, cameraForward.z);
   }
 
-  state.yaw = lerpAngle(state.yaw, desiredYaw, state.isChargingShot ? 0.24 : 0.18);
+  const turnSpeed = state.dashTime > 0 ? 0.26 : state.isChargingShot ? 0.22 : 0.16;
+  state.yaw = lerpAngle(state.yaw, desiredYaw, turnSpeed);
 
   state.dashTime = Math.max(0, state.dashTime - dt);
   state.dashCooldown = Math.max(0, state.dashCooldown - dt);
   state.attackTime = Math.max(0, state.attackTime - dt);
+  state.attackRecover = Math.max(0, state.attackRecover - dt);
   state.enemyHitLock = Math.max(0, state.enemyHitLock - dt);
 
-  state.velY -= 19 * dt;
+  state.velY -= 20 * dt;
   state.pos.y += state.velY * dt;
   if (state.pos.y < 0) {
     state.pos.y = 0;
     state.velY = 0;
   }
 
-  state.pos.x = THREE.MathUtils.clamp(state.pos.x, -24, 24);
-  state.pos.z = THREE.MathUtils.clamp(state.pos.z, -24, 24);
-  state.stamina = Math.min(100, state.stamina + (state.attackTime > 0 ? 10 : 18) * dt);
+  state.pos.x = THREE.MathUtils.clamp(state.pos.x, -30, 30);
+  state.pos.z = THREE.MathUtils.clamp(state.pos.z, -30, 30);
+  state.stamina = Math.min(100, state.stamina + (state.attackTime > 0 ? 10 : 20) * dt);
 
   player.position.copy(state.pos);
   player.rotation.y = state.yaw;
+  const stride = Math.min(1, new THREE.Vector2(state.vel.x, state.vel.z).length() / state.baseSpeed);
+  coat.rotation.z = Math.sin(now * 12) * 0.03 * stride;
+  mantle.material.emissiveIntensity = state.isChargingShot ? 0.55 : 0.22;
 
-  firestaff.rotation.x = state.attackTime > 0 ? -0.75 : 0;
-  firestaff.rotation.y = state.attackTime > 0 ? 0.2 : 0;
-  staffCore.material.emissiveIntensity = state.isChargingShot ? 1.8 : 0.85;
+  firestaff.rotation.x = state.attackTime > 0 ? -0.86 : -0.12 + Math.sin(now * 4) * 0.05;
+  firestaff.rotation.y = state.attackTime > 0 ? 0.24 : 0;
+  staffCore.material.emissiveIntensity = state.isChargingShot ? 2.2 : 1.0 + Math.sin(now * 6) * 0.08;
+
+  enemy.scale.lerp(new THREE.Vector3(1, 1, 1), 0.12);
 
   attackArc.visible = state.attackTime > 0 || state.isChargingShot;
   if (attackArc.visible) {
     const cameraForward = getCameraGroundForward();
-    attackArc.position.copy(state.pos).add(new THREE.Vector3(cameraForward.x * 1.05, 1.0, cameraForward.z * 1.05));
+    attackArc.position.copy(state.pos).add(new THREE.Vector3(cameraForward.x * 1.08, 1.0, cameraForward.z * 1.08));
     attackArc.rotation.z = Math.atan2(cameraForward.x, cameraForward.z);
     attackArc.material.color.set(state.attackPower > 1.25 || state.isChargingShot ? 0xfb7185 : 0xf97316);
   }
 
-  updateFireballs(dt);
+  updateFireballs(dt, now);
 
   const mode = cameraModeConfig[state.viewMode];
   const back = new THREE.Vector3(
@@ -546,13 +644,17 @@ function update(dt) {
 
   const lookTarget = new THREE.Vector3().copy(state.pos).add(new THREE.Vector3(0, mode.lookHeight, 0));
   if (state.viewMode === 'fortnite') lookTarget.add(right.clone().multiplyScalar(0.45));
-  camera.lookAt(lookTarget);
+
+  const lookWithKick = lookTarget.clone()
+    .add(new THREE.Vector3(Math.sin(state.cameraYaw + Math.PI / 2) * cameraKick.x, 0, Math.cos(state.cameraYaw + Math.PI / 2) * cameraKick.x))
+    .add(new THREE.Vector3(0, cameraKick.y, 0));
+  camera.lookAt(lookWithKick);
 
   const hold = chargeStart ? ((performance.now() - chargeStart) / 1000).toFixed(2) : '0.00';
   const lock = state.pointerLocked ? 'LOCKED' : 'CLICK CANVAS';
   const dashLabel = bindingLabel(state.dashBinding);
   const dashBindStatus = state.isRebindingDash ? 'PRESS A KEY OR MOUSE BUTTON...' : 'B TO REBIND';
-  hud.textContent = `View ${state.viewMode.toUpperCase()} (V) | Mouse ${lock} | Camera Orbit Right Click | Attack Left Click (Hold/Release) | Dash ${dashLabel} (${dashBindStatus}) | Menu M | Charge ${hold}s | Stamina ${state.stamina.toFixed(0)} | Dash CD ${state.dashCooldown.toFixed(2)} | Enemy HP ${state.enemyHp}`;
+  hud.textContent = `View ${state.viewMode.toUpperCase()} (V) | Mouse ${lock} | Attack Left Click | Dash ${dashLabel} (${dashBindStatus}) | Menu M | Charge ${hold}s | Stamina ${state.stamina.toFixed(0)} | Dash CD ${state.dashCooldown.toFixed(2)} | Enemy HP ${state.enemyHp}`;
 }
 
 window.addEventListener('resize', () => {
