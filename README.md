@@ -8,7 +8,7 @@ Yes: this project is now **3D** and uses a **third-person perspective**.
 - Third-person follow camera + Fortnite-style shoulder mode (toggle `V`)
 - ZQSD + WASD movement
 - Jump on Space
-- Dash on Shift (stamina + cooldown)
+- Dash with customizable keybind (default Shift, stamina + cooldown)
 - Basic attack on J
 - Charged attack by holding/releasing K
 - Enemy dummy with HP and hit detection cone
@@ -25,12 +25,14 @@ Open `http://localhost:4173`
 
 - Move: `ZQSD` (or `WASD`)
 - Jump: `Space`
-- Dash: `Shift`
+- Dash: default `Shift` (customizable)
 - Basic attack: `J`
 - Charged attack: hold and release `K`
 - Camera orbit: hold right mouse button and move mouse
 - Aim control: hold left click and move mouse (full character facing + camera control)
 - View mode toggle: `V` (Classic / Fortnite shoulder)
+- Mouse lock: click canvas to lock/hide cursor (`Esc` to release)
+- Dash rebind: press `B`, then press any key to set your dash button
 
 ## Vercel deployment
 

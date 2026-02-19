@@ -34,3 +34,7 @@ body {
 @media (max-width: 1000px) {
   .layout { grid-template-columns: 1fr; }
 }
+
+#game.cursor-locked {
+  cursor: none;
+}

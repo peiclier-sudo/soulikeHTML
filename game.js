@@ -82,6 +82,9 @@ const state = {
   dashSpeed: 22,
   dashTime: 0,
   dashCooldown: 0,
+  dashKey: 'shift',
+  isRebindingDash: false,
+  pointerLocked: false,
   stamina: 100,
   attackTime: 0,
   attackPower: 0,
@@ -99,9 +102,41 @@ function lerpAngle(current, target, alpha) {
   return current + delta * alpha;
 }
 
+function normalizeKey(event) {
+  if (event.key === ' ') return 'space';
+  return event.key.toLowerCase();
+}
+
+function keyLabel(key) {
+  if (key === ' ') return 'Space';
+  if (key === 'space') return 'Space';
+  return key.length === 1 ? key.toUpperCase() : key[0].toUpperCase() + key.slice(1);
+}
+
+function activateDash() {
+  if (state.dashCooldown <= 0 && state.stamina >= 20) {
+    state.dashTime = 0.16;
+    state.dashCooldown = 0.6;
+    state.stamina -= 20;
+  }
+}
+
 window.addEventListener('keydown', (e) => {
-  const k = e.key.toLowerCase();
+  const k = normalizeKey(e);
+
+  if (state.isRebindingDash) {
+    e.preventDefault();
+    if (k !== 'escape') state.dashKey = k;
+    state.isRebindingDash = false;
+    return;
+  }
+
   keys.add(k);
+
+  if (k === 'b') {
+    state.isRebindingDash = true;
+    return;
+  }
 
   if (k === 'v') {
     const idx = viewModes.indexOf(state.viewMode);
@@ -112,11 +147,9 @@ window.addEventListener('keydown', (e) => {
     e.preventDefault();
     if (state.pos.y <= 0.001) state.velY = 7.8;
   }
-  if (e.key === 'Shift' && state.dashCooldown <= 0 && state.stamina >= 20) {
-    state.dashTime = 0.16;
-    state.dashCooldown = 0.6;
-    state.stamina -= 20;
-  }
+
+  if (k === state.dashKey) activateDash();
+
   if (k === 'j' && state.attackTime <= 0 && state.stamina >= 12) {
     state.attackTime = 0.2;
     state.attackPower = 1;
@@ -127,8 +160,8 @@ window.addEventListener('keydown', (e) => {
 });
 
 window.addEventListener('keyup', (e) => {
-  keys.delete(e.key.toLowerCase());
-  if (e.key.toLowerCase() === 'k' && chargeStart !== null && state.attackTime <= 0) {
+  keys.delete(normalizeKey(e));
+  if (normalizeKey(e) === 'k' && chargeStart !== null && state.attackTime <= 0) {
     const held = Math.min((performance.now() - chargeStart) / 1000, 1.8);
     const power = Math.max(1.2, Math.min(3.2, 1.2 + held * 1.2));
     if (state.stamina >= 26) {
@@ -141,23 +174,31 @@ window.addEventListener('keyup', (e) => {
   }
 });
 
+document.addEventListener('pointerlockchange', () => {
+  state.pointerLocked = document.pointerLockElement === canvas;
+  canvas.classList.toggle('cursor-locked', state.pointerLocked);
+  if (!state.pointerLocked) {
+    mouseAim = false;
+    mouseOrbit = false;
+  }
+});
+
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 canvas.addEventListener('mousedown', (e) => {
+  if (document.pointerLockElement !== canvas) {
+    canvas.requestPointerLock();
+  }
   if (e.button === 0) {
     mouseAim = true;
-    canvas.style.cursor = 'grabbing';
   }
   if (e.button === 2) mouseOrbit = true;
 });
 window.addEventListener('mouseup', (e) => {
-  if (e.button === 0) {
-    mouseAim = false;
-    canvas.style.cursor = 'default';
-  }
+  if (e.button === 0) mouseAim = false;
   if (e.button === 2) mouseOrbit = false;
 });
 window.addEventListener('mousemove', (e) => {
-  if (!mouseOrbit && !mouseAim) return;
+  if (!state.pointerLocked && !mouseOrbit && !mouseAim) return;
   const sensitivity = mouseAim ? 0.0045 : 0.005;
   const verticalSense = 0.004;
   state.cameraYaw -= e.movementX * sensitivity;
@@ -270,7 +311,10 @@ function update(dt) {
 
   const hold = chargeStart ? ((performance.now() - chargeStart) / 1000).toFixed(2) : '0.00';
   const aim = mouseAim ? 'ON' : 'OFF';
-  hud.textContent = `View ${state.viewMode.toUpperCase()} (V) | Aim Drag ${aim} (Hold Left Click) | Stamina ${state.stamina.toFixed(0)} | Dash CD ${state.dashCooldown.toFixed(2)} | Enemy HP ${state.enemyHp} | Charge ${hold}s`;
+  const lock = state.pointerLocked ? 'LOCKED' : 'CLICK CANVAS';
+  const dashLabel = keyLabel(state.dashKey);
+  const dashBindStatus = state.isRebindingDash ? 'PRESS A KEY...' : 'B TO REBIND';
+  hud.textContent = `View ${state.viewMode.toUpperCase()} (V) | Mouse ${lock} | Aim ${aim} (Hold Left Click) | Dash ${dashLabel} (${dashBindStatus}) | Stamina ${state.stamina.toFixed(0)} | Dash CD ${state.dashCooldown.toFixed(2)} | Enemy HP ${state.enemyHp} | Charge ${hold}s`;
 }
 
 window.addEventListener('resize', () => {
