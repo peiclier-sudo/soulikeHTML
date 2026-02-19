@@ -2,23 +2,21 @@
 
 Put your model in this folder.
 
-## Fastest path
-- Name it `hero.glb`
-- Final path: `/models/hero.glb`
-
-## Robust path (recommended)
-Use `models/manifest.json` and set `hero` to your actual filename.
+## Recommended setup
+1. Copy your file into `models/`
+2. Edit `models/manifest.json`
+3. Set `hero` to the exact filename
 
 Example:
 ```json
 {
   "hero": "MyCharacter.glb",
-  "paths": ["AltCharacter.glb"]
+  "paths": []
 }
 ```
 
-## Runtime override
-You can also force a path with URL query:
-- `?hero=/models/MyCharacter.glb`
+## Optional override
+- URL query: `?hero=/models/MyCharacter.glb`
+- localStorage: `heroModelPath`
 
-If all candidates fail, HUD will show `FALLBACK HERO (...)` and console prints all tried paths.
+The loader now **only** tries configured paths (query/localStorage/manifest), which avoids noisy 404 probes.

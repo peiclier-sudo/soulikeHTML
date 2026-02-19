@@ -209,31 +209,36 @@ function applyLoadedHero(gltf, sourcePath) {
 function loadHeroModel() {
   const loader = new GLTFLoader();
 
-  const staticCandidates = [
-    '/models/hero.glb',
-    '/models/Hero.glb',
-    '/models/hero.GLB',
-    '/Models/hero.glb',
-    '/Models/Hero.glb',
-    '/hero.glb',
-    '/assets/hero.glb',
-  ];
-
-  function normalizePath(path) {
-    if (!path) return null;
+  function toUrl(path) {
+    if (!path || typeof path !== 'string') return null;
     if (/^https?:\/\//i.test(path)) return path;
-    return path.startsWith('/') ? path : `/${path}`;
+    if (path.startsWith('/')) return path;
+    return `/models/${path}`;
   }
 
-  function tryLoadPaths(paths, onAllFailed) {
-    const uniquePaths = [...new Set(paths.map(normalizePath).filter(Boolean))];
+  function setFallback(reason) {
+    characterModelLoaded = false;
+    characterVisualRoot.visible = true;
+    heroModelStatus = `FALLBACK HERO (${reason})`;
+  }
+
+  function loadCandidates(candidates) {
+    const unique = [...new Set(candidates.map(toUrl).filter(Boolean))];
+
+    if (unique.length === 0) {
+      setFallback('NO MODEL PATH CONFIGURED');
+      console.warn('No model path configured. Set models/manifest.json or ?hero=/models/your-file.glb');
+      return;
+    }
 
     function tryPath(index) {
-      if (index >= uniquePaths.length) {
-        onAllFailed(uniquePaths);
+      if (index >= unique.length) {
+        setFallback('MODEL NOT FOUND OR UNREADABLE');
+        console.warn('Unable to load hero model. Tried:', unique.join(', '));
         return;
       }
-      const path = uniquePaths[index];
+
+      const path = unique[index];
       loader.load(
         path,
         (gltf) => applyLoadedHero(gltf, path),
@@ -245,64 +250,18 @@ function loadHeroModel() {
     tryPath(0);
   }
 
-  function setFallback(reason) {
-    characterModelLoaded = false;
-    characterVisualRoot.visible = true;
-    heroModelStatus = `FALLBACK HERO (${reason})`;
-  }
-
-  function discoverByDirectoryListing() {
-    return fetch('/models/', { cache: 'no-store' })
-      .then((res) => {
-        if (!res.ok) return [];
-        return res.text().then((html) => {
-          const parser = new DOMParser();
-          const doc = parser.parseFromString(html, 'text/html');
-          const links = [...doc.querySelectorAll('a')]
-            .map((a) => a.getAttribute('href') || '')
-            .filter((href) => /\.glb(\?.*)?$/i.test(href))
-            .map((href) => href.startsWith('http') ? href : `/models/${href.replace(/^\.\//, '').replace(/^\//, '')}`);
-          return [...new Set(links)];
-        });
-      })
-      .catch(() => []);
-  }
-
-  function discoverByManifest() {
-    return fetch('/models/manifest.json', { cache: 'no-store' })
-      .then((res) => {
-        if (!res.ok) return [];
-        return res.json().then((data) => {
-          const fromHero = data?.hero ? [data.hero] : [];
-          const fromPaths = Array.isArray(data?.paths) ? data.paths : [];
-          return [...fromHero, ...fromPaths].map((path) => {
-            if (/^https?:\/\//i.test(path)) return path;
-            if (path.startsWith('/')) return path;
-            return `/models/${path}`;
-          });
-        });
-      })
-      .catch(() => []);
-  }
-
   const queryHero = new URLSearchParams(window.location.search).get('hero');
   const localStorageHero = window.localStorage.getItem('heroModelPath');
-  const overrideCandidates = [queryHero, localStorageHero].filter(Boolean);
 
-  Promise.all([discoverByDirectoryListing(), discoverByManifest()]).then(([discovered, manifestPaths]) => {
-    const mergedCandidates = [...new Set([...overrideCandidates, ...manifestPaths, ...discovered, ...staticCandidates])];
-
-    if (mergedCandidates.length === 0) {
-      setFallback('NO GLB CANDIDATES');
-      console.warn('No GLB candidates discovered. Add models/manifest.json or use ?hero=/path/model.glb');
-      return;
-    }
-
-    tryLoadPaths(mergedCandidates, (triedPaths) => {
-      setFallback('MODEL NOT FOUND OR UNREADABLE');
-      console.warn('Unable to load hero model. Tried:', triedPaths.join(', '));
+  fetch('/models/manifest.json', { cache: 'no-store' })
+    .then((res) => (res.ok ? res.json() : {}))
+    .catch(() => ({}))
+    .then((manifest) => {
+      const manifestHero = manifest?.hero || null;
+      const manifestPaths = Array.isArray(manifest?.paths) ? manifest.paths : [];
+      const candidates = [queryHero, localStorageHero, manifestHero, ...manifestPaths];
+      loadCandidates(candidates);
     });
-  });
 }
 
 
