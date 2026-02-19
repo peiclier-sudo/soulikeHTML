@@ -41,6 +41,9 @@ Already static-compatible:
 4. Build command: **(empty)**
 5. Output directory: `.`
 
+## Camera note
+
+- Camera vertical drag adjusted: dragging mouse up now moves camera up naturally
 ## Next milestones
 
 1. Replace primitives with GLB character + animations.

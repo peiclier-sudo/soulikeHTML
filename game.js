@@ -159,8 +159,9 @@ window.addEventListener('mouseup', (e) => {
 window.addEventListener('mousemove', (e) => {
   if (!mouseOrbit && !mouseAim) return;
   const sensitivity = mouseAim ? 0.0045 : 0.005;
+  const verticalSense = 0.004;
   state.cameraYaw -= e.movementX * sensitivity;
-  state.cameraPitch = THREE.MathUtils.clamp(state.cameraPitch - e.movementY * 0.004, 0.12, 1.05);
+  state.cameraPitch = THREE.MathUtils.clamp(state.cameraPitch + e.movementY * verticalSense, 0.12, 1.05);
 });
 
 function tryHitEnemy(power) {
