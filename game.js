@@ -450,6 +450,10 @@ function activateDash() {
     state.yaw = Math.atan2(forward.x, forward.z);
     applyCameraKick(0.01);
   }
+
+  chargeStart = null;
+  state.isChargingShot = false;
+  mouseAttackHold = false;
 }
 
 function applyEnemyDamage(amount) {
