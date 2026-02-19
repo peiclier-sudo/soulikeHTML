@@ -82,7 +82,7 @@ const state = {
   dashSpeed: 22,
   dashTime: 0,
   dashCooldown: 0,
-  dashKey: 'shift',
+  dashBinding: 'key:shift',
   isRebindingDash: false,
   pointerLocked: false,
   stamina: 100,
@@ -107,10 +107,39 @@ function normalizeKey(event) {
   return event.key.toLowerCase();
 }
 
+function keyBinding(key) {
+  return `key:${key}`;
+}
+
+function mouseBinding(button) {
+  return `mouse:${button}`;
+}
+
 function keyLabel(key) {
   if (key === ' ') return 'Space';
   if (key === 'space') return 'Space';
   return key.length === 1 ? key.toUpperCase() : key[0].toUpperCase() + key.slice(1);
+}
+
+function mouseButtonLabel(button) {
+  const labels = {
+    0: 'Mouse Left',
+    1: 'Mouse Middle',
+    2: 'Mouse Right',
+    3: 'Mouse Back',
+    4: 'Mouse Forward',
+  };
+  return labels[button] ?? `Mouse ${button}`;
+}
+
+function bindingLabel(binding) {
+  if (binding.startsWith('key:')) {
+    return keyLabel(binding.slice(4));
+  }
+  if (binding.startsWith('mouse:')) {
+    return mouseButtonLabel(Number(binding.slice(6)));
+  }
+  return binding;
 }
 
 function activateDash() {
@@ -126,7 +155,7 @@ window.addEventListener('keydown', (e) => {
 
   if (state.isRebindingDash) {
     e.preventDefault();
-    if (k !== 'escape') state.dashKey = k;
+    if (k !== 'escape') state.dashBinding = keyBinding(k);
     state.isRebindingDash = false;
     return;
   }
@@ -148,7 +177,7 @@ window.addEventListener('keydown', (e) => {
     if (state.pos.y <= 0.001) state.velY = 7.8;
   }
 
-  if (k === state.dashKey) activateDash();
+  if (state.dashBinding === keyBinding(k)) activateDash();
 
   if (k === 'j' && state.attackTime <= 0 && state.stamina >= 12) {
     state.attackTime = 0.2;
@@ -185,9 +214,19 @@ document.addEventListener('pointerlockchange', () => {
 
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 canvas.addEventListener('mousedown', (e) => {
+  if (state.isRebindingDash) {
+    e.preventDefault();
+    state.dashBinding = mouseBinding(e.button);
+    state.isRebindingDash = false;
+    return;
+  }
+
   if (document.pointerLockElement !== canvas) {
     canvas.requestPointerLock();
   }
+
+  if (state.dashBinding === mouseBinding(e.button)) activateDash();
+
   if (e.button === 0) {
     mouseAim = true;
   }
@@ -312,8 +351,8 @@ function update(dt) {
   const hold = chargeStart ? ((performance.now() - chargeStart) / 1000).toFixed(2) : '0.00';
   const aim = mouseAim ? 'ON' : 'OFF';
   const lock = state.pointerLocked ? 'LOCKED' : 'CLICK CANVAS';
-  const dashLabel = keyLabel(state.dashKey);
-  const dashBindStatus = state.isRebindingDash ? 'PRESS A KEY...' : 'B TO REBIND';
+  const dashLabel = bindingLabel(state.dashBinding);
+  const dashBindStatus = state.isRebindingDash ? 'PRESS A KEY OR MOUSE BUTTON...' : 'B TO REBIND';
   hud.textContent = `View ${state.viewMode.toUpperCase()} (V) | Mouse ${lock} | Aim ${aim} (Hold Left Click) | Dash ${dashLabel} (${dashBindStatus}) | Stamina ${state.stamina.toFixed(0)} | Dash CD ${state.dashCooldown.toFixed(2)} | Enemy HP ${state.enemyHp} | Charge ${hold}s`;
 }
 
