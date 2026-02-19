@@ -59,14 +59,18 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(canvas.width, canvas.height, false);
 renderer.shadowMap.enabled = true;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.03;
+renderer.toneMappingExposure = 1.16;
 
-const hemi = new THREE.HemisphereLight(0x8eb9ff, 0x0f1218, 0.85);
+const hemi = new THREE.HemisphereLight(0x9fc5ff, 0x121826, 1.05);
 scene.add(hemi);
-const moon = new THREE.DirectionalLight(0xdbeafe, 1.25);
+const moon = new THREE.DirectionalLight(0xe2ecff, 1.55);
 moon.position.set(10, 20, 8);
 moon.castShadow = true;
 scene.add(moon);
+const rim = new THREE.DirectionalLight(0x93c5fd, 0.8);
+rim.position.set(-7, 9, -10);
+scene.add(rim);
+
 
 const ground = new THREE.Mesh(
   new THREE.PlaneGeometry(180, 180),
@@ -187,6 +191,12 @@ function applyLoadedHero(gltf, sourcePath) {
   modelRoot.scale.setScalar(1.05);
   modelRoot.position.y = 0;
   modelRoot.rotation.y = Math.PI;
+
+  const heroBounds = new THREE.Box3().setFromObject(gltf.scene);
+  if (Number.isFinite(heroBounds.min.y)) {
+    modelRoot.position.y -= heroBounds.min.y;
+    modelRoot.position.y += 0.02;
+  }
 
   gltf.scene.traverse((obj) => {
     if (!obj.isMesh) return;
@@ -427,10 +437,6 @@ function activateDash() {
     state.yaw = Math.atan2(forward.x, forward.z);
     applyCameraKick(0.01);
   }
-
-  chargeStart = null;
-  state.isChargingShot = false;
-  mouseAttackHold = false;
 }
 
 function applyEnemyDamage(amount) {
