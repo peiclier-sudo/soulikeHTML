@@ -79,7 +79,7 @@ scene.add(attackArc);
 const keys = new Set();
 let chargeStart = null;
 let mouseOrbit = false;
-let mouseAim = false;
+let mouseAttackHold = false;
 const fireballs = [];
 
 const viewModes = ['classic', 'fortnite'];
@@ -168,7 +168,7 @@ function applyEnemyDamage(amount) {
 }
 
 function spawnFireball(power) {
-  const forward = new THREE.Vector3(Math.sin(state.yaw), 0, Math.cos(state.yaw)).normalize();
+  const forward = new THREE.Vector3(Math.sin(state.cameraYaw), 0, Math.cos(state.cameraYaw)).normalize();
   const spawn = new THREE.Vector3().copy(state.pos).add(new THREE.Vector3(0, 1.12, 0)).add(forward.clone().multiplyScalar(1.05));
   const radius = THREE.MathUtils.lerp(0.16, 0.45, Math.min((power - 1) / 2.2, 1));
   const speed = 16 + power * 6;
@@ -213,6 +213,7 @@ function releaseFireShot() {
 
   chargeStart = null;
   state.isChargingShot = false;
+  mouseAttackHold = false;
 }
 
 window.addEventListener('keydown', (e) => {
@@ -253,7 +254,6 @@ document.addEventListener('pointerlockchange', () => {
   state.pointerLocked = document.pointerLockElement === canvas;
   canvas.classList.toggle('cursor-locked', state.pointerLocked);
   if (!state.pointerLocked) {
-    mouseAim = false;
     mouseOrbit = false;
   }
 });
@@ -271,30 +271,31 @@ canvas.addEventListener('mousedown', (e) => {
 
   if (state.dashBinding === mouseBinding(e.button)) activateDash();
 
-  if (e.button === 0) mouseAim = true;
-  if (e.button === 1) mouseOrbit = true;
-
   if (e.button === 2) {
-    e.preventDefault();
+    mouseOrbit = true;
+    return;
+  }
+
+  if (e.button === 0) {
     if (chargeStart === null) {
       chargeStart = performance.now();
       state.isChargingShot = true;
+      mouseAttackHold = true;
     }
   }
 });
 
 window.addEventListener('mouseup', (e) => {
-  if (e.button === 0) mouseAim = false;
-  if (e.button === 1) mouseOrbit = false;
+  if (e.button === 2) mouseOrbit = false;
 
-  if (e.button === 2) {
+  if (e.button === 0 && mouseAttackHold) {
     releaseFireShot();
   }
 });
 
 window.addEventListener('mousemove', (e) => {
-  if (!state.pointerLocked && !mouseOrbit && !mouseAim) return;
-  const sensitivity = mouseAim ? 0.0045 : 0.005;
+  if (!state.pointerLocked && !mouseOrbit) return;
+  const sensitivity = 0.005;
   const verticalSense = 0.004;
   state.cameraYaw -= e.movementX * sensitivity;
   state.cameraPitch = THREE.MathUtils.clamp(state.cameraPitch + e.movementY * verticalSense, 0.12, 1.05);
@@ -350,16 +351,16 @@ function update(dt) {
     const yawMatrix = new THREE.Matrix4().makeRotationY(state.cameraYaw);
     input.applyMatrix4(yawMatrix);
 
-    desiredYaw = mouseAim ? state.cameraYaw : Math.atan2(input.x, input.z);
+    desiredYaw = Math.atan2(input.x, input.z);
 
     const currentSpeed = state.dashTime > 0 ? state.dashSpeed : state.speed;
     state.pos.x += input.x * currentSpeed * dt;
     state.pos.z += input.z * currentSpeed * dt;
-  } else if (mouseAim || state.isChargingShot) {
+  } else if (state.isChargingShot) {
     desiredYaw = state.cameraYaw;
   }
 
-  state.yaw = lerpAngle(state.yaw, desiredYaw, mouseAim ? 0.25 : 0.18);
+  state.yaw = lerpAngle(state.yaw, desiredYaw, state.isChargingShot ? 0.24 : 0.18);
 
   state.dashTime = Math.max(0, state.dashTime - dt);
   state.dashCooldown = Math.max(0, state.dashCooldown - dt);
@@ -386,8 +387,8 @@ function update(dt) {
 
   attackArc.visible = state.attackTime > 0 || state.isChargingShot;
   if (attackArc.visible) {
-    attackArc.position.copy(state.pos).add(new THREE.Vector3(Math.sin(state.yaw) * 1.05, 1.0, Math.cos(state.yaw) * 1.05));
-    attackArc.rotation.z = state.yaw;
+    attackArc.position.copy(state.pos).add(new THREE.Vector3(Math.sin(state.cameraYaw) * 1.05, 1.0, Math.cos(state.cameraYaw) * 1.05));
+    attackArc.rotation.z = state.cameraYaw;
     attackArc.material.color.set(state.attackPower > 1.25 || state.isChargingShot ? 0xfb7185 : 0xf97316);
   }
 
@@ -415,11 +416,10 @@ function update(dt) {
   camera.lookAt(lookTarget);
 
   const hold = chargeStart ? ((performance.now() - chargeStart) / 1000).toFixed(2) : '0.00';
-  const aim = mouseAim ? 'ON' : 'OFF';
   const lock = state.pointerLocked ? 'LOCKED' : 'CLICK CANVAS';
   const dashLabel = bindingLabel(state.dashBinding);
   const dashBindStatus = state.isRebindingDash ? 'PRESS A KEY OR MOUSE BUTTON...' : 'B TO REBIND';
-  hud.textContent = `View ${state.viewMode.toUpperCase()} (V) | Mouse ${lock} | Aim ${aim} (Hold Left Click) | Dash ${dashLabel} (${dashBindStatus}) | Firestaff: Hold/Release Right Click | Charge ${hold}s | Stamina ${state.stamina.toFixed(0)} | Dash CD ${state.dashCooldown.toFixed(2)} | Enemy HP ${state.enemyHp}`;
+  hud.textContent = `View ${state.viewMode.toUpperCase()} (V) | Mouse ${lock} | Camera Orbit Right Click | Attack Left Click (Hold/Release) | Dash ${dashLabel} (${dashBindStatus}) | Charge ${hold}s | Stamina ${state.stamina.toFixed(0)} | Dash CD ${state.dashCooldown.toFixed(2)} | Enemy HP ${state.enemyHp}`;
 }
 
 window.addEventListener('resize', () => {
