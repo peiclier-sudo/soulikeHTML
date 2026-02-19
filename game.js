@@ -220,6 +220,7 @@ function applyLoadedHero(gltf, sourcePath) {
 
 function loadHeroModel() {
   const loader = new GLTFLoader();
+  const fallbackHeroFile = 'hero.glb';
 
   function toUrlVariants(path) {
     if (!path || typeof path !== 'string') return [];
@@ -273,18 +274,32 @@ function loadHeroModel() {
     tryPath(0);
   }
 
+  function fetchManifest() {
+    const manifestUrls = ['models/manifest.json', '/models/manifest.json'];
+
+    function tryUrl(index) {
+      if (index >= manifestUrls.length) return Promise.resolve({});
+
+      return fetch(manifestUrls[index], { cache: 'no-store' })
+        .then((res) => {
+          if (!res.ok) throw new Error('manifest not found');
+          return res.json();
+        })
+        .catch(() => tryUrl(index + 1));
+    }
+
+    return tryUrl(0);
+  }
+
   const queryHero = new URLSearchParams(window.location.search).get('hero');
   const localStorageHero = window.localStorage.getItem('heroModelPath');
 
-  fetch('/models/manifest.json', { cache: 'no-store' })
-    .then((res) => (res.ok ? res.json() : {}))
-    .catch(() => ({}))
-    .then((manifest) => {
-      const manifestHero = manifest?.hero || null;
-      const manifestPaths = Array.isArray(manifest?.paths) ? manifest.paths : [];
-      const candidates = [queryHero, localStorageHero, manifestHero, ...manifestPaths];
-      loadCandidates(candidates);
-    });
+  fetchManifest().then((manifest) => {
+    const manifestHero = manifest?.hero || fallbackHeroFile;
+    const manifestPaths = Array.isArray(manifest?.paths) ? manifest.paths : [];
+    const candidates = [queryHero, localStorageHero, manifestHero, ...manifestPaths, fallbackHeroFile];
+    loadCandidates(candidates);
+  });
 }
 
 
