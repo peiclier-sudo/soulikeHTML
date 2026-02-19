@@ -8,7 +8,8 @@
     <script type="importmap">
       {
         "imports": {
-          "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+          "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+          "GLTFLoader": "https://unpkg.com/three@0.160.0/examples/jsm/loaders/GLTFLoader.js"
         }
       }
     </script>
@@ -17,22 +18,29 @@
     <main class="layout">
       <section class="panel">
         <h1>Soulike 3D Prototype (Third Person)</h1>
-        <p>This is now a true 3D scene with a third-person follow camera.</p>
+        <p>Fast, stylish third-person combat with a dark-arcane hero. Focus: great play feel.</p>
         <ul>
           <li><strong>Move:</strong> ZQSD (or WASD)</li>
           <li><strong>Jump:</strong> Space</li>
-          <li><strong>Dash:</strong> Shift</li>
-          <li><strong>Basic attack:</strong> J</li>
-          <li><strong>Charged attack:</strong> Hold + release K</li>
-          <li><strong>Camera orbit:</strong> Right mouse drag</li>
-          <li><strong>Aim control:</strong> Hold left click + move mouse (controls character facing + camera)</li>
+          <li><strong>Dash:</strong> Shift (snappy burst + momentum)</li>
+          <li><strong>Basic attack:</strong> Left click (quick arcane bolt)</li>
+          <li><strong>Charged attack:</strong> Hold left click, release for a heavy blast</li>
+          <li><strong>Camera orbit:</strong> Right mouse drag (camera only, no attack)</li>
+          <li><strong>Menu in fight scene:</strong> Press M to return to dashboard</li>
           <li><strong>Mouse lock:</strong> Click canvas to lock/hide cursor (Esc to release)</li>
-          <li><strong>Dash keybind:</strong> Press B, then press any key</li>
+          <li><strong>Dash bind:</strong> Press B, then press any key or mouse button (including side buttons)</li>
           <li><strong>View mode:</strong> V (toggle Classic / Fortnite shoulder camera)</li>
         </ul>
         <div id="hud"></div>
       </section>
-      <canvas id="game" width="1280" height="720" aria-label="3d game canvas"></canvas>
+      <section class="game-shell">
+        <canvas id="game" width="1280" height="720" aria-label="3d game canvas"></canvas>
+        <div id="menu-overlay" class="menu-overlay" aria-live="polite">
+          <h2 id="menu-title"></h2>
+          <p id="menu-subtitle"></p>
+          <div id="menu-actions" class="menu-actions"></div>
+        </div>
+      </section>
     </main>
     <script type="module" src="game.js"></script>
   </body>
