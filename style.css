@@ -19,6 +19,9 @@ body {
   border-radius: 12px;
   padding: 16px;
 }
+.game-shell {
+  position: relative;
+}
 #game {
   width: 100%;
   height: auto;
@@ -31,6 +34,54 @@ body {
   font-size: 14px;
   color: #a5b4fc;
 }
+.menu-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  gap: 12px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(6, 12, 24, 0.9), rgba(10, 20, 40, 0.9));
+  border: 1px solid #2c3c52;
+}
+.menu-overlay.hidden {
+  display: none;
+}
+.menu-overlay h2 {
+  margin: 0;
+  font-size: 44px;
+  letter-spacing: 2px;
+}
+.menu-overlay p {
+  margin: 0;
+  color: #c7d2fe;
+}
+.menu-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 240px;
+}
+.menu-btn {
+  font: inherit;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid #3f516e;
+  background: #162338;
+  color: #ecf1ff;
+  cursor: pointer;
+}
+.menu-btn.primary {
+  background: #3730a3;
+  border-color: #6366f1;
+}
+.menu-btn:hover {
+  filter: brightness(1.1);
+}
+
 @media (max-width: 1000px) {
   .layout { grid-template-columns: 1fr; }
 }

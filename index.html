@@ -25,13 +25,21 @@
           <li><strong>Basic attack:</strong> Left click (throws a fireball toward camera direction)</li>
           <li><strong>Charged attack:</strong> Hold left click, release to throw a massive fireball</li>
           <li><strong>Camera orbit:</strong> Right mouse drag (camera only, no attack)</li>
+          <li><strong>Menu in fight scene:</strong> Press M to return to dashboard</li>
           <li><strong>Mouse lock:</strong> Click canvas to lock/hide cursor (Esc to release)</li>
           <li><strong>Dash bind:</strong> Press B, then press any key or mouse button (including side buttons)</li>
           <li><strong>View mode:</strong> V (toggle Classic / Fortnite shoulder camera)</li>
         </ul>
         <div id="hud"></div>
       </section>
-      <canvas id="game" width="1280" height="720" aria-label="3d game canvas"></canvas>
+      <section class="game-shell">
+        <canvas id="game" width="1280" height="720" aria-label="3d game canvas"></canvas>
+        <div id="menu-overlay" class="menu-overlay" aria-live="polite">
+          <h2 id="menu-title"></h2>
+          <p id="menu-subtitle"></p>
+          <div id="menu-actions" class="menu-actions"></div>
+        </div>
+      </section>
     </main>
     <script type="module" src="game.js"></script>
   </body>

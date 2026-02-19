@@ -2,6 +2,88 @@ import * as THREE from 'three';
 
 const canvas = document.getElementById('game');
 const hud = document.getElementById('hud');
+const menuOverlay = document.getElementById('menu-overlay');
+const menuTitle = document.getElementById('menu-title');
+const menuSubtitle = document.getElementById('menu-subtitle');
+const menuActions = document.getElementById('menu-actions');
+
+const menuDefinitions = {
+  welcome: {
+    title: 'SOULLIKE',
+    subtitle: 'A dark mage rises. Begin your journey.',
+    actions: [{ label: 'Enter Dashboard', next: 'dashboard', primary: true }],
+  },
+  dashboard: {
+    title: 'Dashboard',
+    subtitle: 'Choose your next action.',
+    actions: [
+      { label: 'Fight a boss', next: 'boss-select', primary: true },
+      { label: 'Parameters', next: 'parameters' },
+      { label: 'Inventory', next: 'inventory' },
+      { label: 'Back to Title', next: 'welcome' },
+    ],
+  },
+  'boss-select': {
+    title: 'Fight a Boss',
+    subtitle: 'Only one encounter is available right now.',
+    actions: [
+      { label: 'Current Fight Scene', next: 'fight', primary: true },
+      { label: 'Back', next: 'dashboard' },
+    ],
+  },
+  parameters: {
+    title: 'Parameters',
+    subtitle: 'Configuration scene placeholder.',
+    actions: [{ label: 'Back', next: 'dashboard', primary: true }],
+  },
+  inventory: {
+    title: 'Inventory',
+    subtitle: 'Inventory scene placeholder.',
+    actions: [{ label: 'Back', next: 'dashboard', primary: true }],
+  },
+};
+
+let currentScene = 'welcome';
+
+function releasePointerLock() {
+  if (document.pointerLockElement === canvas) document.exitPointerLock();
+}
+
+function clearCombatInputs() {
+  keys.clear();
+  mouseOrbit = false;
+  mouseAttackHold = false;
+  state.isChargingShot = false;
+  chargeStart = null;
+}
+
+function changeScene(nextScene) {
+  currentScene = nextScene;
+  const def = menuDefinitions[nextScene];
+
+  if (nextScene === 'fight') {
+    menuOverlay.classList.add('hidden');
+    hud.style.display = 'block';
+    return;
+  }
+
+  releasePointerLock();
+  clearCombatInputs();
+  menuOverlay.classList.remove('hidden');
+  hud.style.display = 'none';
+  menuTitle.textContent = def.title;
+  menuSubtitle.textContent = def.subtitle;
+  menuActions.innerHTML = '';
+
+  def.actions.forEach((action) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = action.primary ? 'menu-btn primary' : 'menu-btn';
+    button.textContent = action.label;
+    button.addEventListener('click', () => changeScene(action.next));
+    menuActions.appendChild(button);
+  });
+}
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x0a1220);
@@ -184,13 +266,7 @@ function keyLabel(key) {
 }
 
 function mouseButtonLabel(button) {
-  const labels = {
-    0: 'Mouse Left',
-    1: 'Mouse Middle',
-    2: 'Mouse Right',
-    3: 'Mouse Back',
-    4: 'Mouse Forward',
-  };
+  const labels = { 0: 'Mouse Left', 1: 'Mouse Middle', 2: 'Mouse Right', 3: 'Mouse Back', 4: 'Mouse Forward' };
   return labels[button] ?? `Mouse ${button}`;
 }
 
@@ -243,13 +319,7 @@ function spawnFireball(power) {
   mesh.castShadow = true;
   scene.add(mesh);
 
-  fireballs.push({
-    mesh,
-    velocity: forward.multiplyScalar(speed),
-    radius,
-    life: 2.4,
-    damage: Math.round(12 * power),
-  });
+  fireballs.push({ mesh, velocity: forward.multiplyScalar(speed), radius, life: 2.4, damage: Math.round(12 * power) });
 
   state.attackTime = power > 1.25 ? 0.42 : 0.24;
   state.attackPower = power;
@@ -275,6 +345,8 @@ function releaseFireShot() {
 window.addEventListener('keydown', (e) => {
   const k = normalizeKey(e);
 
+  if (currentScene !== 'fight') return;
+
   if (state.isRebindingDash) {
     e.preventDefault();
     if (k !== 'escape') state.dashBinding = keyBinding(k);
@@ -286,6 +358,11 @@ window.addEventListener('keydown', (e) => {
 
   if (k === 'b') {
     state.isRebindingDash = true;
+    return;
+  }
+
+  if (k === 'm') {
+    changeScene('dashboard');
     return;
   }
 
@@ -303,19 +380,20 @@ window.addEventListener('keydown', (e) => {
 });
 
 window.addEventListener('keyup', (e) => {
+  if (currentScene !== 'fight') return;
   keys.delete(normalizeKey(e));
 });
 
 document.addEventListener('pointerlockchange', () => {
   state.pointerLocked = document.pointerLockElement === canvas;
   canvas.classList.toggle('cursor-locked', state.pointerLocked);
-  if (!state.pointerLocked) {
-    mouseOrbit = false;
-  }
+  if (!state.pointerLocked) mouseOrbit = false;
 });
 
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 canvas.addEventListener('mousedown', (e) => {
+  if (currentScene !== 'fight') return;
+
   if (state.isRebindingDash) {
     e.preventDefault();
     state.dashBinding = mouseBinding(e.button);
@@ -332,24 +410,21 @@ canvas.addEventListener('mousedown', (e) => {
     return;
   }
 
-  if (e.button === 0) {
-    if (chargeStart === null) {
-      chargeStart = performance.now();
-      state.isChargingShot = true;
-      mouseAttackHold = true;
-    }
+  if (e.button === 0 && chargeStart === null) {
+    chargeStart = performance.now();
+    state.isChargingShot = true;
+    mouseAttackHold = true;
   }
 });
 
 window.addEventListener('mouseup', (e) => {
+  if (currentScene !== 'fight') return;
   if (e.button === 2) mouseOrbit = false;
-
-  if (e.button === 0 && mouseAttackHold) {
-    releaseFireShot();
-  }
+  if (e.button === 0 && mouseAttackHold) releaseFireShot();
 });
 
 window.addEventListener('mousemove', (e) => {
+  if (currentScene !== 'fight') return;
   if (!state.pointerLocked && !mouseOrbit) return;
   const sensitivity = 0.005;
   const verticalSense = 0.004;
@@ -385,7 +460,7 @@ let prev = performance.now();
 function tick(now) {
   const dt = Math.min((now - prev) / 1000, 0.033);
   prev = now;
-  update(dt);
+  if (currentScene === 'fight') update(dt);
   renderer.render(scene, camera);
   requestAnimationFrame(tick);
 }
@@ -477,7 +552,7 @@ function update(dt) {
   const lock = state.pointerLocked ? 'LOCKED' : 'CLICK CANVAS';
   const dashLabel = bindingLabel(state.dashBinding);
   const dashBindStatus = state.isRebindingDash ? 'PRESS A KEY OR MOUSE BUTTON...' : 'B TO REBIND';
-  hud.textContent = `View ${state.viewMode.toUpperCase()} (V) | Mouse ${lock} | Camera Orbit Right Click | Attack Left Click (Hold/Release) | Dash ${dashLabel} (${dashBindStatus}) | Charge ${hold}s | Stamina ${state.stamina.toFixed(0)} | Dash CD ${state.dashCooldown.toFixed(2)} | Enemy HP ${state.enemyHp}`;
+  hud.textContent = `View ${state.viewMode.toUpperCase()} (V) | Mouse ${lock} | Camera Orbit Right Click | Attack Left Click (Hold/Release) | Dash ${dashLabel} (${dashBindStatus}) | Menu M | Charge ${hold}s | Stamina ${state.stamina.toFixed(0)} | Dash CD ${state.dashCooldown.toFixed(2)} | Enemy HP ${state.enemyHp}`;
 }
 
 window.addEventListener('resize', () => {
@@ -489,3 +564,5 @@ window.addEventListener('resize', () => {
   camera.aspect = width / height;
   camera.updateProjectionMatrix();
 });
+
+changeScene('welcome');
