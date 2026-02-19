@@ -46,6 +46,8 @@ const menuDefinitions = {
 
 let currentScene = 'welcome';
 let characterMixer = null;
+let characterActions = {};
+let activeCharacterAction = null;
 let characterModelLoaded = false;
 let heroModelStatus = 'LOADING HERO...';
 
@@ -186,6 +188,51 @@ firestaff.position.set(0.46, 1.24, 0.08);
 firestaff.rotation.z = 0.48;
 characterVisualRoot.add(firestaff);
 
+function findFirstAction(candidates) {
+  return candidates.map((name) => characterActions[name]).find(Boolean) || null;
+}
+
+function setCharacterAction(nextAction, fade = 0.18) {
+  if (!nextAction || nextAction === activeCharacterAction) return;
+  nextAction.reset().fadeIn(fade).play();
+  if (activeCharacterAction) activeCharacterAction.fadeOut(fade);
+  activeCharacterAction = nextAction;
+}
+
+function updateCharacterAnimation(moveSpeed, isCasting, isDashing) {
+  if (!characterMixer) return;
+
+  if (isDashing) {
+    const dashAction = findFirstAction(['dash', 'dodge', 'roll']);
+    if (dashAction) {
+      dashAction.setLoop(THREE.LoopOnce, 1);
+      dashAction.clampWhenFinished = true;
+      setCharacterAction(dashAction, 0.08);
+      return;
+    }
+  }
+
+  if (isCasting) {
+    const castAction = findFirstAction(['cast', 'attack', 'shoot', 'spell']);
+    if (castAction) {
+      castAction.setLoop(THREE.LoopOnce, 1);
+      castAction.clampWhenFinished = true;
+      setCharacterAction(castAction, 0.1);
+      return;
+    }
+  }
+
+  const locomotionAction = moveSpeed > 0.18
+    ? findFirstAction(['run', 'walk', 'jog'])
+    : findFirstAction(['idle']);
+
+  if (locomotionAction) {
+    locomotionAction.setLoop(THREE.LoopRepeat, Infinity);
+    locomotionAction.clampWhenFinished = false;
+    setCharacterAction(locomotionAction, 0.22);
+  }
+}
+
 function applyLoadedHero(gltf, sourcePath) {
   const modelRoot = new THREE.Group();
   modelRoot.name = 'hero-model-root';
@@ -196,7 +243,7 @@ function applyLoadedHero(gltf, sourcePath) {
 
   const heroBounds = new THREE.Box3().setFromObject(gltf.scene);
   if (Number.isFinite(heroBounds.min.y)) {
-    modelRoot.position.y -= heroBounds.min.y;
+    if (heroBounds.min.y < 0) modelRoot.position.y -= heroBounds.min.y;
     modelRoot.position.y += 0.08;
   }
 
@@ -213,8 +260,16 @@ function applyLoadedHero(gltf, sourcePath) {
 
   if (gltf.animations && gltf.animations.length > 0) {
     characterMixer = new THREE.AnimationMixer(gltf.scene);
-    const idle = characterMixer.clipAction(gltf.animations[0]);
+    characterActions = {};
+
+    gltf.animations.forEach((clip) => {
+      const action = characterMixer.clipAction(clip);
+      characterActions[clip.name.toLowerCase()] = action;
+    });
+
+    const idle = findFirstAction(['idle']) || characterMixer.clipAction(gltf.animations[0]);
     idle.play();
+    activeCharacterAction = idle;
   }
 }
 
@@ -516,6 +571,66 @@ function releaseFireShot() {
   mouseAttackHold = false;
 }
 
+function applyEnemyDamage(amount) {
+  if (state.enemyHitLock > 0 || state.enemyHp <= 0) return;
+  state.enemyHp = Math.max(0, state.enemyHp - amount);
+  state.enemyHitLock = 0.07;
+  enemy.material.color.set(state.enemyHp > 0 ? 0xfb7185 : 0x6b7280);
+  enemy.scale.set(1.06, 1.0, 1.06);
+}
+
+function spawnFireball(power) {
+  const forward = getCameraGroundForward();
+  const spawn = new THREE.Vector3().copy(state.pos).add(new THREE.Vector3(0, 1.15, 0)).add(forward.clone().multiplyScalar(1.0));
+  const radius = THREE.MathUtils.lerp(0.16, 0.48, Math.min((power - 1) / 2.2, 1));
+  const speed = 18 + power * 7;
+
+  const mesh = new THREE.Mesh(
+    new THREE.SphereGeometry(radius, 20, 16),
+    new THREE.MeshStandardMaterial({
+      color: power > 1.3 ? 0xfb7185 : 0xfb923c,
+      emissive: 0xea580c,
+      emissiveIntensity: 1.4,
+      roughness: 0.26,
+      metalness: 0.06,
+    })
+  );
+  mesh.position.copy(spawn);
+  mesh.castShadow = true;
+  scene.add(mesh);
+
+  fireballs.push({
+    mesh,
+    velocity: forward.multiplyScalar(speed),
+    radius,
+    life: 2.0,
+    damage: Math.round(11 + 10 * power),
+    pulse: Math.random() * 3,
+  });
+
+  state.attackTime = power > 1.25 ? 0.48 : 0.26;
+  state.attackPower = power;
+  state.attackRecover = power > 1.25 ? 0.14 : 0.08;
+  applyCameraKick(power > 1.25 ? 0.016 : 0.008);
+}
+
+function releaseFireShot() {
+  if (chargeStart === null || state.attackRecover > 0) return;
+  const held = Math.min((performance.now() - chargeStart) / 1000, 1.8);
+  const charged = held >= 0.32;
+  const cost = charged ? 24 : 10;
+
+  if (state.stamina >= cost) {
+    state.stamina -= cost;
+    const power = charged ? Math.max(1.4, Math.min(3.2, 1.3 + held * 1.2)) : 1;
+    spawnFireball(power);
+  }
+
+  chargeStart = null;
+  state.isChargingShot = false;
+  mouseAttackHold = false;
+}
+
 window.addEventListener('keydown', (e) => {
   const k = normalizeKey(e);
 
@@ -727,6 +842,7 @@ function update(dt, now) {
   player.position.copy(state.pos);
   player.rotation.y = state.yaw;
   const stride = Math.min(1, new THREE.Vector2(state.vel.x, state.vel.z).length() / state.baseSpeed);
+  updateCharacterAnimation(stride, state.attackTime > 0 || state.isChargingShot, state.dashTime > 0);
   coat.rotation.z = Math.sin(now * 12) * 0.03 * stride;
   mantle.material.emissiveIntensity = state.isChargingShot ? 0.55 : 0.22;
 
