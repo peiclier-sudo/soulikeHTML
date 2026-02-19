@@ -32,13 +32,61 @@ const grid = new THREE.GridHelper(120, 60, 0x4b5f88, 0x334562);
 scene.add(grid);
 
 const player = new THREE.Group();
-const body = new THREE.Mesh(
-  new THREE.CapsuleGeometry(0.45, 0.8, 5, 8),
-  new THREE.MeshStandardMaterial({ color: 0x31d6f5, roughness: 0.45 })
+
+const robe = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.28, 0.52, 1.2, 12),
+  new THREE.MeshStandardMaterial({ color: 0x4338ca, roughness: 0.72 })
 );
-body.castShadow = true;
-body.position.y = 0.9;
-player.add(body);
+robe.castShadow = true;
+robe.position.y = 0.75;
+player.add(robe);
+
+const chest = new THREE.Mesh(
+  new THREE.CapsuleGeometry(0.26, 0.36, 4, 8),
+  new THREE.MeshStandardMaterial({ color: 0x6366f1, roughness: 0.5 })
+);
+chest.castShadow = true;
+chest.position.y = 1.25;
+player.add(chest);
+
+const head = new THREE.Mesh(
+  new THREE.SphereGeometry(0.2, 14, 12),
+  new THREE.MeshStandardMaterial({ color: 0xf1c27d, roughness: 0.7 })
+);
+head.castShadow = true;
+head.position.y = 1.67;
+player.add(head);
+
+const hatBrim = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.34, 0.34, 0.035, 20),
+  new THREE.MeshStandardMaterial({ color: 0x1e1b4b, roughness: 0.6 })
+);
+hatBrim.castShadow = true;
+hatBrim.position.y = 1.84;
+player.add(hatBrim);
+
+const hatCone = new THREE.Mesh(
+  new THREE.ConeGeometry(0.22, 0.55, 16),
+  new THREE.MeshStandardMaterial({ color: 0x312e81, roughness: 0.62 })
+);
+hatCone.castShadow = true;
+hatCone.position.y = 2.1;
+hatCone.rotation.z = -0.09;
+player.add(hatCone);
+
+const sleeveL = new THREE.Mesh(
+  new THREE.CapsuleGeometry(0.1, 0.36, 4, 6),
+  new THREE.MeshStandardMaterial({ color: 0x4f46e5, roughness: 0.58 })
+);
+sleeveL.castShadow = true;
+sleeveL.position.set(-0.33, 1.22, 0.04);
+sleeveL.rotation.z = 0.45;
+player.add(sleeveL);
+
+const sleeveR = sleeveL.clone();
+sleeveR.position.x = 0.33;
+sleeveR.rotation.z = -0.45;
+player.add(sleeveR);
 
 const firestaff = new THREE.Group();
 const staffShaft = new THREE.Mesh(
@@ -55,7 +103,7 @@ const staffCore = new THREE.Mesh(
 staffCore.position.set(0, 0.58, 0);
 firestaff.add(staffCore);
 
-firestaff.position.set(0.38, 1.05, 0.12);
+firestaff.position.set(0.45, 1.18, 0.1);
 firestaff.rotation.z = 0.4;
 player.add(firestaff);
 scene.add(player);
