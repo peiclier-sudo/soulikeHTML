@@ -66,7 +66,8 @@ scene.add(attackArc);
 
 const keys = new Set();
 let chargeStart = null;
-let mouseLook = false;
+let mouseOrbit = false;
+let mouseAim = false;
 
 const viewModes = ['classic', 'fortnite'];
 const cameraModeConfig = {
@@ -92,6 +93,11 @@ const state = {
   viewMode: 'classic',
   camPos: new THREE.Vector3(0, 4.5, 8),
 };
+
+function lerpAngle(current, target, alpha) {
+  const delta = Math.atan2(Math.sin(target - current), Math.cos(target - current));
+  return current + delta * alpha;
+}
 
 window.addEventListener('keydown', (e) => {
   const k = e.key.toLowerCase();
@@ -137,14 +143,23 @@ window.addEventListener('keyup', (e) => {
 
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 canvas.addEventListener('mousedown', (e) => {
-  if (e.button === 2) mouseLook = true;
+  if (e.button === 0) {
+    mouseAim = true;
+    canvas.style.cursor = 'grabbing';
+  }
+  if (e.button === 2) mouseOrbit = true;
 });
-window.addEventListener('mouseup', () => {
-  mouseLook = false;
+window.addEventListener('mouseup', (e) => {
+  if (e.button === 0) {
+    mouseAim = false;
+    canvas.style.cursor = 'default';
+  }
+  if (e.button === 2) mouseOrbit = false;
 });
 window.addEventListener('mousemove', (e) => {
-  if (!mouseLook) return;
-  state.cameraYaw -= e.movementX * 0.005;
+  if (!mouseOrbit && !mouseAim) return;
+  const sensitivity = mouseAim ? 0.0045 : 0.005;
+  state.cameraYaw -= e.movementX * sensitivity;
   state.cameraPitch = THREE.MathUtils.clamp(state.cameraPitch - e.movementY * 0.004, 0.12, 1.05);
 });
 
@@ -182,16 +197,23 @@ function update(dt) {
   if (keys.has('d')) ix += 1;
 
   const input = new THREE.Vector3(ix, 0, iz);
+  let desiredYaw = state.yaw;
+
   if (input.lengthSq() > 0) {
     input.normalize();
     const yawMatrix = new THREE.Matrix4().makeRotationY(state.cameraYaw);
     input.applyMatrix4(yawMatrix);
-    state.yaw = Math.atan2(input.x, input.z);
+
+    desiredYaw = mouseAim ? state.cameraYaw : Math.atan2(input.x, input.z);
 
     const currentSpeed = state.dashTime > 0 ? state.dashSpeed : state.speed;
     state.pos.x += input.x * currentSpeed * dt;
     state.pos.z += input.z * currentSpeed * dt;
+  } else if (mouseAim) {
+    desiredYaw = state.cameraYaw;
   }
+
+  state.yaw = lerpAngle(state.yaw, desiredYaw, mouseAim ? 0.25 : 0.18);
 
   state.dashTime = Math.max(0, state.dashTime - dt);
   state.dashCooldown = Math.max(0, state.dashCooldown - dt);
@@ -246,7 +268,8 @@ function update(dt) {
   camera.lookAt(lookTarget);
 
   const hold = chargeStart ? ((performance.now() - chargeStart) / 1000).toFixed(2) : '0.00';
-  hud.textContent = `View ${state.viewMode.toUpperCase()} (V to toggle) | Stamina ${state.stamina.toFixed(0)} | Dash CD ${state.dashCooldown.toFixed(2)} | Enemy HP ${state.enemyHp} | Charge ${hold}s`;
+  const aim = mouseAim ? 'ON' : 'OFF';
+  hud.textContent = `View ${state.viewMode.toUpperCase()} (V) | Aim Drag ${aim} (Hold Left Click) | Stamina ${state.stamina.toFixed(0)} | Dash CD ${state.dashCooldown.toFixed(2)} | Enemy HP ${state.enemyHp} | Charge ${hold}s`;
 }
 
 window.addEventListener('resize', () => {

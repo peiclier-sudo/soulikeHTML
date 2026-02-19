@@ -29,6 +29,7 @@ Open `http://localhost:4173`
 - Basic attack: `J`
 - Charged attack: hold and release `K`
 - Camera orbit: hold right mouse button and move mouse
+- Aim control: hold left click and move mouse (full character facing + camera control)
 - View mode toggle: `V` (Classic / Fortnite shoulder)
 
 ## Vercel deployment
