@@ -1,15 +1,24 @@
 # Character Model Folder
 
-Drop your model file in this folder.
+Put your model in this folder.
 
-## Recommended name
-- `hero.glb`
+## Fastest path
+- Name it `hero.glb`
+- Final path: `/models/hero.glb`
 
-## Supported behavior
-- The game auto-discovers `.glb` files inside `/models/` and tries to load the first discovered file.
-- It also explicitly tries these fallback paths:
-  - `/models/hero.glb`
-  - `/models/Hero.glb`
-  - `/hero.glb`
+## Robust path (recommended)
+Use `models/manifest.json` and set `hero` to your actual filename.
 
-If all loads fail, HUD shows `FALLBACK HERO (...)` with the reason.
+Example:
+```json
+{
+  "hero": "MyCharacter.glb",
+  "paths": ["AltCharacter.glb"]
+}
+```
+
+## Runtime override
+You can also force a path with URL query:
+- `?hero=/models/MyCharacter.glb`
+
+If all candidates fail, HUD will show `FALLBACK HERO (...)` and console prints all tried paths.

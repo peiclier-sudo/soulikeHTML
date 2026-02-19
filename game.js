@@ -209,15 +209,31 @@ function applyLoadedHero(gltf, sourcePath) {
 function loadHeroModel() {
   const loader = new GLTFLoader();
 
-  const staticCandidates = ['/models/hero.glb', '/models/Hero.glb', '/hero.glb'];
+  const staticCandidates = [
+    '/models/hero.glb',
+    '/models/Hero.glb',
+    '/models/hero.GLB',
+    '/Models/hero.glb',
+    '/Models/Hero.glb',
+    '/hero.glb',
+    '/assets/hero.glb',
+  ];
+
+  function normalizePath(path) {
+    if (!path) return null;
+    if (/^https?:\/\//i.test(path)) return path;
+    return path.startsWith('/') ? path : `/${path}`;
+  }
 
   function tryLoadPaths(paths, onAllFailed) {
+    const uniquePaths = [...new Set(paths.map(normalizePath).filter(Boolean))];
+
     function tryPath(index) {
-      if (index >= paths.length) {
-        onAllFailed();
+      if (index >= uniquePaths.length) {
+        onAllFailed(uniquePaths);
         return;
       }
-      const path = paths[index];
+      const path = uniquePaths[index];
       loader.load(
         path,
         (gltf) => applyLoadedHero(gltf, path),
@@ -225,6 +241,7 @@ function loadHeroModel() {
         () => tryPath(index + 1)
       );
     }
+
     tryPath(0);
   }
 
@@ -234,7 +251,7 @@ function loadHeroModel() {
     heroModelStatus = `FALLBACK HERO (${reason})`;
   }
 
-  function discoverModelCandidates() {
+  function discoverByDirectoryListing() {
     return fetch('/models/', { cache: 'no-store' })
       .then((res) => {
         if (!res.ok) return [];
@@ -251,18 +268,39 @@ function loadHeroModel() {
       .catch(() => []);
   }
 
-  discoverModelCandidates().then((discovered) => {
-    const mergedCandidates = [...new Set([...discovered, ...staticCandidates])];
+  function discoverByManifest() {
+    return fetch('/models/manifest.json', { cache: 'no-store' })
+      .then((res) => {
+        if (!res.ok) return [];
+        return res.json().then((data) => {
+          const fromHero = data?.hero ? [data.hero] : [];
+          const fromPaths = Array.isArray(data?.paths) ? data.paths : [];
+          return [...fromHero, ...fromPaths].map((path) => {
+            if (/^https?:\/\//i.test(path)) return path;
+            if (path.startsWith('/')) return path;
+            return `/models/${path}`;
+          });
+        });
+      })
+      .catch(() => []);
+  }
+
+  const queryHero = new URLSearchParams(window.location.search).get('hero');
+  const localStorageHero = window.localStorage.getItem('heroModelPath');
+  const overrideCandidates = [queryHero, localStorageHero].filter(Boolean);
+
+  Promise.all([discoverByDirectoryListing(), discoverByManifest()]).then(([discovered, manifestPaths]) => {
+    const mergedCandidates = [...new Set([...overrideCandidates, ...manifestPaths, ...discovered, ...staticCandidates])];
 
     if (mergedCandidates.length === 0) {
-      setFallback('NO GLB IN /models');
-      console.warn('No GLB files discovered in /models and no static candidate succeeded.');
+      setFallback('NO GLB CANDIDATES');
+      console.warn('No GLB candidates discovered. Add models/manifest.json or use ?hero=/path/model.glb');
       return;
     }
 
-    tryLoadPaths(mergedCandidates, () => {
+    tryLoadPaths(mergedCandidates, (triedPaths) => {
       setFallback('MODEL NOT FOUND OR UNREADABLE');
-      console.warn('Unable to load hero model. Tried:', mergedCandidates.join(', '));
+      console.warn('Unable to load hero model. Tried:', triedPaths.join(', '));
     });
   });
 }
