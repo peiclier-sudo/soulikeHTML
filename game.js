@@ -40,12 +40,24 @@ body.castShadow = true;
 body.position.y = 0.9;
 player.add(body);
 
-const sword = new THREE.Mesh(
-  new THREE.BoxGeometry(0.1, 0.1, 0.9),
-  new THREE.MeshStandardMaterial({ color: 0xe5e7eb })
+const firestaff = new THREE.Group();
+const staffShaft = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.045, 0.06, 1.15, 10),
+  new THREE.MeshStandardMaterial({ color: 0x6b4f3a, roughness: 0.72 })
 );
-sword.position.set(0.32, 0.9, 0.2);
-player.add(sword);
+staffShaft.rotation.z = 0.2;
+firestaff.add(staffShaft);
+
+const staffCore = new THREE.Mesh(
+  new THREE.SphereGeometry(0.12, 12, 10),
+  new THREE.MeshStandardMaterial({ color: 0xfb923c, emissive: 0xea580c, emissiveIntensity: 0.85 })
+);
+staffCore.position.set(0, 0.58, 0);
+firestaff.add(staffCore);
+
+firestaff.position.set(0.38, 1.05, 0.12);
+firestaff.rotation.z = 0.4;
+player.add(firestaff);
 scene.add(player);
 
 const enemy = new THREE.Mesh(
@@ -58,7 +70,7 @@ scene.add(enemy);
 
 const attackArc = new THREE.Mesh(
   new THREE.TorusGeometry(1.4, 0.05, 8, 32, Math.PI * 0.9),
-  new THREE.MeshBasicMaterial({ color: 0xfbbf24 })
+  new THREE.MeshBasicMaterial({ color: 0xf97316 })
 );
 attackArc.visible = false;
 attackArc.rotation.x = Math.PI / 2;
@@ -68,6 +80,7 @@ const keys = new Set();
 let chargeStart = null;
 let mouseOrbit = false;
 let mouseAim = false;
+const fireballs = [];
 
 const viewModes = ['classic', 'fortnite'];
 const cameraModeConfig = {
@@ -88,6 +101,7 @@ const state = {
   stamina: 100,
   attackTime: 0,
   attackPower: 0,
+  isChargingShot: false,
   yaw: Math.PI,
   cameraYaw: Math.PI,
   cameraPitch: 0.38,
@@ -133,12 +147,8 @@ function mouseButtonLabel(button) {
 }
 
 function bindingLabel(binding) {
-  if (binding.startsWith('key:')) {
-    return keyLabel(binding.slice(4));
-  }
-  if (binding.startsWith('mouse:')) {
-    return mouseButtonLabel(Number(binding.slice(6)));
-  }
+  if (binding.startsWith('key:')) return keyLabel(binding.slice(4));
+  if (binding.startsWith('mouse:')) return mouseButtonLabel(Number(binding.slice(6)));
   return binding;
 }
 
@@ -148,6 +158,61 @@ function activateDash() {
     state.dashCooldown = 0.6;
     state.stamina -= 20;
   }
+}
+
+function applyEnemyDamage(amount) {
+  if (state.enemyHitLock > 0 || state.enemyHp <= 0) return;
+  state.enemyHp = Math.max(0, state.enemyHp - amount);
+  state.enemyHitLock = 0.08;
+  enemy.material.color.set(state.enemyHp > 0 ? 0xf97393 : 0x6b7280);
+}
+
+function spawnFireball(power) {
+  const forward = new THREE.Vector3(Math.sin(state.yaw), 0, Math.cos(state.yaw)).normalize();
+  const spawn = new THREE.Vector3().copy(state.pos).add(new THREE.Vector3(0, 1.12, 0)).add(forward.clone().multiplyScalar(1.05));
+  const radius = THREE.MathUtils.lerp(0.16, 0.45, Math.min((power - 1) / 2.2, 1));
+  const speed = 16 + power * 6;
+
+  const mesh = new THREE.Mesh(
+    new THREE.SphereGeometry(radius, 18, 14),
+    new THREE.MeshStandardMaterial({
+      color: power > 1.3 ? 0xfb7185 : 0xfb923c,
+      emissive: 0xea580c,
+      emissiveIntensity: 1.2,
+      roughness: 0.3,
+      metalness: 0.05,
+    })
+  );
+  mesh.position.copy(spawn);
+  mesh.castShadow = true;
+  scene.add(mesh);
+
+  fireballs.push({
+    mesh,
+    velocity: forward.multiplyScalar(speed),
+    radius,
+    life: 2.4,
+    damage: Math.round(12 * power),
+  });
+
+  state.attackTime = power > 1.25 ? 0.42 : 0.24;
+  state.attackPower = power;
+}
+
+function releaseFireShot() {
+  if (chargeStart === null) return;
+  const held = Math.min((performance.now() - chargeStart) / 1000, 1.8);
+  const charged = held >= 0.28;
+  const cost = charged ? 26 : 12;
+
+  if (state.stamina >= cost) {
+    state.stamina -= cost;
+    const power = charged ? Math.max(1.3, Math.min(3.2, 1.3 + held * 1.2)) : 1;
+    spawnFireball(power);
+  }
+
+  chargeStart = null;
+  state.isChargingShot = false;
 }
 
 window.addEventListener('keydown', (e) => {
@@ -178,29 +243,10 @@ window.addEventListener('keydown', (e) => {
   }
 
   if (state.dashBinding === keyBinding(k)) activateDash();
-
-  if (k === 'j' && state.attackTime <= 0 && state.stamina >= 12) {
-    state.attackTime = 0.2;
-    state.attackPower = 1;
-    state.stamina -= 12;
-    tryHitEnemy(1);
-  }
-  if (k === 'k' && chargeStart === null) chargeStart = performance.now();
 });
 
 window.addEventListener('keyup', (e) => {
   keys.delete(normalizeKey(e));
-  if (normalizeKey(e) === 'k' && chargeStart !== null && state.attackTime <= 0) {
-    const held = Math.min((performance.now() - chargeStart) / 1000, 1.8);
-    const power = Math.max(1.2, Math.min(3.2, 1.2 + held * 1.2));
-    if (state.stamina >= 26) {
-      state.attackTime = 0.38;
-      state.attackPower = power;
-      state.stamina -= 26;
-      tryHitEnemy(power);
-    }
-    chargeStart = null;
-  }
 });
 
 document.addEventListener('pointerlockchange', () => {
@@ -221,21 +267,31 @@ canvas.addEventListener('mousedown', (e) => {
     return;
   }
 
-  if (document.pointerLockElement !== canvas) {
-    canvas.requestPointerLock();
-  }
+  if (document.pointerLockElement !== canvas) canvas.requestPointerLock();
 
   if (state.dashBinding === mouseBinding(e.button)) activateDash();
 
-  if (e.button === 0) {
-    mouseAim = true;
+  if (e.button === 0) mouseAim = true;
+  if (e.button === 1) mouseOrbit = true;
+
+  if (e.button === 2) {
+    e.preventDefault();
+    if (chargeStart === null) {
+      chargeStart = performance.now();
+      state.isChargingShot = true;
+    }
   }
-  if (e.button === 2) mouseOrbit = true;
 });
+
 window.addEventListener('mouseup', (e) => {
   if (e.button === 0) mouseAim = false;
-  if (e.button === 2) mouseOrbit = false;
+  if (e.button === 1) mouseOrbit = false;
+
+  if (e.button === 2) {
+    releaseFireShot();
+  }
 });
+
 window.addEventListener('mousemove', (e) => {
   if (!state.pointerLocked && !mouseOrbit && !mouseAim) return;
   const sensitivity = mouseAim ? 0.0045 : 0.005;
@@ -244,19 +300,28 @@ window.addEventListener('mousemove', (e) => {
   state.cameraPitch = THREE.MathUtils.clamp(state.cameraPitch + e.movementY * verticalSense, 0.12, 1.05);
 });
 
-function tryHitEnemy(power) {
-  if (state.enemyHitLock > 0 || state.enemyHp <= 0) return;
-  const toEnemy = new THREE.Vector3().subVectors(enemy.position, state.pos);
-  const dist = toEnemy.length();
-  if (dist > 3.2) return;
-  const forward = new THREE.Vector3(Math.sin(state.yaw), 0, Math.cos(state.yaw)).normalize();
-  const angle = forward.angleTo(toEnemy.setY(0).normalize());
-  if (angle > 0.9) return;
+function updateFireballs(dt) {
+  for (let i = fireballs.length - 1; i >= 0; i -= 1) {
+    const ball = fireballs[i];
+    ball.life -= dt;
+    ball.mesh.position.addScaledVector(ball.velocity, dt);
 
-  const dmg = Math.round(12 * power);
-  state.enemyHp = Math.max(0, state.enemyHp - dmg);
-  state.enemyHitLock = 0.12;
-  enemy.material.color.set(state.enemyHp > 0 ? 0xf97393 : 0x6b7280);
+    const toEnemy = new THREE.Vector3().subVectors(enemy.position, ball.mesh.position);
+    const hitRadius = ball.radius + 0.78;
+    const hitEnemy = state.enemyHp > 0 && toEnemy.length() <= hitRadius;
+
+    if (hitEnemy) {
+      applyEnemyDamage(ball.damage);
+      ball.life = 0;
+    }
+
+    if (ball.life <= 0) {
+      scene.remove(ball.mesh);
+      ball.mesh.geometry.dispose();
+      ball.mesh.material.dispose();
+      fireballs.splice(i, 1);
+    }
+  }
 }
 
 let prev = performance.now();
@@ -290,7 +355,7 @@ function update(dt) {
     const currentSpeed = state.dashTime > 0 ? state.dashSpeed : state.speed;
     state.pos.x += input.x * currentSpeed * dt;
     state.pos.z += input.z * currentSpeed * dt;
-  } else if (mouseAim) {
+  } else if (mouseAim || state.isChargingShot) {
     desiredYaw = state.cameraYaw;
   }
 
@@ -315,15 +380,18 @@ function update(dt) {
   player.position.copy(state.pos);
   player.rotation.y = state.yaw;
 
-  sword.rotation.x = state.attackTime > 0 ? -1.1 : 0;
-  sword.rotation.y = state.attackTime > 0 ? 0.25 : 0;
+  firestaff.rotation.x = state.attackTime > 0 ? -0.75 : 0;
+  firestaff.rotation.y = state.attackTime > 0 ? 0.2 : 0;
+  staffCore.material.emissiveIntensity = state.isChargingShot ? 1.8 : 0.85;
 
-  attackArc.visible = state.attackTime > 0;
+  attackArc.visible = state.attackTime > 0 || state.isChargingShot;
   if (attackArc.visible) {
-    attackArc.position.copy(state.pos).add(new THREE.Vector3(Math.sin(state.yaw) * 1.2, 1.0, Math.cos(state.yaw) * 1.2));
+    attackArc.position.copy(state.pos).add(new THREE.Vector3(Math.sin(state.yaw) * 1.05, 1.0, Math.cos(state.yaw) * 1.05));
     attackArc.rotation.z = state.yaw;
-    attackArc.material.color.set(state.attackPower > 1.2 ? 0xfb7185 : 0xfbbf24);
+    attackArc.material.color.set(state.attackPower > 1.25 || state.isChargingShot ? 0xfb7185 : 0xf97316);
   }
+
+  updateFireballs(dt);
 
   const mode = cameraModeConfig[state.viewMode];
   const back = new THREE.Vector3(
@@ -343,9 +411,7 @@ function update(dt) {
   camera.position.copy(state.camPos);
 
   const lookTarget = new THREE.Vector3().copy(state.pos).add(new THREE.Vector3(0, mode.lookHeight, 0));
-  if (state.viewMode === 'fortnite') {
-    lookTarget.add(right.clone().multiplyScalar(0.45));
-  }
+  if (state.viewMode === 'fortnite') lookTarget.add(right.clone().multiplyScalar(0.45));
   camera.lookAt(lookTarget);
 
   const hold = chargeStart ? ((performance.now() - chargeStart) / 1000).toFixed(2) : '0.00';
@@ -353,12 +419,12 @@ function update(dt) {
   const lock = state.pointerLocked ? 'LOCKED' : 'CLICK CANVAS';
   const dashLabel = bindingLabel(state.dashBinding);
   const dashBindStatus = state.isRebindingDash ? 'PRESS A KEY OR MOUSE BUTTON...' : 'B TO REBIND';
-  hud.textContent = `View ${state.viewMode.toUpperCase()} (V) | Mouse ${lock} | Aim ${aim} (Hold Left Click) | Dash ${dashLabel} (${dashBindStatus}) | Stamina ${state.stamina.toFixed(0)} | Dash CD ${state.dashCooldown.toFixed(2)} | Enemy HP ${state.enemyHp} | Charge ${hold}s`;
+  hud.textContent = `View ${state.viewMode.toUpperCase()} (V) | Mouse ${lock} | Aim ${aim} (Hold Left Click) | Dash ${dashLabel} (${dashBindStatus}) | Firestaff: Hold/Release Right Click | Charge ${hold}s | Stamina ${state.stamina.toFixed(0)} | Dash CD ${state.dashCooldown.toFixed(2)} | Enemy HP ${state.enemyHp}`;
 }
 
 window.addEventListener('resize', () => {
   const width = canvas.clientWidth;
-  const height = width * 9 / 16;
+  const height = (width * 9) / 16;
   canvas.width = width;
   canvas.height = height;
   renderer.setSize(width, height, false);
