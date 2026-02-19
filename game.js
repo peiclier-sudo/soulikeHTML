@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { GLTFLoader } from 'GLTFLoader';
 
 const canvas = document.getElementById('game');
 const hud = document.getElementById('hud');
@@ -44,6 +45,9 @@ const menuDefinitions = {
 };
 
 let currentScene = 'welcome';
+let characterMixer = null;
+let characterModelLoaded = false;
+let heroModelStatus = 'LOADING HERO...';
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x070d1a);
@@ -86,6 +90,8 @@ platform.receiveShadow = true;
 scene.add(platform);
 
 const player = new THREE.Group();
+const characterVisualRoot = new THREE.Group();
+player.add(characterVisualRoot);
 
 const coat = new THREE.Mesh(
   new THREE.CylinderGeometry(0.28, 0.62, 1.35, 14),
@@ -93,7 +99,7 @@ const coat = new THREE.Mesh(
 );
 coat.position.y = 0.86;
 coat.castShadow = true;
-player.add(coat);
+characterVisualRoot.add(coat);
 
 const chest = new THREE.Mesh(
   new THREE.CapsuleGeometry(0.3, 0.4, 5, 8),
@@ -101,7 +107,7 @@ const chest = new THREE.Mesh(
 );
 chest.position.y = 1.34;
 chest.castShadow = true;
-player.add(chest);
+characterVisualRoot.add(chest);
 
 const mantle = new THREE.Mesh(
   new THREE.TorusGeometry(0.35, 0.06, 12, 20),
@@ -109,7 +115,7 @@ const mantle = new THREE.Mesh(
 );
 mantle.position.y = 1.5;
 mantle.rotation.x = Math.PI / 2;
-player.add(mantle);
+characterVisualRoot.add(mantle);
 
 const head = new THREE.Mesh(
   new THREE.SphereGeometry(0.2, 18, 14),
@@ -117,7 +123,7 @@ const head = new THREE.Mesh(
 );
 head.position.y = 1.75;
 head.castShadow = true;
-player.add(head);
+characterVisualRoot.add(head);
 
 const helmRing = new THREE.Mesh(
   new THREE.TorusGeometry(0.26, 0.03, 12, 26),
@@ -125,7 +131,7 @@ const helmRing = new THREE.Mesh(
 );
 helmRing.position.y = 2.0;
 helmRing.rotation.x = Math.PI / 2;
-player.add(helmRing);
+characterVisualRoot.add(helmRing);
 
 const crown = new THREE.Mesh(
   new THREE.ConeGeometry(0.24, 0.6, 18),
@@ -134,18 +140,18 @@ const crown = new THREE.Mesh(
 crown.position.y = 2.22;
 crown.rotation.z = -0.1;
 crown.castShadow = true;
-player.add(crown);
+characterVisualRoot.add(crown);
 
 const shoulderL = new THREE.Mesh(
   new THREE.SphereGeometry(0.12, 12, 10),
   new THREE.MeshStandardMaterial({ color: 0x374151, roughness: 0.5, metalness: 0.25 })
 );
 shoulderL.position.set(-0.32, 1.45, 0.03);
-player.add(shoulderL);
+characterVisualRoot.add(shoulderL);
 
 const shoulderR = shoulderL.clone();
 shoulderR.position.x = 0.32;
-player.add(shoulderR);
+characterVisualRoot.add(shoulderR);
 
 const firestaff = new THREE.Group();
 const staffShaft = new THREE.Mesh(
@@ -172,7 +178,94 @@ firestaff.add(staffCore);
 
 firestaff.position.set(0.46, 1.24, 0.08);
 firestaff.rotation.z = 0.48;
-player.add(firestaff);
+characterVisualRoot.add(firestaff);
+
+function applyLoadedHero(gltf, sourcePath) {
+  const modelRoot = new THREE.Group();
+  modelRoot.name = 'hero-model-root';
+  modelRoot.add(gltf.scene);
+  modelRoot.scale.setScalar(1.05);
+  modelRoot.position.y = 0;
+  modelRoot.rotation.y = Math.PI;
+
+  gltf.scene.traverse((obj) => {
+    if (!obj.isMesh) return;
+    obj.castShadow = true;
+    obj.receiveShadow = true;
+  });
+
+  characterVisualRoot.visible = false;
+  player.add(modelRoot);
+  characterModelLoaded = true;
+  heroModelStatus = `GLB HERO (${sourcePath})`;
+
+  if (gltf.animations && gltf.animations.length > 0) {
+    characterMixer = new THREE.AnimationMixer(gltf.scene);
+    const idle = characterMixer.clipAction(gltf.animations[0]);
+    idle.play();
+  }
+}
+
+function loadHeroModel() {
+  const loader = new GLTFLoader();
+
+  function toUrl(path) {
+    if (!path || typeof path !== 'string') return null;
+    if (/^https?:\/\//i.test(path)) return path;
+    if (path.startsWith('/')) return path;
+    return `/models/${path}`;
+  }
+
+  function setFallback(reason) {
+    characterModelLoaded = false;
+    characterVisualRoot.visible = true;
+    heroModelStatus = `FALLBACK HERO (${reason})`;
+  }
+
+  function loadCandidates(candidates) {
+    const unique = [...new Set(candidates.map(toUrl).filter(Boolean))];
+
+    if (unique.length === 0) {
+      setFallback('NO MODEL PATH CONFIGURED');
+      console.warn('No model path configured. Set models/manifest.json or ?hero=/models/your-file.glb');
+      return;
+    }
+
+    function tryPath(index) {
+      if (index >= unique.length) {
+        setFallback('MODEL NOT FOUND OR UNREADABLE');
+        console.warn('Unable to load hero model. Tried:', unique.join(', '));
+        return;
+      }
+
+      const path = unique[index];
+      loader.load(
+        path,
+        (gltf) => applyLoadedHero(gltf, path),
+        undefined,
+        () => tryPath(index + 1)
+      );
+    }
+
+    tryPath(0);
+  }
+
+  const queryHero = new URLSearchParams(window.location.search).get('hero');
+  const localStorageHero = window.localStorage.getItem('heroModelPath');
+
+  fetch('/models/manifest.json', { cache: 'no-store' })
+    .then((res) => (res.ok ? res.json() : {}))
+    .catch(() => ({}))
+    .then((manifest) => {
+      const manifestHero = manifest?.hero || null;
+      const manifestPaths = Array.isArray(manifest?.paths) ? manifest.paths : [];
+      const candidates = [queryHero, localStorageHero, manifestHero, ...manifestPaths];
+      loadCandidates(candidates);
+    });
+}
+
+
+loadHeroModel();
 scene.add(player);
 
 const enemy = new THREE.Mesh(
@@ -334,6 +427,10 @@ function activateDash() {
     state.yaw = Math.atan2(forward.x, forward.z);
     applyCameraKick(0.01);
   }
+
+  chargeStart = null;
+  state.isChargingShot = false;
+  mouseAttackHold = false;
 }
 
 function applyEnemyDamage(amount) {
@@ -537,6 +634,7 @@ function tick(now) {
   prev = now;
 
   if (currentScene === 'fight') update(dt, now / 1000);
+  if (characterMixer) characterMixer.update(dt);
 
   cameraKick.multiplyScalar(Math.pow(0.001, dt));
   renderer.render(scene, camera);
@@ -654,7 +752,8 @@ function update(dt, now) {
   const lock = state.pointerLocked ? 'LOCKED' : 'CLICK CANVAS';
   const dashLabel = bindingLabel(state.dashBinding);
   const dashBindStatus = state.isRebindingDash ? 'PRESS A KEY OR MOUSE BUTTON...' : 'B TO REBIND';
-  hud.textContent = `View ${state.viewMode.toUpperCase()} (V) | Mouse ${lock} | Attack Left Click | Dash ${dashLabel} (${dashBindStatus}) | Menu M | Charge ${hold}s | Stamina ${state.stamina.toFixed(0)} | Dash CD ${state.dashCooldown.toFixed(2)} | Enemy HP ${state.enemyHp}`;
+  const heroStatus = characterModelLoaded ? heroModelStatus : heroModelStatus;
+  hud.textContent = `View ${state.viewMode.toUpperCase()} (V) | ${heroStatus} | Mouse ${lock} | Attack Left Click | Dash ${dashLabel} (${dashBindStatus}) | Menu M | Charge ${hold}s | Stamina ${state.stamina.toFixed(0)} | Dash CD ${state.dashCooldown.toFixed(2)} | Enemy HP ${state.enemyHp}`;
 }
 
 window.addEventListener('resize', () => {

@@ -1,11 +1,22 @@
 # Character Model Folder
 
-Place your character model here and rename it to:
+Put your model in this folder.
 
-- `hero.glb`
+## Recommended setup
+1. Copy your file into `models/`
+2. Edit `models/manifest.json`
+3. Set `hero` to the exact filename
 
-Expected path:
+Example:
+```json
+{
+  "hero": "MyCharacter.glb",
+  "paths": []
+}
+```
 
-- `models/hero.glb`
+## Optional override
+- URL query: `?hero=/models/MyCharacter.glb`
+- localStorage: `heroModelPath`
 
-Once added, I can wire `game.js` to load it with `GLTFLoader`.
+The loader now **only** tries configured paths (query/localStorage/manifest), which avoids noisy 404 probes.
