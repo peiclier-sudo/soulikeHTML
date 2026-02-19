@@ -47,7 +47,7 @@ const menuDefinitions = {
 let currentScene = 'welcome';
 let characterMixer = null;
 let characterModelLoaded = false;
-let heroModelStatus = 'LOADING HERO';
+let heroModelStatus = 'LOADING HERO...';
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x070d1a);
@@ -208,28 +208,65 @@ function applyLoadedHero(gltf, sourcePath) {
 
 function loadHeroModel() {
   const loader = new GLTFLoader();
-  const candidatePaths = ['/models/hero.glb', 'models/hero.glb', '/models/Hero.glb', 'models/Hero.glb'];
 
-  function tryPath(index) {
-    if (index >= candidatePaths.length) {
-      characterModelLoaded = false;
-      characterVisualRoot.visible = true;
-      heroModelStatus = 'FALLBACK HERO (hero.glb NOT FOUND)';
-      console.warn('Unable to load hero model. Tried:', candidatePaths.join(', '));
+  const staticCandidates = ['/models/hero.glb', '/models/Hero.glb', '/hero.glb'];
+
+  function tryLoadPaths(paths, onAllFailed) {
+    function tryPath(index) {
+      if (index >= paths.length) {
+        onAllFailed();
+        return;
+      }
+      const path = paths[index];
+      loader.load(
+        path,
+        (gltf) => applyLoadedHero(gltf, path),
+        undefined,
+        () => tryPath(index + 1)
+      );
+    }
+    tryPath(0);
+  }
+
+  function setFallback(reason) {
+    characterModelLoaded = false;
+    characterVisualRoot.visible = true;
+    heroModelStatus = `FALLBACK HERO (${reason})`;
+  }
+
+  function discoverModelCandidates() {
+    return fetch('/models/', { cache: 'no-store' })
+      .then((res) => {
+        if (!res.ok) return [];
+        return res.text().then((html) => {
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(html, 'text/html');
+          const links = [...doc.querySelectorAll('a')]
+            .map((a) => a.getAttribute('href') || '')
+            .filter((href) => /\.glb(\?.*)?$/i.test(href))
+            .map((href) => href.startsWith('http') ? href : `/models/${href.replace(/^\.\//, '').replace(/^\//, '')}`);
+          return [...new Set(links)];
+        });
+      })
+      .catch(() => []);
+  }
+
+  discoverModelCandidates().then((discovered) => {
+    const mergedCandidates = [...new Set([...discovered, ...staticCandidates])];
+
+    if (mergedCandidates.length === 0) {
+      setFallback('NO GLB IN /models');
+      console.warn('No GLB files discovered in /models and no static candidate succeeded.');
       return;
     }
 
-    const path = candidatePaths[index];
-    loader.load(
-      path,
-      (gltf) => applyLoadedHero(gltf, path),
-      undefined,
-      () => tryPath(index + 1)
-    );
-  }
-
-  tryPath(0);
+    tryLoadPaths(mergedCandidates, () => {
+      setFallback('MODEL NOT FOUND OR UNREADABLE');
+      console.warn('Unable to load hero model. Tried:', mergedCandidates.join(', '));
+    });
+  });
 }
+
 
 loadHeroModel();
 scene.add(player);

@@ -1,15 +1,15 @@
 # Character Model Folder
 
-Put your character model at one of these exact names:
+Drop your model file in this folder.
 
-- `models/hero.glb` (recommended)
-- `models/Hero.glb`
+## Recommended name
+- `hero.glb`
 
-The game now auto-tries both absolute/relative paths:
+## Supported behavior
+- The game auto-discovers `.glb` files inside `/models/` and tries to load the first discovered file.
+- It also explicitly tries these fallback paths:
+  - `/models/hero.glb`
+  - `/models/Hero.glb`
+  - `/hero.glb`
 
-- `/models/hero.glb`
-- `models/hero.glb`
-- `/models/Hero.glb`
-- `models/Hero.glb`
-
-If all fail, it will show `FALLBACK HERO (hero.glb NOT FOUND)` in HUD.
+If all loads fail, HUD shows `FALLBACK HERO (...)` with the reason.
