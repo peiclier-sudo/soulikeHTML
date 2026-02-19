@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Soulike 3D Prototype</title>
+    <link rel="stylesheet" href="style.css" />
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <main class="layout">
+      <section class="panel">
+        <h1>Soulike 3D Prototype (Third Person)</h1>
+        <p>This is now a true 3D scene with a third-person follow camera.</p>
+        <ul>
+          <li><strong>Move:</strong> ZQSD (or WASD)</li>
+          <li><strong>Jump:</strong> Space</li>
+          <li><strong>Dash:</strong> Shift</li>
+          <li><strong>Basic attack:</strong> J</li>
+          <li><strong>Charged attack:</strong> Hold + release K</li>
+          <li><strong>Camera orbit:</strong> Right mouse drag</li>
+          <li><strong>Aim control:</strong> Hold left click + move mouse (controls character facing + camera)</li>
+          <li><strong>Mouse lock:</strong> Click canvas to lock/hide cursor (Esc to release)</li>
+          <li><strong>Dash keybind:</strong> Press B, then press any key</li>
+          <li><strong>View mode:</strong> V (toggle Classic / Fortnite shoulder camera)</li>
+        </ul>
+        <div id="hud"></div>
+      </section>
+      <canvas id="game" width="1280" height="720" aria-label="3d game canvas"></canvas>
+    </main>
+    <script type="module" src="game.js"></script>
+  </body>
+</html>
