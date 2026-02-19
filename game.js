@@ -59,18 +59,20 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(canvas.width, canvas.height, false);
 renderer.shadowMap.enabled = true;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.16;
+renderer.toneMappingExposure = 1.35;
 
-const hemi = new THREE.HemisphereLight(0x9fc5ff, 0x121826, 1.05);
+const hemi = new THREE.HemisphereLight(0xb8d3ff, 0x1a2233, 1.45);
 scene.add(hemi);
-const moon = new THREE.DirectionalLight(0xe2ecff, 1.55);
+const moon = new THREE.DirectionalLight(0xf3f7ff, 2.15);
 moon.position.set(10, 20, 8);
 moon.castShadow = true;
 scene.add(moon);
-const rim = new THREE.DirectionalLight(0x93c5fd, 0.8);
+const rim = new THREE.DirectionalLight(0xa7d3ff, 1.2);
 rim.position.set(-7, 9, -10);
 scene.add(rim);
-
+const fill = new THREE.PointLight(0x60a5fa, 1.4, 36, 2);
+fill.position.set(0, 4.5, 3.2);
+scene.add(fill);
 
 const ground = new THREE.Mesh(
   new THREE.PlaneGeometry(180, 180),
@@ -188,14 +190,14 @@ function applyLoadedHero(gltf, sourcePath) {
   const modelRoot = new THREE.Group();
   modelRoot.name = 'hero-model-root';
   modelRoot.add(gltf.scene);
-  modelRoot.scale.setScalar(1.05);
+  modelRoot.scale.setScalar(1.55);
   modelRoot.position.y = 0;
   modelRoot.rotation.y = Math.PI;
 
   const heroBounds = new THREE.Box3().setFromObject(gltf.scene);
   if (Number.isFinite(heroBounds.min.y)) {
     modelRoot.position.y -= heroBounds.min.y;
-    modelRoot.position.y += 0.02;
+    modelRoot.position.y += 0.08;
   }
 
   gltf.scene.traverse((obj) => {
