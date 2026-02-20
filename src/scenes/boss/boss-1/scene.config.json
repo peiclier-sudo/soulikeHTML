@@ -1,0 +1,7 @@
+{
+  "id": "boss-1",
+  "name": "Current Fight Scene",
+  "bossAsset": "src/models/bosses/boss-1/model.glb",
+  "arena": "arena-01",
+  "music": "boss-theme-01"
+}

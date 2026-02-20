@@ -316,3 +316,17 @@ Missing mappings must:
 ## Current Repository Note
 
 Current repository is still the legacy static prototype (`index.html` + `game.js`) and serves as a gameplay reference while migrating to the target architecture.
+
+
+## Scaffold Status (Current Repository)
+
+The repository now includes a concrete scaffold for the target architecture under `src/`, including:
+
+- `src/app/(menu)` and `src/app/(game)` route placeholders
+- `src/core` (`action-catalog`, `loadout-resolver`, `animation-resolver`)
+- `src/systems/animation/AnimationCodex.ts` placeholder
+- `src/models/characters`, `src/models/weapons`, and `src/models/bosses`
+- dedicated boss scene folders under `src/scenes/boss/` (`boss-1`, `boss-2`)
+
+This lets us move feature-by-feature without losing architecture clarity.
+
