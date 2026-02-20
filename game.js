@@ -194,7 +194,7 @@ function applyLoadedHero(gltf, sourcePath) {
   modelRoot.add(gltf.scene);
   modelRoot.scale.setScalar(1.55);
   modelRoot.position.y = 0;
-  modelRoot.rotation.y = Math.PI;
+  modelRoot.rotation.y = 0;
 
   const heroBounds = new THREE.Box3().setFromObject(gltf.scene);
   if (Number.isFinite(heroBounds.min.y)) {
@@ -561,14 +561,22 @@ function releaseFireShot() {
 
 function updateCharacterAnimation(dt, now, stride) {
   if (characterMixer && heroActions.locomotion) {
-    heroActions.locomotion.timeScale = THREE.MathUtils.lerp(0.2, 1.25, stride);
-
     if (heroActions.idle) {
+      heroActions.locomotion.paused = false;
+      heroActions.locomotion.timeScale = THREE.MathUtils.lerp(0.2, 1.25, stride);
       const locomotionWeight = THREE.MathUtils.damp(heroActions.locomotion.getEffectiveWeight(), stride, 8, dt);
       heroActions.locomotion.setEffectiveWeight(locomotionWeight);
       heroActions.idle.setEffectiveWeight(1 - locomotionWeight);
     } else {
+      const isMoving = stride > 0.08;
+      heroActions.locomotion.paused = !isMoving;
       heroActions.locomotion.setEffectiveWeight(1);
+
+      if (isMoving) {
+        heroActions.locomotion.timeScale = THREE.MathUtils.lerp(0.75, 1.3, stride);
+      } else {
+        heroActions.locomotion.time = 0;
+      }
     }
   }
 
