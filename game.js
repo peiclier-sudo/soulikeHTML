@@ -46,7 +46,7 @@ const menuDefinitions = {
 
 let currentScene = 'welcome';
 let characterMixer = null;
-let heroActions = { idle: null, locomotion: null, attack: null };
+let heroActions = { idle: null, locomotion: null, attack: null, idleIsStaticPose: false };
 let heroModelRoot = null;
 let characterModelLoaded = false;
 let heroModelStatus = 'LOADING HERO...';
@@ -217,19 +217,30 @@ function applyLoadedHero(gltf, sourcePath) {
   heroModelStatus = `GLB HERO (${sourcePath})`;
 
   characterMixer = null;
-  heroActions = { idle: null, locomotion: null, attack: null };
+  heroActions = { idle: null, locomotion: null, attack: null, idleIsStaticPose: false };
   if (gltf.animations && gltf.animations.length > 0) {
     characterMixer = new THREE.AnimationMixer(gltf.scene);
 
-    const idleClip = gltf.animations.find((clip) => /idle|breath|stand|rest/i.test(clip.name)) || null;
+    const trueIdleClip = gltf.animations.find((clip) => /idle|breath|stand|rest/i.test(clip.name)) || null;
     const walkClip = gltf.animations.find((clip) => /walk/i.test(clip.name)) || null;
     const runClip = gltf.animations.find((clip) => /run|jog|sprint/i.test(clip.name)) || null;
     const locomotionClip = walkClip || runClip || gltf.animations[0] || null;
-    const attackClip = gltf.animations.find((clip) => /attack|cast|spell|slash|hit/i.test(clip.name)) || null;
+    const poseFallbackClip = gltf.animations.find((clip) => /pose|cast|spell|aim/i.test(clip.name)) || null;
+    const idleClip = trueIdleClip || (poseFallbackClip !== locomotionClip ? poseFallbackClip : null);
+    const attackClip = gltf.animations.find((clip) => /attack|cast|spell|slash|hit/i.test(clip.name) && clip !== idleClip) || null;
 
     if (idleClip) {
       heroActions.idle = characterMixer.clipAction(idleClip);
-      heroActions.idle.play();
+      heroActions.idleIsStaticPose = !trueIdleClip;
+      if (heroActions.idleIsStaticPose) {
+        heroActions.idle.setLoop(THREE.LoopOnce, 1);
+        heroActions.idle.clampWhenFinished = true;
+        heroActions.idle.play();
+        heroActions.idle.time = Math.max(0, idleClip.duration * 0.9);
+        heroActions.idle.paused = true;
+      } else {
+        heroActions.idle.play();
+      }
     }
 
     if (locomotionClip) {
