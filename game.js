@@ -50,6 +50,7 @@ let heroActions = { idle: null, locomotion: null };
 let heroModelRoot = null;
 let characterModelLoaded = false;
 let heroModelStatus = 'LOADING HERO...';
+let heroFacingOffset = 0;
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x070d1a);
@@ -194,7 +195,7 @@ function applyLoadedHero(gltf, sourcePath) {
   modelRoot.add(gltf.scene);
   modelRoot.scale.setScalar(1.55);
   modelRoot.position.y = 0;
-  modelRoot.rotation.y = Math.PI;
+  modelRoot.rotation.y = heroFacingOffset;
 
   const heroBounds = new THREE.Box3().setFromObject(gltf.scene);
   if (Number.isFinite(heroBounds.min.y)) {
@@ -301,6 +302,12 @@ function loadHeroModel() {
     tryPath(0);
   }
 
+  function parseFacingOffset(value) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return null;
+    return THREE.MathUtils.degToRad(n);
+  }
+
   function fetchManifest() {
     const manifestUrls = ['models/manifest.json', '/models/manifest.json'];
 
@@ -318,12 +325,18 @@ function loadHeroModel() {
     return tryUrl(0);
   }
 
-  const queryHero = new URLSearchParams(window.location.search).get('hero');
+  const query = new URLSearchParams(window.location.search);
+  const queryHero = query.get('hero');
+  const queryFacingOffset = parseFacingOffset(query.get('heroFacingDeg'));
   const localStorageHero = window.localStorage.getItem('heroModelPath');
+  const localStorageFacingOffset = parseFacingOffset(window.localStorage.getItem('heroFacingDeg'));
 
   fetchManifest().then((manifest) => {
     const manifestHero = manifest?.hero || fallbackHeroFile;
     const manifestPaths = Array.isArray(manifest?.paths) ? manifest.paths : [];
+    const manifestFacingOffset = parseFacingOffset(manifest?.facingDeg);
+    heroFacingOffset = queryFacingOffset ?? localStorageFacingOffset ?? manifestFacingOffset ?? 0;
+
     const candidates = [queryHero, localStorageHero, manifestHero, ...manifestPaths, fallbackHeroFile];
     loadCandidates(candidates);
   });
@@ -849,7 +862,7 @@ function update(dt, now) {
   const lock = state.pointerLocked ? 'LOCKED' : 'CLICK CANVAS';
   const dashLabel = bindingLabel(state.dashBinding);
   const dashBindStatus = state.isRebindingDash ? 'PRESS A KEY OR MOUSE BUTTON...' : 'B TO REBIND';
-  const heroStatus = characterModelLoaded ? heroModelStatus : heroModelStatus;
+  const heroStatus = `${heroModelStatus} | facing ${(THREE.MathUtils.radToDeg(heroFacingOffset)).toFixed(0)}°`;
   hud.textContent = `View ${state.viewMode.toUpperCase()} (V) | ${heroStatus} | Mouse ${lock} | Attack Left Click | Dash ${dashLabel} (${dashBindStatus}) | Menu M | Charge ${hold}s | Stamina ${state.stamina.toFixed(0)} | Dash CD ${state.dashCooldown.toFixed(2)} | Enemy HP ${state.enemyHp}`;
 }
 

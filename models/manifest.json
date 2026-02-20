@@ -1,4 +1,5 @@
 {
   "hero": "hero.glb",
-  "paths": []
+  "paths": [],
+  "facingDeg": 0
 }
