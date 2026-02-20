@@ -3,8 +3,15 @@
   "paths": [],
   "facingDeg": 180,
   "animations": {
+    "idle": "Idle",
     "walk": "Walking",
-    "run": "Running",
-    "jump": "Run_and_Jump - basic jump"
+    "run": "RunFast",
+    "jump": "Jump",
+    "crouch": "Crouch",
+    "basicAttack": "",
+    "chargedAttack": "",
+    "ability1": "",
+    "ability2": "",
+    "ability3": ""
   }
 }
