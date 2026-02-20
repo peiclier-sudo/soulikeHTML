@@ -510,7 +510,7 @@ const cameraKick = new THREE.Vector2(0, 0);
 const viewModes = ['classic', 'fortnite'];
 const cameraModeConfig = {
   classic: { dist: 7.2, eyeHeight: 2.3, sideOffset: 0, lookHeight: 1.2 },
-  fortnite: { dist: 4.0, eyeHeight: 1.55, sideOffset: 1.25, lookHeight: 1.4 },
+  fortnite: { dist: 4.0, eyeHeight: 1.55, sideOffset: 0, lookHeight: 1.4 },
 };
 
 const state = {
@@ -520,8 +520,8 @@ const state = {
   baseSpeed: 8.3,
   accel: 42,
   drag: 19,
-  airControl: 0.45,
-  dashSpeed: 28,
+  airControl: 0.22,
+  dashSpeed: 16,
   dashTime: 0,
   dashCooldown: 0,
   dashBinding: 'key:shift',
@@ -631,7 +631,7 @@ function applyCameraKick(strength) {
 
 function activateDash() {
   if (state.dashCooldown <= 0 && state.stamina >= 18) {
-    state.dashTime = 0.17;
+    state.dashTime = 0.1;
     state.dashCooldown = 0.52;
     state.stamina -= 18;
     dashTrailTimer = 0.12;
@@ -862,7 +862,7 @@ window.addEventListener('keydown', (e) => {
 
   if (e.code === 'Space') {
     e.preventDefault();
-    if (state.pos.y <= 0.001) state.velY = 8.2;
+    if (state.pos.y <= 0.001) state.velY = 6.6;
   }
 
   if (state.dashBinding === keyBinding(k)) activateDash();
@@ -997,7 +997,7 @@ function update(dt, now) {
 
   const grounded = state.pos.y <= 0.001;
   const accel = state.accel * (grounded ? 1 : state.airControl);
-  const targetSpeed = state.baseSpeed * (state.dashTime > 0 ? 1.45 : 1);
+  const targetSpeed = state.baseSpeed * (state.dashTime > 0 ? 1.3 : 1) * (grounded ? 1 : 0.72);
 
   const targetVelX = moveInput.x * targetSpeed;
   const targetVelZ = moveInput.z * targetSpeed;
@@ -1078,12 +1078,10 @@ function update(dt, now) {
   ).multiplyScalar(mode.sideOffset);
 
   const targetCamPos = new THREE.Vector3().copy(state.pos).add(back).add(right);
-  state.camPos.lerp(targetCamPos, 0.12);
+  state.camPos.lerp(targetCamPos, 0.24);
   camera.position.copy(state.camPos);
 
   const lookTarget = new THREE.Vector3().copy(state.pos).add(new THREE.Vector3(0, mode.lookHeight, 0));
-  if (state.viewMode === 'fortnite') lookTarget.add(right.clone().multiplyScalar(0.45));
-
   const lookWithKick = lookTarget.clone()
     .add(new THREE.Vector3(Math.sin(state.cameraYaw + Math.PI / 2) * cameraKick.x, 0, Math.cos(state.cameraYaw + Math.PI / 2) * cameraKick.x))
     .add(new THREE.Vector3(0, cameraKick.y, 0));
