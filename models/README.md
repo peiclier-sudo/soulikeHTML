@@ -14,10 +14,9 @@ Example:
   "paths": [],
   "facingDeg": 0,
   "animations": {
-    "idle": "Inactif 1",
-    "locomotion": "Marche",
-    "basicAttack": "Mage Soell lance Sort 4",
-    "chargedAttack": "Mage Soell Cast 3"
+    "walk": "Walking",
+    "run": "Running",
+    "jump": "Run_and_Jump - basic jump"
   }
 }
 ```
@@ -37,9 +36,11 @@ If your app is served from a sub-path, relative paths are now tried automaticall
 
 
 - `animations`: optional explicit clip names from your GLB to force exact mapping.
-  - `idle`: idle/rest clip
-  - `locomotion`: movement clip
-  - `basicAttack`: quick/basic attack clip
-  - `chargedAttack`: heavy/charged attack clip
+  - `idle`: optional idle/rest clip (if missing, scene uses walk as fallback)
+  - `walk`: walk clip
+  - `run`: run clip
+  - `jump`: jump clip (played once while airborne)
+  - `locomotion`: optional fallback when `walk` is missing
+  - `basicAttack` / `chargedAttack`: optional combat clips (not required for movement)
 
 Tip: use your DCC/asset viewer animation names exactly (case-insensitive; spaces/underscores tolerated).

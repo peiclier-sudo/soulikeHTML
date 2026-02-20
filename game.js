@@ -46,9 +46,19 @@ const menuDefinitions = {
 
 let currentScene = 'welcome';
 let characterMixer = null;
-let heroActions = { idle: null, locomotion: null, basicAttack: null, chargedAttack: null, idleIsStaticPose: false };
+let heroActions = {
+  idle: null,
+  walk: null,
+  run: null,
+  jump: null,
+  basicAttack: null,
+  chargedAttack: null,
+  idleIsStaticPose: false,
+};
 let activeHeroAttackAction = null;
 let heroIsCharging = false;
+let heroCurrentLocomotionAction = null;
+let heroJumpingActionActive = false;
 let heroModelRoot = null;
 let characterModelLoaded = false;
 let heroModelStatus = 'LOADING HERO...';
@@ -243,8 +253,18 @@ function applyLoadedHero(gltf, sourcePath) {
   heroModelStatus = `GLB HERO (${sourcePath})`;
 
   characterMixer = null;
-  heroActions = { idle: null, locomotion: null, basicAttack: null, chargedAttack: null, idleIsStaticPose: false };
+  heroActions = {
+    idle: null,
+    walk: null,
+    run: null,
+    jump: null,
+    basicAttack: null,
+    chargedAttack: null,
+    idleIsStaticPose: false,
+  };
   activeHeroAttackAction = null;
+  heroCurrentLocomotionAction = null;
+  heroJumpingActionActive = false;
   if (gltf.animations && gltf.animations.length > 0) {
     characterMixer = new THREE.AnimationMixer(gltf.scene);
 
@@ -258,6 +278,10 @@ function applyLoadedHero(gltf, sourcePath) {
 
     const runClip = findClipByConfiguredName(gltf.animations, heroAnimationMap.run)
       || gltf.animations.find((clip) => /run|jog|sprint/i.test(clip.name))
+      || null;
+
+    const jumpClip = findClipByConfiguredName(gltf.animations, heroAnimationMap.jump)
+      || gltf.animations.find((clip) => /jump/i.test(clip.name))
       || null;
 
     const locomotionClip = findClipByConfiguredName(gltf.animations, heroAnimationMap.locomotion)
@@ -293,10 +317,26 @@ function applyLoadedHero(gltf, sourcePath) {
       }
     }
 
-    if (locomotionClip) {
-      heroActions.locomotion = characterMixer.clipAction(locomotionClip);
-      heroActions.locomotion.enabled = true;
-      heroActions.locomotion.play();
+    if (walkClip || locomotionClip) {
+      heroActions.walk = characterMixer.clipAction(walkClip || locomotionClip);
+      heroActions.walk.enabled = true;
+      heroActions.walk.play();
+    }
+
+    if (runClip) {
+      heroActions.run = characterMixer.clipAction(runClip);
+      heroActions.run.enabled = true;
+      heroActions.run.play();
+    }
+
+    if (jumpClip) {
+      heroActions.jump = characterMixer.clipAction(jumpClip);
+      heroActions.jump.enabled = true;
+      heroActions.jump.setLoop(THREE.LoopOnce, 1);
+      heroActions.jump.clampWhenFinished = true;
+      heroActions.jump.play();
+      heroActions.jump.paused = true;
+      heroActions.jump.setEffectiveWeight(0);
     }
 
     if (basicAttackClip) {
@@ -315,13 +355,30 @@ function applyLoadedHero(gltf, sourcePath) {
       heroActions.chargedAttack.setEffectiveWeight(0);
     }
 
-    if (heroActions.idle && heroActions.locomotion) {
+    if (heroActions.idle && heroActions.walk) {
       heroActions.idle.setEffectiveWeight(1);
-      heroActions.locomotion.setEffectiveWeight(0);
-    } else if (!heroActions.idle && heroActions.locomotion) {
-      heroActions.locomotion.setEffectiveWeight(1);
+      heroActions.walk.setEffectiveWeight(0);
+      if (heroActions.run) heroActions.run.setEffectiveWeight(0);
+      heroCurrentLocomotionAction = heroActions.idle;
+    } else if (!heroActions.idle && heroActions.walk) {
+      heroActions.walk.setEffectiveWeight(1);
+      if (heroActions.run) heroActions.run.setEffectiveWeight(0);
+      heroCurrentLocomotionAction = heroActions.walk;
     }
   }
+}
+
+function crossFadeHeroBaseAction(nextAction, duration = 0.18) {
+  if (!nextAction || heroCurrentLocomotionAction === nextAction) return;
+  nextAction.enabled = true;
+  nextAction.reset();
+  nextAction.play();
+
+  if (heroCurrentLocomotionAction) {
+    heroCurrentLocomotionAction.crossFadeTo(nextAction, duration, true);
+  }
+
+  heroCurrentLocomotionAction = nextAction;
 }
 
 function loadHeroModel() {
@@ -691,27 +748,40 @@ function updateCharacterAnimation(dt, now, stride) {
   const attackWeight = activeHeroAttackAction ? activeHeroAttackAction.getEffectiveWeight() : 0;
   const attackActive = activeHeroAttackAction && (state.attackTime > 0 || attackWeight > 0.04 || heroIsCharging);
 
-  if (characterMixer && heroActions.locomotion) {
+  const isAirborne = state.pos.y > 0.03 || state.velY > 0.2;
+  const shouldJump = !!heroActions.jump && isAirborne && !attackActive;
+
+  if (shouldJump && !heroJumpingActionActive) {
+    heroJumpingActionActive = true;
+    heroActions.jump.reset();
+    heroActions.jump.paused = false;
+    heroActions.jump.setEffectiveWeight(1);
+    heroActions.jump.play();
+  } else if (!shouldJump && heroJumpingActionActive) {
+    heroJumpingActionActive = false;
+    heroActions.jump.setEffectiveWeight(0);
+    heroActions.jump.paused = true;
+  }
+
+  if (characterMixer && (heroActions.walk || heroActions.run)) {
+    const wantsRun = stride > 0.82;
+    const isMoving = stride > 0.08 && !attackActive && !heroJumpingActionActive;
+    const desiredBaseAction = isMoving
+      ? ((wantsRun && heroActions.run) ? heroActions.run : heroActions.walk)
+      : heroActions.idle || heroActions.walk || heroActions.run;
+
+    if (desiredBaseAction) crossFadeHeroBaseAction(desiredBaseAction);
+
+    if (heroActions.walk) {
+      heroActions.walk.timeScale = THREE.MathUtils.lerp(0.8, 1.1, Math.min(stride / 0.82, 1));
+      heroActions.walk.setEffectiveWeight(heroCurrentLocomotionAction === heroActions.walk ? 1 : 0);
+    }
+    if (heroActions.run) {
+      heroActions.run.timeScale = THREE.MathUtils.lerp(0.95, 1.28, stride);
+      heroActions.run.setEffectiveWeight(heroCurrentLocomotionAction === heroActions.run ? 1 : 0);
+    }
     if (heroActions.idle) {
-      const targetLocoWeight = stride > 0.06 && !attackActive ? stride : 0;
-      heroActions.locomotion.paused = targetLocoWeight <= 0.001;
-      if (!heroActions.locomotion.paused) {
-        heroActions.locomotion.timeScale = THREE.MathUtils.lerp(0.35, 1.25, stride);
-      }
-
-      const locomotionWeight = THREE.MathUtils.damp(heroActions.locomotion.getEffectiveWeight(), targetLocoWeight, 10, dt);
-      heroActions.locomotion.setEffectiveWeight(locomotionWeight);
-      heroActions.idle.setEffectiveWeight(1 - locomotionWeight);
-    } else {
-      const isMoving = stride > 0.08 && !attackActive;
-      heroActions.locomotion.paused = !isMoving;
-      heroActions.locomotion.setEffectiveWeight(1);
-
-      if (isMoving) {
-        heroActions.locomotion.timeScale = THREE.MathUtils.lerp(0.75, 1.3, stride);
-      } else {
-        heroActions.locomotion.time = 0;
-      }
+      heroActions.idle.setEffectiveWeight(heroCurrentLocomotionAction === heroActions.idle ? 1 : 0);
     }
   }
 
@@ -731,9 +801,13 @@ function updateCharacterAnimation(dt, now, stride) {
     if (heroActions.idle) {
       heroActions.idle.setEffectiveWeight(heroActions.idle.getEffectiveWeight() * (1 - activeWeight));
     }
-    if (heroActions.locomotion) {
-      heroActions.locomotion.setEffectiveWeight(heroActions.locomotion.getEffectiveWeight() * (1 - activeWeight));
+    if (heroActions.walk) {
+      heroActions.walk.setEffectiveWeight(heroActions.walk.getEffectiveWeight() * (1 - activeWeight));
     }
+    if (heroActions.run) {
+      heroActions.run.setEffectiveWeight(heroActions.run.getEffectiveWeight() * (1 - activeWeight));
+    }
+    if (heroActions.jump) heroActions.jump.setEffectiveWeight(heroActions.jump.getEffectiveWeight() * (1 - activeWeight));
   }
 
   if (heroModelRoot && !characterMixer) {
