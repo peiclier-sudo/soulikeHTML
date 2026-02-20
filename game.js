@@ -194,7 +194,7 @@ function applyLoadedHero(gltf, sourcePath) {
   modelRoot.add(gltf.scene);
   modelRoot.scale.setScalar(1.55);
   modelRoot.position.y = 0;
-  modelRoot.rotation.y = 0;
+  modelRoot.rotation.y = Math.PI;
 
   const heroBounds = new THREE.Box3().setFromObject(gltf.scene);
   if (Number.isFinite(heroBounds.min.y)) {
