@@ -46,10 +46,12 @@ const menuDefinitions = {
 
 let currentScene = 'welcome';
 let characterMixer = null;
-let heroActions = { idle: null, locomotion: null };
+let heroActions = { idle: null, locomotion: null, basicAttack: null, chargedAttack: null, idleIsStaticPose: false };
+let activeHeroAttackAction = null;
 let heroModelRoot = null;
 let characterModelLoaded = false;
 let heroModelStatus = 'LOADING HERO...';
+let heroFacingOffset = 0;
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x070d1a);
@@ -194,7 +196,7 @@ function applyLoadedHero(gltf, sourcePath) {
   modelRoot.add(gltf.scene);
   modelRoot.scale.setScalar(1.55);
   modelRoot.position.y = 0;
-  modelRoot.rotation.y = Math.PI;
+  modelRoot.rotation.y = heroFacingOffset;
 
   const heroBounds = new THREE.Box3().setFromObject(gltf.scene);
   if (Number.isFinite(heroBounds.min.y)) {
@@ -207,6 +209,16 @@ function applyLoadedHero(gltf, sourcePath) {
     if (!obj.isMesh) return;
     obj.castShadow = true;
     obj.receiveShadow = true;
+
+    const materials = Array.isArray(obj.material) ? obj.material : [obj.material];
+    materials.forEach((material) => {
+      if (!material) return;
+      material.transparent = false;
+      material.opacity = 1;
+      material.alphaTest = 0;
+      material.depthWrite = true;
+      material.needsUpdate = true;
+    });
   });
 
   characterVisualRoot.visible = false;
@@ -216,23 +228,74 @@ function applyLoadedHero(gltf, sourcePath) {
   heroModelStatus = `GLB HERO (${sourcePath})`;
 
   characterMixer = null;
-  heroActions = { idle: null, locomotion: null };
+  heroActions = { idle: null, locomotion: null, basicAttack: null, chargedAttack: null, idleIsStaticPose: false };
+  activeHeroAttackAction = null;
   if (gltf.animations && gltf.animations.length > 0) {
     characterMixer = new THREE.AnimationMixer(gltf.scene);
 
-    const idleClip = gltf.animations.find((clip) => /idle|breath/i.test(clip.name)) || gltf.animations[0];
-    const locomotionClip = gltf.animations.find((clip) => /walk|run|jog|locomotion/i.test(clip.name)) || null;
+    const trueIdleClip = gltf.animations.find((clip) => /inactif\s*1|inactive\s*1|idle|breath|stand|rest|rested/i.test(clip.name)) || null;
+    const walkClip = gltf.animations.find((clip) => /walk/i.test(clip.name)) || null;
+    const runClip = gltf.animations.find((clip) => /run|jog|sprint/i.test(clip.name)) || null;
+    const locomotionClip = walkClip || runClip || gltf.animations[0] || null;
+    const poseFallbackClip = gltf.animations.find((clip) => /pose|aim/i.test(clip.name)) || null;
+    const idleClip = trueIdleClip || (poseFallbackClip !== locomotionClip ? poseFallbackClip : null);
 
-    heroActions.idle = characterMixer.clipAction(idleClip);
-    heroActions.idle.play();
+    const chargedAttackClip = gltf.animations.find((clip) =>
+      /mage[\s_-]*soell[\s_-]*(cast|lance).*\b3\b/i.test(clip.name)
+      && clip !== idleClip
+    )
+      || gltf.animations.find((clip) => /charge|heavy|power|cast[_-]?3|spell[_-]?3|_3$/i.test(clip.name) && clip !== idleClip)
+      || null;
 
-    if (locomotionClip && locomotionClip !== idleClip) {
+    const basicAttackClip = gltf.animations.find((clip) =>
+      /mage[\s_-]*soell[\s_-]*lance[\s_-]*sort.*\b4\b/i.test(clip.name)
+      && clip !== idleClip
+      && clip !== chargedAttackClip
+    )
+      || gltf.animations.find((clip) => /attack|cast|spell|slash|hit|cast[_-]?4|spell[_-]?4|_4$/i.test(clip.name) && clip !== idleClip && clip !== chargedAttackClip)
+      || null;
+
+    if (idleClip) {
+      heroActions.idle = characterMixer.clipAction(idleClip);
+      heroActions.idleIsStaticPose = !trueIdleClip;
+      if (heroActions.idleIsStaticPose) {
+        heroActions.idle.setLoop(THREE.LoopOnce, 1);
+        heroActions.idle.clampWhenFinished = true;
+        heroActions.idle.play();
+        heroActions.idle.time = Math.max(0, idleClip.duration * 0.9);
+        heroActions.idle.paused = true;
+      } else {
+        heroActions.idle.play();
+      }
+    }
+
+    if (locomotionClip) {
       heroActions.locomotion = characterMixer.clipAction(locomotionClip);
-      heroActions.idle.enabled = true;
-      heroActions.idle.setEffectiveWeight(1);
       heroActions.locomotion.enabled = true;
-      heroActions.locomotion.setEffectiveWeight(0);
       heroActions.locomotion.play();
+    }
+
+    if (basicAttackClip) {
+      heroActions.basicAttack = characterMixer.clipAction(basicAttackClip);
+      heroActions.basicAttack.setLoop(THREE.LoopOnce, 1);
+      heroActions.basicAttack.clampWhenFinished = true;
+      heroActions.basicAttack.enabled = false;
+      heroActions.basicAttack.setEffectiveWeight(0);
+    }
+
+    if (chargedAttackClip) {
+      heroActions.chargedAttack = characterMixer.clipAction(chargedAttackClip);
+      heroActions.chargedAttack.setLoop(THREE.LoopOnce, 1);
+      heroActions.chargedAttack.clampWhenFinished = true;
+      heroActions.chargedAttack.enabled = false;
+      heroActions.chargedAttack.setEffectiveWeight(0);
+    }
+
+    if (heroActions.idle && heroActions.locomotion) {
+      heroActions.idle.setEffectiveWeight(1);
+      heroActions.locomotion.setEffectiveWeight(0);
+    } else if (!heroActions.idle && heroActions.locomotion) {
+      heroActions.locomotion.setEffectiveWeight(1);
     }
   }
 }
@@ -293,6 +356,12 @@ function loadHeroModel() {
     tryPath(0);
   }
 
+  function parseFacingOffset(value) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return null;
+    return THREE.MathUtils.degToRad(n);
+  }
+
   function fetchManifest() {
     const manifestUrls = ['models/manifest.json', '/models/manifest.json'];
 
@@ -310,12 +379,18 @@ function loadHeroModel() {
     return tryUrl(0);
   }
 
-  const queryHero = new URLSearchParams(window.location.search).get('hero');
+  const query = new URLSearchParams(window.location.search);
+  const queryHero = query.get('hero');
+  const queryFacingOffset = parseFacingOffset(query.get('heroFacingDeg'));
   const localStorageHero = window.localStorage.getItem('heroModelPath');
+  const localStorageFacingOffset = parseFacingOffset(window.localStorage.getItem('heroFacingDeg'));
 
   fetchManifest().then((manifest) => {
     const manifestHero = manifest?.hero || fallbackHeroFile;
     const manifestPaths = Array.isArray(manifest?.paths) ? manifest.paths : [];
+    const manifestFacingOffset = parseFacingOffset(manifest?.facingDeg);
+    heroFacingOffset = queryFacingOffset ?? localStorageFacingOffset ?? manifestFacingOffset ?? 0;
+
     const candidates = [queryHero, localStorageHero, manifestHero, ...manifestPaths, fallbackHeroFile];
     loadCandidates(candidates);
   });
@@ -531,6 +606,23 @@ function spawnFireball(power) {
   state.attackPower = power;
   state.attackRecover = power > 1.25 ? 0.14 : 0.08;
   applyCameraKick(power > 1.25 ? 0.016 : 0.008);
+  playHeroAttackAnimation(power);
+}
+
+function playHeroAttackAnimation(power) {
+  const wantsCharged = power > 1.25;
+  const chosenAction = wantsCharged
+    ? (heroActions.chargedAttack || heroActions.basicAttack)
+    : (heroActions.basicAttack || heroActions.chargedAttack);
+
+  if (!chosenAction) return;
+  activeHeroAttackAction = chosenAction;
+  chosenAction.enabled = true;
+  chosenAction.paused = false;
+  chosenAction.time = 0;
+  chosenAction.setEffectiveWeight(1);
+  chosenAction.timeScale = wantsCharged ? 1.05 : 1.2;
+  chosenAction.play();
 }
 
 function releaseFireShot() {
@@ -552,11 +644,52 @@ function releaseFireShot() {
 
 
 function updateCharacterAnimation(dt, now, stride) {
-  if (characterMixer && heroActions.idle && heroActions.locomotion) {
-    const locomotionWeight = THREE.MathUtils.damp(heroActions.locomotion.getEffectiveWeight(), stride, 8, dt);
-    heroActions.locomotion.setEffectiveWeight(locomotionWeight);
-    heroActions.idle.setEffectiveWeight(1 - locomotionWeight);
-    heroActions.locomotion.timeScale = THREE.MathUtils.lerp(0.75, 1.3, stride);
+  const attackWeight = activeHeroAttackAction ? activeHeroAttackAction.getEffectiveWeight() : 0;
+  const attackActive = activeHeroAttackAction && (state.attackTime > 0 || attackWeight > 0.04);
+
+  if (characterMixer && heroActions.locomotion) {
+    if (heroActions.idle) {
+      const targetLocoWeight = stride > 0.06 && !attackActive ? stride : 0;
+      heroActions.locomotion.paused = targetLocoWeight <= 0.001;
+      if (!heroActions.locomotion.paused) {
+        heroActions.locomotion.timeScale = THREE.MathUtils.lerp(0.35, 1.25, stride);
+      }
+
+      const locomotionWeight = THREE.MathUtils.damp(heroActions.locomotion.getEffectiveWeight(), targetLocoWeight, 10, dt);
+      heroActions.locomotion.setEffectiveWeight(locomotionWeight);
+      heroActions.idle.setEffectiveWeight(1 - locomotionWeight);
+    } else {
+      const isMoving = stride > 0.08 && !attackActive;
+      heroActions.locomotion.paused = !isMoving;
+      heroActions.locomotion.setEffectiveWeight(1);
+
+      if (isMoving) {
+        heroActions.locomotion.timeScale = THREE.MathUtils.lerp(0.75, 1.3, stride);
+      } else {
+        heroActions.locomotion.time = 0;
+      }
+    }
+  }
+
+  const attackActions = [heroActions.basicAttack, heroActions.chargedAttack].filter(Boolean);
+  if (attackActions.length > 0) {
+    attackActions.forEach((action) => {
+      const isActiveAction = activeHeroAttackAction === action;
+      const targetAttackWeight = isActiveAction && state.attackTime > 0 ? 1 : 0;
+      const nextAttackWeight = THREE.MathUtils.damp(action.getEffectiveWeight(), targetAttackWeight, 16, dt);
+      action.setEffectiveWeight(nextAttackWeight);
+      action.enabled = nextAttackWeight > 0.01;
+    });
+
+    const activeWeight = activeHeroAttackAction ? activeHeroAttackAction.getEffectiveWeight() : 0;
+    if (activeWeight <= 0.01 && state.attackTime <= 0) activeHeroAttackAction = null;
+
+    if (heroActions.idle) {
+      heroActions.idle.setEffectiveWeight(heroActions.idle.getEffectiveWeight() * (1 - activeWeight));
+    }
+    if (heroActions.locomotion) {
+      heroActions.locomotion.setEffectiveWeight(heroActions.locomotion.getEffectiveWeight() * (1 - activeWeight));
+    }
   }
 
   if (heroModelRoot && !characterMixer) {
@@ -566,6 +699,7 @@ function updateCharacterAnimation(dt, now, stride) {
     heroModelRoot.rotation.z = sway;
   }
 }
+
 
 window.addEventListener('keydown', (e) => {
   const k = normalizeKey(e);
@@ -828,7 +962,7 @@ function update(dt, now) {
   const lock = state.pointerLocked ? 'LOCKED' : 'CLICK CANVAS';
   const dashLabel = bindingLabel(state.dashBinding);
   const dashBindStatus = state.isRebindingDash ? 'PRESS A KEY OR MOUSE BUTTON...' : 'B TO REBIND';
-  const heroStatus = characterModelLoaded ? heroModelStatus : heroModelStatus;
+  const heroStatus = `${heroModelStatus} | facing ${(THREE.MathUtils.radToDeg(heroFacingOffset)).toFixed(0)}°`;
   hud.textContent = `View ${state.viewMode.toUpperCase()} (V) | ${heroStatus} | Mouse ${lock} | Attack Left Click | Dash ${dashLabel} (${dashBindStatus}) | Menu M | Charge ${hold}s | Stamina ${state.stamina.toFixed(0)} | Dash CD ${state.dashCooldown.toFixed(2)} | Enemy HP ${state.enemyHp}`;
 }
 

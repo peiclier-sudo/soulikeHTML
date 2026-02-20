@@ -11,9 +11,14 @@ Example:
 ```json
 {
   "hero": "MyCharacter.glb",
-  "paths": []
+  "paths": [],
+  "facingDeg": 0
 }
 ```
+
+- `facingDeg`: optional. Rotation offset in degrees for rigs that face the wrong way.
+  - `0` = no extra rotation
+  - `180` = flip around
 
 ## Optional override
 - URL query: `?hero=models/MyCharacter.glb`
