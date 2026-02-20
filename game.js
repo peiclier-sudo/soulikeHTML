@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'GLTFLoader';
+import { CharacterAnimationController } from './lib/character-animation-controller.js';
 
 const canvas = document.getElementById('game');
 const hud = document.getElementById('hud');
@@ -45,20 +46,8 @@ const menuDefinitions = {
 };
 
 let currentScene = 'welcome';
-let characterMixer = null;
-let heroActions = {
-  idle: null,
-  walk: null,
-  run: null,
-  jump: null,
-  basicAttack: null,
-  chargedAttack: null,
-  idleIsStaticPose: false,
-};
+let animator = null;
 let activeHeroAttackAction = null;
-let heroIsCharging = false;
-let heroCurrentLocomotionAction = null;
-let heroJumpingActionActive = false;
 let heroRootMotionLocks = [];
 let heroModelRoot = null;
 let characterModelLoaded = false;
@@ -203,19 +192,6 @@ firestaff.position.set(0.46, 1.24, 0.08);
 firestaff.rotation.z = 0.48;
 characterVisualRoot.add(firestaff);
 
-function normalizeClipName(name) {
-  return String(name || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-}
-
-function findClipByConfiguredName(animations, configuredName) {
-  if (!configuredName || typeof configuredName !== 'string') return null;
-  const wanted = normalizeClipName(configuredName);
-  if (!wanted) return null;
-
-  return animations.find((clip) => normalizeClipName(clip.name) === wanted)
-    || animations.find((clip) => normalizeClipName(clip.name).includes(wanted));
-}
-
 function applyLoadedHero(gltf, sourcePath) {
   const modelRoot = new THREE.Group();
   modelRoot.name = 'hero-model-root';
@@ -253,135 +229,14 @@ function applyLoadedHero(gltf, sourcePath) {
   characterModelLoaded = true;
   heroModelStatus = `GLB HERO (${sourcePath})`;
 
-  characterMixer = null;
-  heroActions = {
-    idle: null,
-    walk: null,
-    run: null,
-    jump: null,
-    basicAttack: null,
-    chargedAttack: null,
-    idleIsStaticPose: false,
-  };
+  animator = null;
   activeHeroAttackAction = null;
-  heroCurrentLocomotionAction = null;
-  heroJumpingActionActive = false;
   heroRootMotionLocks = [];
   if (gltf.animations && gltf.animations.length > 0) {
-    characterMixer = new THREE.AnimationMixer(gltf.scene);
+    animator = new CharacterAnimationController(gltf.scene);
     heroRootMotionLocks = collectHeroRootMotionLocks(gltf.scene, gltf.animations);
-
-    const trueIdleClip = findClipByConfiguredName(gltf.animations, heroAnimationMap.idle)
-      || gltf.animations.find((clip) => /inactif\s*1|inactive\s*1|idle|breath|stand|rest|rested/i.test(clip.name))
-      || null;
-
-    const walkClip = findClipByConfiguredName(gltf.animations, heroAnimationMap.walk)
-      || gltf.animations.find((clip) => /walk/i.test(clip.name))
-      || null;
-
-    const runClip = findClipByConfiguredName(gltf.animations, heroAnimationMap.run)
-      || gltf.animations.find((clip) => /run|jog|sprint/i.test(clip.name))
-      || null;
-
-    const jumpClip = findClipByConfiguredName(gltf.animations, heroAnimationMap.jump)
-      || gltf.animations.find((clip) => /jump/i.test(clip.name))
-      || null;
-
-    const locomotionClip = findClipByConfiguredName(gltf.animations, heroAnimationMap.locomotion)
-      || walkClip
-      || runClip
-      || gltf.animations[0]
-      || null;
-
-    const poseFallbackClip = gltf.animations.find((clip) => /pose|aim/i.test(clip.name)) || null;
-    const idleClip = trueIdleClip || (poseFallbackClip !== locomotionClip ? poseFallbackClip : null);
-
-    const chargedAttackClip = findClipByConfiguredName(gltf.animations, heroAnimationMap.chargedAttack)
-      || gltf.animations.find((clip) => /mage[\s_-]*soell[\s_-]*(cast|lance).*\b3\b/i.test(clip.name) && clip !== idleClip)
-      || gltf.animations.find((clip) => /charge|heavy|power|cast[_-]?3|spell[_-]?3|_3$/i.test(clip.name) && clip !== idleClip)
-      || null;
-
-    const basicAttackClip = findClipByConfiguredName(gltf.animations, heroAnimationMap.basicAttack)
-      || gltf.animations.find((clip) => /mage[\s_-]*soell[\s_-]*lance[\s_-]*sort.*\b4\b/i.test(clip.name) && clip !== idleClip && clip !== chargedAttackClip)
-      || gltf.animations.find((clip) => /attack|cast|spell|slash|hit|cast[_-]?4|spell[_-]?4|_4$/i.test(clip.name) && clip !== idleClip && clip !== chargedAttackClip)
-      || null;
-
-    if (idleClip) {
-      heroActions.idle = characterMixer.clipAction(idleClip);
-      heroActions.idleIsStaticPose = !trueIdleClip;
-      if (heroActions.idleIsStaticPose) {
-        heroActions.idle.setLoop(THREE.LoopOnce, 1);
-        heroActions.idle.clampWhenFinished = true;
-        heroActions.idle.play();
-        heroActions.idle.time = Math.max(0, idleClip.duration * 0.9);
-        heroActions.idle.paused = true;
-      } else {
-        heroActions.idle.play();
-      }
-    }
-
-    if (walkClip || locomotionClip) {
-      heroActions.walk = characterMixer.clipAction(walkClip || locomotionClip);
-      heroActions.walk.enabled = true;
-      heroActions.walk.play();
-    }
-
-    if (runClip) {
-      heroActions.run = characterMixer.clipAction(runClip);
-      heroActions.run.enabled = true;
-      heroActions.run.play();
-    }
-
-    if (jumpClip) {
-      heroActions.jump = characterMixer.clipAction(jumpClip);
-      heroActions.jump.enabled = true;
-      heroActions.jump.setLoop(THREE.LoopOnce, 1);
-      heroActions.jump.clampWhenFinished = true;
-      heroActions.jump.play();
-      heroActions.jump.paused = true;
-      heroActions.jump.setEffectiveWeight(0);
-    }
-
-    if (basicAttackClip) {
-      heroActions.basicAttack = characterMixer.clipAction(basicAttackClip);
-      heroActions.basicAttack.setLoop(THREE.LoopOnce, 1);
-      heroActions.basicAttack.clampWhenFinished = true;
-      heroActions.basicAttack.enabled = false;
-      heroActions.basicAttack.setEffectiveWeight(0);
-    }
-
-    if (chargedAttackClip) {
-      heroActions.chargedAttack = characterMixer.clipAction(chargedAttackClip);
-      heroActions.chargedAttack.setLoop(THREE.LoopOnce, 1);
-      heroActions.chargedAttack.clampWhenFinished = true;
-      heroActions.chargedAttack.enabled = false;
-      heroActions.chargedAttack.setEffectiveWeight(0);
-    }
-
-    if (heroActions.idle && heroActions.walk) {
-      heroActions.idle.setEffectiveWeight(1);
-      heroActions.walk.setEffectiveWeight(0);
-      if (heroActions.run) heroActions.run.setEffectiveWeight(0);
-      heroCurrentLocomotionAction = heroActions.idle;
-    } else if (!heroActions.idle && heroActions.walk) {
-      heroActions.walk.setEffectiveWeight(1);
-      if (heroActions.run) heroActions.run.setEffectiveWeight(0);
-      heroCurrentLocomotionAction = heroActions.walk;
-    }
+    animator.initFromManifest(gltf.animations, heroAnimationMap);
   }
-}
-
-function crossFadeHeroBaseAction(nextAction, duration = 0.18) {
-  if (!nextAction || heroCurrentLocomotionAction === nextAction) return;
-  nextAction.enabled = true;
-  nextAction.reset();
-  nextAction.play();
-
-  if (heroCurrentLocomotionAction) {
-    heroCurrentLocomotionAction.crossFadeTo(nextAction, duration, true);
-  }
-
-  heroCurrentLocomotionAction = nextAction;
 }
 
 
@@ -727,36 +582,13 @@ function spawnFireball(power) {
 }
 
 function playHeroAttackAnimation(power) {
-  heroIsCharging = false;
-  const wantsCharged = power > 1.25;
-  const chosenAction = wantsCharged
-    ? (heroActions.chargedAttack || heroActions.basicAttack)
-    : (heroActions.basicAttack || heroActions.chargedAttack);
-
-  if (!chosenAction) return;
-  activeHeroAttackAction = chosenAction;
-  chosenAction.enabled = true;
-  chosenAction.paused = false;
-  // For charged attacks the animation was already playing during wind-up; resume at full speed.
-  // For basic attacks reset to the start so the full motion plays.
-  if (!wantsCharged) chosenAction.time = 0;
-  chosenAction.setEffectiveWeight(1);
-  chosenAction.timeScale = wantsCharged ? 1.05 : 1.2;
-  chosenAction.play();
+  if (!animator) return;
+  activeHeroAttackAction = animator.playAttack(power);
 }
 
 function startHeroChargeAnimation() {
-  const chargeAction = heroActions.chargedAttack || heroActions.basicAttack;
-  if (!chargeAction) return;
-  heroIsCharging = true;
-  activeHeroAttackAction = chargeAction;
-  chargeAction.enabled = true;
-  chargeAction.paused = false;
-  chargeAction.time = 0;
-  chargeAction.setEffectiveWeight(1);
-  // Play slowly to show the wind-up pose; speed will jump to 1.05 on release.
-  chargeAction.timeScale = 0.4;
-  chargeAction.play();
+  if (!animator) return;
+  activeHeroAttackAction = animator.startCharge();
 }
 
 function releaseFireShot() {
@@ -775,89 +607,21 @@ function releaseFireShot() {
   state.isChargingShot = false;
   mouseAttackHold = false;
   // If no fireball was spawned (stamina too low, etc.) clear the charge animation.
-  heroIsCharging = false;
+  if (animator) animator.isCharging = false;
 }
 
 
 function updateCharacterAnimation(dt, now, stride) {
-  const attackWeight = activeHeroAttackAction ? activeHeroAttackAction.getEffectiveWeight() : 0;
-  const attackActive = activeHeroAttackAction && (state.attackTime > 0 || attackWeight > 0.04 || heroIsCharging);
-
-  const isAirborne = state.pos.y > 0.03 || state.velY > 0.2;
-  const shouldJump = !!heroActions.jump && isAirborne && !attackActive;
-
-  if (shouldJump && !heroJumpingActionActive) {
-    heroJumpingActionActive = true;
-    heroActions.jump.reset();
-    heroActions.jump.paused = false;
-    heroActions.jump.setEffectiveWeight(1);
-    heroActions.jump.timeScale = 1.6;
-    heroActions.jump.play();
-  }
-
-  if (!shouldJump && heroJumpingActionActive && heroActions.jump) {
-    const jumpProgress = heroActions.jump.time / Math.max(heroActions.jump.getClip().duration, 0.001);
-    if (jumpProgress >= 0.88) {
-      heroJumpingActionActive = false;
-      heroActions.jump.setEffectiveWeight(0);
-      heroActions.jump.paused = true;
-    } else {
-      // Finish the clip quickly after landing so it does not get cut off.
-      heroActions.jump.timeScale = 2.1;
-      heroActions.jump.setEffectiveWeight(1);
-    }
-  }
-
-  if (characterMixer && (heroActions.walk || heroActions.run)) {
-    if (!heroJumpingActionActive) {
-      const wantsRun = stride > 0.82;
-      const isMoving = stride > 0.08 && !attackActive;
-      const desiredBaseAction = isMoving
-        ? ((wantsRun && heroActions.run) ? heroActions.run : heroActions.walk)
-        : heroActions.idle || heroActions.walk || heroActions.run;
-
-      if (desiredBaseAction) crossFadeHeroBaseAction(desiredBaseAction);
-    }
-
-    if (heroActions.walk) {
-      heroActions.walk.timeScale = THREE.MathUtils.lerp(0.8, 1.1, Math.min(stride / 0.82, 1));
-      heroActions.walk.setEffectiveWeight(heroJumpingActionActive ? 0 : (heroCurrentLocomotionAction === heroActions.walk ? 1 : 0));
-    }
-    if (heroActions.run) {
-      heroActions.run.timeScale = THREE.MathUtils.lerp(0.95, 1.28, stride);
-      heroActions.run.setEffectiveWeight(heroJumpingActionActive ? 0 : (heroCurrentLocomotionAction === heroActions.run ? 1 : 0));
-    }
-    if (heroActions.idle) {
-      heroActions.idle.setEffectiveWeight(heroJumpingActionActive ? 0 : (heroCurrentLocomotionAction === heroActions.idle ? 1 : 0));
-    }
-  }
-
-  const attackActions = [heroActions.basicAttack, heroActions.chargedAttack].filter(Boolean);
-  if (attackActions.length > 0) {
-    attackActions.forEach((action) => {
-      const isActiveAction = activeHeroAttackAction === action;
-      const targetAttackWeight = isActiveAction && (state.attackTime > 0 || heroIsCharging) ? 1 : 0;
-      const nextAttackWeight = THREE.MathUtils.damp(action.getEffectiveWeight(), targetAttackWeight, 16, dt);
-      action.setEffectiveWeight(nextAttackWeight);
-      action.enabled = nextAttackWeight > 0.01;
+  if (animator) {
+    animator.update(dt, {
+      stride,
+      isAirborne: state.pos.y > 0.03 || state.velY > 0.2,
+      attackWindowActive: state.attackTime > 0,
     });
-
-    const activeWeight = activeHeroAttackAction ? activeHeroAttackAction.getEffectiveWeight() : 0;
-    if (activeWeight <= 0.01 && state.attackTime <= 0 && !heroIsCharging) activeHeroAttackAction = null;
-
-    if (heroActions.idle) {
-      heroActions.idle.setEffectiveWeight(heroActions.idle.getEffectiveWeight() * (1 - activeWeight));
-    }
-    if (heroActions.walk) {
-      heroActions.walk.setEffectiveWeight(heroActions.walk.getEffectiveWeight() * (1 - activeWeight));
-    }
-    if (heroActions.run) {
-      heroActions.run.setEffectiveWeight(heroActions.run.getEffectiveWeight() * (1 - activeWeight));
-    }
-    if (heroActions.jump) heroActions.jump.setEffectiveWeight(heroActions.jump.getEffectiveWeight() * (1 - activeWeight));
+    activeHeroAttackAction = animator.activeAttack;
   }
 
-  if (heroModelRoot && !characterMixer) {
+  if (heroModelRoot && !animator) {
     const bob = Math.sin(now * (4 + stride * 8)) * (0.02 + stride * 0.02);
     const sway = Math.sin(now * 5) * 0.03 * (0.3 + stride);
     heroModelRoot.position.y = heroModelRoot.userData.baseY + bob;
@@ -893,6 +657,17 @@ window.addEventListener('keydown', (e) => {
   if (k === 'v') {
     const idx = viewModes.indexOf(state.viewMode);
     state.viewMode = viewModes[(idx + 1) % viewModes.length];
+  }
+
+  if (k === 'c' && animator) {
+    animator.setCrouch(!animator.isCrouching);
+  }
+
+  const abilityByKey = { '1': 'ability1', '2': 'ability2', '3': 'ability3' };
+  if (animator && abilityByKey[k]) {
+    animator.playAbility(abilityByKey[k], () => {
+      console.log(`${abilityByKey[k]} finished — hook VFX / damage logic here.`);
+    });
   }
 
   if (e.code === 'Space') {
@@ -1008,10 +783,7 @@ function tick(now) {
   prev = now;
 
   if (currentScene === 'fight') update(dt, now / 1000);
-  if (characterMixer) {
-    characterMixer.update(dt);
-    applyHeroRootMotionLock();
-  }
+  if (animator) applyHeroRootMotionLock();
 
   cameraKick.multiplyScalar(Math.pow(0.001, dt));
   renderer.render(scene, camera);
