@@ -1,7 +1,7 @@
 {
   "hero": "hero.glb",
   "paths": [],
-  "facingDeg": 0,
+  "facingDeg": 180,
   "animations": {
     "walk": "Walking",
     "run": "Running",

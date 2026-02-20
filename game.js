@@ -62,7 +62,7 @@ let heroJumpingActionActive = false;
 let heroModelRoot = null;
 let characterModelLoaded = false;
 let heroModelStatus = 'LOADING HERO...';
-let heroFacingOffset = 0;
+let heroFacingOffset = Math.PI;
 let heroAnimationMap = {};
 
 const scene = new THREE.Scene();
@@ -470,7 +470,7 @@ function loadHeroModel() {
     const manifestHero = manifest?.hero || fallbackHeroFile;
     const manifestPaths = Array.isArray(manifest?.paths) ? manifest.paths : [];
     const manifestFacingOffset = parseFacingOffset(manifest?.facingDeg);
-    heroFacingOffset = queryFacingOffset ?? localStorageFacingOffset ?? manifestFacingOffset ?? 0;
+    heroFacingOffset = queryFacingOffset ?? localStorageFacingOffset ?? manifestFacingOffset ?? Math.PI;
     heroAnimationMap = (manifest?.animations && typeof manifest.animations === 'object') ? manifest.animations : {};
 
     const candidates = [queryHero, localStorageHero, manifestHero, ...manifestPaths, fallbackHeroFile];
@@ -756,32 +756,44 @@ function updateCharacterAnimation(dt, now, stride) {
     heroActions.jump.reset();
     heroActions.jump.paused = false;
     heroActions.jump.setEffectiveWeight(1);
+    heroActions.jump.timeScale = 1.6;
     heroActions.jump.play();
-  } else if (!shouldJump && heroJumpingActionActive) {
-    heroJumpingActionActive = false;
-    heroActions.jump.setEffectiveWeight(0);
-    heroActions.jump.paused = true;
+  }
+
+  if (!shouldJump && heroJumpingActionActive && heroActions.jump) {
+    const jumpProgress = heroActions.jump.time / Math.max(heroActions.jump.getClip().duration, 0.001);
+    if (jumpProgress >= 0.88) {
+      heroJumpingActionActive = false;
+      heroActions.jump.setEffectiveWeight(0);
+      heroActions.jump.paused = true;
+    } else {
+      // Finish the clip quickly after landing so it does not get cut off.
+      heroActions.jump.timeScale = 2.1;
+      heroActions.jump.setEffectiveWeight(1);
+    }
   }
 
   if (characterMixer && (heroActions.walk || heroActions.run)) {
-    const wantsRun = stride > 0.82;
-    const isMoving = stride > 0.08 && !attackActive && !heroJumpingActionActive;
-    const desiredBaseAction = isMoving
-      ? ((wantsRun && heroActions.run) ? heroActions.run : heroActions.walk)
-      : heroActions.idle || heroActions.walk || heroActions.run;
+    if (!heroJumpingActionActive) {
+      const wantsRun = stride > 0.82;
+      const isMoving = stride > 0.08 && !attackActive;
+      const desiredBaseAction = isMoving
+        ? ((wantsRun && heroActions.run) ? heroActions.run : heroActions.walk)
+        : heroActions.idle || heroActions.walk || heroActions.run;
 
-    if (desiredBaseAction) crossFadeHeroBaseAction(desiredBaseAction);
+      if (desiredBaseAction) crossFadeHeroBaseAction(desiredBaseAction);
+    }
 
     if (heroActions.walk) {
       heroActions.walk.timeScale = THREE.MathUtils.lerp(0.8, 1.1, Math.min(stride / 0.82, 1));
-      heroActions.walk.setEffectiveWeight(heroCurrentLocomotionAction === heroActions.walk ? 1 : 0);
+      heroActions.walk.setEffectiveWeight(heroJumpingActionActive ? 0 : (heroCurrentLocomotionAction === heroActions.walk ? 1 : 0));
     }
     if (heroActions.run) {
       heroActions.run.timeScale = THREE.MathUtils.lerp(0.95, 1.28, stride);
-      heroActions.run.setEffectiveWeight(heroCurrentLocomotionAction === heroActions.run ? 1 : 0);
+      heroActions.run.setEffectiveWeight(heroJumpingActionActive ? 0 : (heroCurrentLocomotionAction === heroActions.run ? 1 : 0));
     }
     if (heroActions.idle) {
-      heroActions.idle.setEffectiveWeight(heroCurrentLocomotionAction === heroActions.idle ? 1 : 0);
+      heroActions.idle.setEffectiveWeight(heroJumpingActionActive ? 0 : (heroCurrentLocomotionAction === heroActions.idle ? 1 : 0));
     }
   }
 

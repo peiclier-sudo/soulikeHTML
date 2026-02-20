@@ -12,7 +12,7 @@ Example:
 {
   "hero": "MyCharacter.glb",
   "paths": [],
-  "facingDeg": 0,
+  "facingDeg": 180,
   "animations": {
     "walk": "Walking",
     "run": "Running",
@@ -23,7 +23,7 @@ Example:
 
 - `facingDeg`: optional. Rotation offset in degrees for rigs that face the wrong way.
   - `0` = no extra rotation
-  - `180` = flip around
+  - `180` = flip around (useful when the hero starts by facing the camera)
 
 ## Optional override
 - URL query: `?hero=models/MyCharacter.glb`
