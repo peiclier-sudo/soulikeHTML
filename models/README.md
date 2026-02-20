@@ -23,3 +23,6 @@ The loader now **only** tries configured paths (query/localStorage/manifest), wh
 
 
 If your app is served from a sub-path, relative paths are now tried automatically as well.
+
+
+Priority order: `?hero=...` > `models/manifest.json` > `localStorage.heroModelPath` (legacy override).

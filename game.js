@@ -356,7 +356,10 @@ function loadHeroModel() {
   fetchManifest().then((manifest) => {
     const manifestHero = manifest?.hero || fallbackHeroFile;
     const manifestPaths = Array.isArray(manifest?.paths) ? manifest.paths : [];
-    const candidates = [queryHero, localStorageHero, manifestHero, ...manifestPaths, fallbackHeroFile];
+
+    // Priority: explicit URL > manifest config > legacy localStorage override > fallback.
+    // This avoids stale localStorage values silently hijacking the newly configured hero.
+    const candidates = [queryHero, manifestHero, ...manifestPaths, localStorageHero, fallbackHeroFile];
     loadCandidates(candidates);
   });
 }
