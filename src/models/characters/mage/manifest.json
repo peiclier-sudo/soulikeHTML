@@ -1,0 +1,25 @@
+{
+  "version": "1.0",
+  "classId": "mage",
+  "model": "model.glb",
+  "animTokens": {
+    "LOCOMOTION_MOVE": "Walking",
+    "LOCOMOTION_JUMP": "Jump",
+    "LOCOMOTION_DASH": "Dash",
+    "MAGE_SPECIAL_SLOT_1_FIREBALL": "Special_Slot1",
+    "MAGE_SPECIAL_SLOT_2_FROST_NOVA": "Special_Slot2",
+    "MAGE_SPECIAL_SLOT_3_LIGHTNING_STORM": "Special_Slot3"
+  },
+  "clipMapping": {
+    "Idle": "Idle",
+    "Walking": "Walking",
+    "RunFast": "RunFast",
+    "Jump": "Jump",
+    "Dash": "Dash",
+    "Special_Slot1": "Special_Slot1",
+    "Special_Slot2": "Special_Slot2",
+    "Special_Slot3": "Special_Slot3",
+    "Drink_Health_Potion": "Drink_Health_Potion",
+    "Drink_Energy_Potion": "Drink_Energy_Potion"
+  }
+}

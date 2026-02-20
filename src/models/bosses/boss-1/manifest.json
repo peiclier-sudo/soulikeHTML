@@ -1,0 +1,13 @@
+{
+  "version": "1.0",
+  "bossId": "boss-1",
+  "model": "model.glb",
+  "clipMapping": {
+    "Idle": "Idle",
+    "Walk": "Walking",
+    "Attack_1": "Attack_1",
+    "Attack_2": "Attack_2",
+    "Hit_React": "Hit_React",
+    "Death": "Death"
+  }
+}

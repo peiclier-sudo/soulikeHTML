@@ -329,6 +329,16 @@ Implemented in scaffold:
 - `src/systems/animation/AnimationCodex.ts` consuming resolver output and exposing debug trace logs
 - `src/systems/animation/dev-resolution-demo.ts` proving the resolution path for 5 actions
 
+## Phase 2 Progress (Content Pipeline)
+
+Implemented in scaffold:
+
+- class manifests for `mage`, `warrior`, `rogue` under `src/models/characters/*/manifest.json`
+- weapon manifest for `arcane-staff` and boss manifests for `boss-1`/`boss-2`
+- `src/core/content-registry.ts` centralizing class/weapon/boss content paths
+- menu/game route placeholders now consume selection + registry data
+- `src/stores/useGameStore.ts` now tracks selected class/weapon/boss scene
+
 ## Scaffold Status (Current Repository)
 
 The repository now includes a concrete scaffold for the target architecture under `src/`, including:

@@ -1,0 +1,15 @@
+{
+  "version": "1.0",
+  "weaponId": "arcane-staff",
+  "model": "model.glb",
+  "animTokens": {
+    "STAFF_ATTACK_BASIC_CAST": "Basic_Attack",
+    "STAFF_ATTACK_CHARGED_CAST": "Charged_Attack",
+    "STAFF_ULTIMATE_APOCALYPSE": "Ultimate"
+  },
+  "clipMapping": {
+    "Basic_Attack": "Basic_Attack",
+    "Charged_Attack": "Charged_Attack",
+    "Ultimate": "Ultimate"
+  }
+}
