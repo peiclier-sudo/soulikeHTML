@@ -48,6 +48,7 @@ let currentScene = 'welcome';
 let characterMixer = null;
 let heroActions = { idle: null, locomotion: null, basicAttack: null, chargedAttack: null, idleIsStaticPose: false };
 let activeHeroAttackAction = null;
+let heroIsCharging = false;
 let heroModelRoot = null;
 let characterModelLoaded = false;
 let heroModelStatus = 'LOADING HERO...';
@@ -634,6 +635,7 @@ function spawnFireball(power) {
 }
 
 function playHeroAttackAnimation(power) {
+  heroIsCharging = false;
   const wantsCharged = power > 1.25;
   const chosenAction = wantsCharged
     ? (heroActions.chargedAttack || heroActions.basicAttack)
@@ -643,10 +645,26 @@ function playHeroAttackAnimation(power) {
   activeHeroAttackAction = chosenAction;
   chosenAction.enabled = true;
   chosenAction.paused = false;
-  chosenAction.time = 0;
+  // For charged attacks the animation was already playing during wind-up; resume at full speed.
+  // For basic attacks reset to the start so the full motion plays.
+  if (!wantsCharged) chosenAction.time = 0;
   chosenAction.setEffectiveWeight(1);
   chosenAction.timeScale = wantsCharged ? 1.05 : 1.2;
   chosenAction.play();
+}
+
+function startHeroChargeAnimation() {
+  const chargeAction = heroActions.chargedAttack || heroActions.basicAttack;
+  if (!chargeAction) return;
+  heroIsCharging = true;
+  activeHeroAttackAction = chargeAction;
+  chargeAction.enabled = true;
+  chargeAction.paused = false;
+  chargeAction.time = 0;
+  chargeAction.setEffectiveWeight(1);
+  // Play slowly to show the wind-up pose; speed will jump to 1.05 on release.
+  chargeAction.timeScale = 0.4;
+  chargeAction.play();
 }
 
 function releaseFireShot() {
@@ -664,12 +682,14 @@ function releaseFireShot() {
   chargeStart = null;
   state.isChargingShot = false;
   mouseAttackHold = false;
+  // If no fireball was spawned (stamina too low, etc.) clear the charge animation.
+  heroIsCharging = false;
 }
 
 
 function updateCharacterAnimation(dt, now, stride) {
   const attackWeight = activeHeroAttackAction ? activeHeroAttackAction.getEffectiveWeight() : 0;
-  const attackActive = activeHeroAttackAction && (state.attackTime > 0 || attackWeight > 0.04);
+  const attackActive = activeHeroAttackAction && (state.attackTime > 0 || attackWeight > 0.04 || heroIsCharging);
 
   if (characterMixer && heroActions.locomotion) {
     if (heroActions.idle) {
@@ -699,14 +719,14 @@ function updateCharacterAnimation(dt, now, stride) {
   if (attackActions.length > 0) {
     attackActions.forEach((action) => {
       const isActiveAction = activeHeroAttackAction === action;
-      const targetAttackWeight = isActiveAction && state.attackTime > 0 ? 1 : 0;
+      const targetAttackWeight = isActiveAction && (state.attackTime > 0 || heroIsCharging) ? 1 : 0;
       const nextAttackWeight = THREE.MathUtils.damp(action.getEffectiveWeight(), targetAttackWeight, 16, dt);
       action.setEffectiveWeight(nextAttackWeight);
       action.enabled = nextAttackWeight > 0.01;
     });
 
     const activeWeight = activeHeroAttackAction ? activeHeroAttackAction.getEffectiveWeight() : 0;
-    if (activeWeight <= 0.01 && state.attackTime <= 0) activeHeroAttackAction = null;
+    if (activeWeight <= 0.01 && state.attackTime <= 0 && !heroIsCharging) activeHeroAttackAction = null;
 
     if (heroActions.idle) {
       heroActions.idle.setEffectiveWeight(heroActions.idle.getEffectiveWeight() * (1 - activeWeight));
@@ -797,6 +817,7 @@ canvas.addEventListener('mousedown', (e) => {
     chargeStart = performance.now();
     state.isChargingShot = true;
     mouseAttackHold = true;
+    startHeroChargeAnimation();
   }
 });
 
