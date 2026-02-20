@@ -208,6 +208,16 @@ function applyLoadedHero(gltf, sourcePath) {
     if (!obj.isMesh) return;
     obj.castShadow = true;
     obj.receiveShadow = true;
+
+    const materials = Array.isArray(obj.material) ? obj.material : [obj.material];
+    materials.forEach((material) => {
+      if (!material) return;
+      material.transparent = false;
+      material.opacity = 1;
+      material.alphaTest = 0;
+      material.depthWrite = true;
+      material.needsUpdate = true;
+    });
   });
 
   characterVisualRoot.visible = false;
