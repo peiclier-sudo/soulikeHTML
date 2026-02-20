@@ -12,7 +12,13 @@ Example:
 {
   "hero": "MyCharacter.glb",
   "paths": [],
-  "facingDeg": 0
+  "facingDeg": 0,
+  "animations": {
+    "idle": "Inactif 1",
+    "locomotion": "Marche",
+    "basicAttack": "Mage Soell lance Sort 4",
+    "chargedAttack": "Mage Soell Cast 3"
+  }
 }
 ```
 
@@ -28,3 +34,12 @@ The loader now **only** tries configured paths (query/localStorage/manifest), wh
 
 
 If your app is served from a sub-path, relative paths are now tried automatically as well.
+
+
+- `animations`: optional explicit clip names from your GLB to force exact mapping.
+  - `idle`: idle/rest clip
+  - `locomotion`: movement clip
+  - `basicAttack`: quick/basic attack clip
+  - `chargedAttack`: heavy/charged attack clip
+
+Tip: use your DCC/asset viewer animation names exactly (case-insensitive; spaces/underscores tolerated).
