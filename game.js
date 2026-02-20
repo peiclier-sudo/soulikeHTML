@@ -397,7 +397,7 @@ function collectHeroRootMotionLocks(sceneRoot, animations) {
       if (!track.name.endsWith('.position')) return;
       const nodeName = track.name.slice(0, -9);
       if (!nodeName) return;
-      if (!/root|armature|hips|pelvis/i.test(nodeName)) return;
+      if (!/root|armature/i.test(nodeName)) return;
       positionTrackNodeNames.add(nodeName);
     });
   });
@@ -823,7 +823,7 @@ function updateCharacterAnimation(dt, now, stride) {
       const wantsRun = stride > 0.82;
       const isMoving = stride > 0.08 && !attackActive;
       const desiredBaseAction = isMoving
-        ? ((wantsRun && heroActions.run) ? heroActions.run : heroActions.walk)
+        ? (wantsRun ? (heroActions.run || heroActions.walk) : (heroActions.walk || heroActions.run))
         : heroActions.idle || heroActions.walk || heroActions.run;
 
       if (desiredBaseAction) crossFadeHeroBaseAction(desiredBaseAction);
@@ -831,14 +831,14 @@ function updateCharacterAnimation(dt, now, stride) {
 
     if (heroActions.walk) {
       heroActions.walk.timeScale = THREE.MathUtils.lerp(0.8, 1.1, Math.min(stride / 0.82, 1));
-      heroActions.walk.setEffectiveWeight(heroJumpingActionActive ? 0 : (heroCurrentLocomotionAction === heroActions.walk ? 1 : 0));
+      heroActions.walk.setEffectiveWeight(heroJumpingActionActive ? 0.35 : (heroCurrentLocomotionAction === heroActions.walk ? 1 : 0));
     }
     if (heroActions.run) {
       heroActions.run.timeScale = THREE.MathUtils.lerp(0.95, 1.28, stride);
-      heroActions.run.setEffectiveWeight(heroJumpingActionActive ? 0 : (heroCurrentLocomotionAction === heroActions.run ? 1 : 0));
+      heroActions.run.setEffectiveWeight(heroJumpingActionActive ? 0.35 : (heroCurrentLocomotionAction === heroActions.run ? 1 : 0));
     }
     if (heroActions.idle) {
-      heroActions.idle.setEffectiveWeight(heroJumpingActionActive ? 0 : (heroCurrentLocomotionAction === heroActions.idle ? 1 : 0));
+      heroActions.idle.setEffectiveWeight(heroJumpingActionActive ? 0.12 : (heroCurrentLocomotionAction === heroActions.idle ? 1 : 0));
     }
   }
 
