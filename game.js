@@ -46,6 +46,10 @@ const menuDefinitions = {
 
 let currentScene = 'welcome';
 let characterMixer = null;
+let heroActions = { idle: null, walk: null, run: null, fastRun: null, basicAttack: null, chargedAttack: null };
+let heroAnimationNames = [];
+let activeHeroActionName = null;
+let heroModelRoot = null;
 let characterModelLoaded = false;
 let heroModelStatus = 'LOADING HERO...';
 
@@ -186,6 +190,11 @@ firestaff.position.set(0.46, 1.24, 0.08);
 firestaff.rotation.z = 0.48;
 characterVisualRoot.add(firestaff);
 
+function findClipByPatterns(animations, patterns) {
+  if (!Array.isArray(animations)) return null;
+  return animations.find((clip) => patterns.some((pattern) => pattern.test(clip.name || ''))) || null;
+}
+
 function applyLoadedHero(gltf, sourcePath) {
   const modelRoot = new THREE.Group();
   modelRoot.name = 'hero-model-root';
@@ -199,6 +208,7 @@ function applyLoadedHero(gltf, sourcePath) {
     modelRoot.position.y -= heroBounds.min.y;
     modelRoot.position.y += 0.08;
   }
+  modelRoot.userData.baseY = modelRoot.position.y;
 
   gltf.scene.traverse((obj) => {
     if (!obj.isMesh) return;
@@ -208,18 +218,59 @@ function applyLoadedHero(gltf, sourcePath) {
 
   characterVisualRoot.visible = false;
   player.add(modelRoot);
+  heroModelRoot = modelRoot;
   characterModelLoaded = true;
-  heroModelStatus = `GLB HERO (${sourcePath})`;
+
+  characterMixer = null;
+  heroActions = { idle: null, walk: null, run: null, fastRun: null, basicAttack: null, chargedAttack: null };
+  heroAnimationNames = (Array.isArray(gltf.animations) ? gltf.animations : []).map((clip) => clip.name || '(unnamed)').filter(Boolean);
+  activeHeroActionName = null;
 
   if (gltf.animations && gltf.animations.length > 0) {
     characterMixer = new THREE.AnimationMixer(gltf.scene);
-    const idle = characterMixer.clipAction(gltf.animations[0]);
-    idle.play();
+
+    const clipMap = {
+      idle: findClipByPatterns(gltf.animations, [/idle/i, /breath/i]),
+      walk: findClipByPatterns(gltf.animations, [/walk/i]),
+      run: findClipByPatterns(gltf.animations, [/\brun\b/i, /jog/i]),
+      fastRun: findClipByPatterns(gltf.animations, [/fast\s*run/i, /sprint/i, /dash/i]),
+      basicAttack: findClipByPatterns(gltf.animations, [/basic\s*attack/i, /attack(?!.*charge)/i, /slash/i]),
+      chargedAttack: findClipByPatterns(gltf.animations, [/charged\s*attack/i, /charge/i, /heavy\s*attack/i]),
+    };
+
+    const identified = Object.entries(clipMap)
+      .filter(([, clip]) => clip)
+      .map(([name, clip]) => `${name}:${clip.name || '(unnamed)'}`);
+
+    if (!clipMap.idle) clipMap.idle = gltf.animations[0];
+    if (!clipMap.walk) clipMap.walk = clipMap.run || clipMap.fastRun || clipMap.idle;
+    if (!clipMap.run) clipMap.run = clipMap.fastRun || clipMap.walk || clipMap.idle;
+    if (!clipMap.fastRun) clipMap.fastRun = clipMap.run || clipMap.walk || clipMap.idle;
+
+    Object.entries(clipMap).forEach(([name, clip]) => {
+      if (!clip) return;
+      const action = characterMixer.clipAction(clip);
+      action.enabled = true;
+      action.clampWhenFinished = true;
+      action.setEffectiveWeight(0);
+      action.play();
+      heroActions[name] = action;
+    });
+
+    if (heroActions.idle) {
+      heroActions.idle.setEffectiveWeight(1);
+      activeHeroActionName = 'idle';
+    }
+
+    heroModelStatus = `GLB HERO (${sourcePath}) | mapped ${identified.join(' | ') || 'none'} | clips: ${heroAnimationNames.join(', ')}`;
+  } else {
+    heroModelStatus = `GLB HERO (${sourcePath}) | no animations`;
   }
 }
 
 function loadHeroModel() {
   const loader = new GLTFLoader();
+  const fallbackHeroFile = 'hero.glb';
 
   function toUrlVariants(path) {
     if (!path || typeof path !== 'string') return [];
@@ -273,18 +324,32 @@ function loadHeroModel() {
     tryPath(0);
   }
 
+  function fetchManifest() {
+    const manifestUrls = ['models/manifest.json', '/models/manifest.json'];
+
+    function tryUrl(index) {
+      if (index >= manifestUrls.length) return Promise.resolve({});
+
+      return fetch(manifestUrls[index], { cache: 'no-store' })
+        .then((res) => {
+          if (!res.ok) throw new Error('manifest not found');
+          return res.json();
+        })
+        .catch(() => tryUrl(index + 1));
+    }
+
+    return tryUrl(0);
+  }
+
   const queryHero = new URLSearchParams(window.location.search).get('hero');
   const localStorageHero = window.localStorage.getItem('heroModelPath');
 
-  fetch('/models/manifest.json', { cache: 'no-store' })
-    .then((res) => (res.ok ? res.json() : {}))
-    .catch(() => ({}))
-    .then((manifest) => {
-      const manifestHero = manifest?.hero || null;
-      const manifestPaths = Array.isArray(manifest?.paths) ? manifest.paths : [];
-      const candidates = [queryHero, localStorageHero, manifestHero, ...manifestPaths];
-      loadCandidates(candidates);
-    });
+  fetchManifest().then((manifest) => {
+    const manifestHero = manifest?.hero || fallbackHeroFile;
+    const manifestPaths = Array.isArray(manifest?.paths) ? manifest.paths : [];
+    const candidates = [queryHero, localStorageHero, manifestHero, ...manifestPaths, fallbackHeroFile];
+    loadCandidates(candidates);
+  });
 }
 
 
@@ -516,6 +581,52 @@ function releaseFireShot() {
   mouseAttackHold = false;
 }
 
+
+function startHeroAction(actionName, fade = 0.12) {
+  if (!characterMixer || !heroActions[actionName]) return;
+  if (activeHeroActionName === actionName) return;
+
+  Object.values(heroActions).forEach((action) => {
+    if (!action) return;
+    action.fadeOut(fade);
+  });
+
+  const next = heroActions[actionName];
+  next.reset();
+  next.fadeIn(fade);
+  next.play();
+  activeHeroActionName = actionName;
+}
+
+function updateCharacterAnimation(dt, now, stride) {
+  if (characterMixer) {
+    const wantsAttack = state.attackTime > 0;
+    const wantsChargedAttack = wantsAttack && state.attackPower > 1.25;
+    const wantsDash = state.dashTime > 0;
+
+    let desired = 'idle';
+    if (wantsChargedAttack && heroActions.chargedAttack) desired = 'chargedAttack';
+    else if (wantsAttack && heroActions.basicAttack) desired = 'basicAttack';
+    else if (wantsDash && heroActions.fastRun) desired = 'fastRun';
+    else if (stride > 0.78 && heroActions.fastRun) desired = 'fastRun';
+    else if (stride > 0.52 && heroActions.run) desired = 'run';
+    else if (stride > 0.12 && heroActions.walk) desired = 'walk';
+
+    startHeroAction(desired, wantsAttack ? 0.08 : 0.14);
+
+    if (heroActions.walk) heroActions.walk.timeScale = THREE.MathUtils.lerp(0.85, 1.15, stride);
+    if (heroActions.run) heroActions.run.timeScale = THREE.MathUtils.lerp(0.9, 1.2, stride);
+    if (heroActions.fastRun) heroActions.fastRun.timeScale = THREE.MathUtils.lerp(1.0, 1.35, stride);
+  }
+
+  if (heroModelRoot && !characterMixer) {
+    const bob = Math.sin(now * (4 + stride * 8)) * (0.02 + stride * 0.02);
+    const sway = Math.sin(now * 5) * 0.03 * (0.3 + stride);
+    heroModelRoot.position.y = heroModelRoot.userData.baseY + bob;
+    heroModelRoot.rotation.z = sway;
+  }
+}
+
 window.addEventListener('keydown', (e) => {
   const k = normalizeKey(e);
 
@@ -727,6 +838,8 @@ function update(dt, now) {
   player.position.copy(state.pos);
   player.rotation.y = state.yaw;
   const stride = Math.min(1, new THREE.Vector2(state.vel.x, state.vel.z).length() / state.baseSpeed);
+  updateCharacterAnimation(dt, now, stride);
+
   coat.rotation.z = Math.sin(now * 12) * 0.03 * stride;
   mantle.material.emissiveIntensity = state.isChargingShot ? 0.55 : 0.22;
 
@@ -776,7 +889,8 @@ function update(dt, now) {
   const dashLabel = bindingLabel(state.dashBinding);
   const dashBindStatus = state.isRebindingDash ? 'PRESS A KEY OR MOUSE BUTTON...' : 'B TO REBIND';
   const heroStatus = characterModelLoaded ? heroModelStatus : heroModelStatus;
-  hud.textContent = `View ${state.viewMode.toUpperCase()} (V) | ${heroStatus} | Mouse ${lock} | Attack Left Click | Dash ${dashLabel} (${dashBindStatus}) | Menu M | Charge ${hold}s | Stamina ${state.stamina.toFixed(0)} | Dash CD ${state.dashCooldown.toFixed(2)} | Enemy HP ${state.enemyHp}`;
+  const activeAnim = activeHeroActionName ? `Anim ${activeHeroActionName}` : 'Anim procedural';
+  hud.textContent = `View ${state.viewMode.toUpperCase()} (V) | ${heroStatus} | ${activeAnim} | Mouse ${lock} | Attack Left Click | Dash ${dashLabel} (${dashBindStatus}) | Menu M | Charge ${hold}s | Stamina ${state.stamina.toFixed(0)} | Dash CD ${state.dashCooldown.toFixed(2)} | Enemy HP ${state.enemyHp}`;
 }
 
 window.addEventListener('resize', () => {
