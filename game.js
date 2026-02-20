@@ -46,13 +46,24 @@ const menuDefinitions = {
 
 let currentScene = 'welcome';
 let characterMixer = null;
-let heroActions = { idle: null, locomotion: null, basicAttack: null, chargedAttack: null, idleIsStaticPose: false };
+let heroActions = {
+  idle: null,
+  walk: null,
+  run: null,
+  jump: null,
+  basicAttack: null,
+  chargedAttack: null,
+  idleIsStaticPose: false,
+};
 let activeHeroAttackAction = null;
 let heroIsCharging = false;
+let heroCurrentLocomotionAction = null;
+let heroJumpingActionActive = false;
+let heroRootMotionLocks = [];
 let heroModelRoot = null;
 let characterModelLoaded = false;
 let heroModelStatus = 'LOADING HERO...';
-let heroFacingOffset = 0;
+let heroFacingOffset = Math.PI;
 let heroAnimationMap = {};
 
 const scene = new THREE.Scene();
@@ -243,10 +254,22 @@ function applyLoadedHero(gltf, sourcePath) {
   heroModelStatus = `GLB HERO (${sourcePath})`;
 
   characterMixer = null;
-  heroActions = { idle: null, locomotion: null, basicAttack: null, chargedAttack: null, idleIsStaticPose: false };
+  heroActions = {
+    idle: null,
+    walk: null,
+    run: null,
+    jump: null,
+    basicAttack: null,
+    chargedAttack: null,
+    idleIsStaticPose: false,
+  };
   activeHeroAttackAction = null;
+  heroCurrentLocomotionAction = null;
+  heroJumpingActionActive = false;
+  heroRootMotionLocks = [];
   if (gltf.animations && gltf.animations.length > 0) {
     characterMixer = new THREE.AnimationMixer(gltf.scene);
+    heroRootMotionLocks = collectHeroRootMotionLocks(gltf.scene, gltf.animations);
 
     const trueIdleClip = findClipByConfiguredName(gltf.animations, heroAnimationMap.idle)
       || gltf.animations.find((clip) => /inactif\s*1|inactive\s*1|idle|breath|stand|rest|rested/i.test(clip.name))
@@ -258,6 +281,10 @@ function applyLoadedHero(gltf, sourcePath) {
 
     const runClip = findClipByConfiguredName(gltf.animations, heroAnimationMap.run)
       || gltf.animations.find((clip) => /run|jog|sprint/i.test(clip.name))
+      || null;
+
+    const jumpClip = findClipByConfiguredName(gltf.animations, heroAnimationMap.jump)
+      || gltf.animations.find((clip) => /jump/i.test(clip.name))
       || null;
 
     const locomotionClip = findClipByConfiguredName(gltf.animations, heroAnimationMap.locomotion)
@@ -293,10 +320,26 @@ function applyLoadedHero(gltf, sourcePath) {
       }
     }
 
-    if (locomotionClip) {
-      heroActions.locomotion = characterMixer.clipAction(locomotionClip);
-      heroActions.locomotion.enabled = true;
-      heroActions.locomotion.play();
+    if (walkClip || locomotionClip) {
+      heroActions.walk = characterMixer.clipAction(walkClip || locomotionClip);
+      heroActions.walk.enabled = true;
+      heroActions.walk.play();
+    }
+
+    if (runClip) {
+      heroActions.run = characterMixer.clipAction(runClip);
+      heroActions.run.enabled = true;
+      heroActions.run.play();
+    }
+
+    if (jumpClip) {
+      heroActions.jump = characterMixer.clipAction(jumpClip);
+      heroActions.jump.enabled = true;
+      heroActions.jump.setLoop(THREE.LoopOnce, 1);
+      heroActions.jump.clampWhenFinished = true;
+      heroActions.jump.play();
+      heroActions.jump.paused = true;
+      heroActions.jump.setEffectiveWeight(0);
     }
 
     if (basicAttackClip) {
@@ -315,13 +358,62 @@ function applyLoadedHero(gltf, sourcePath) {
       heroActions.chargedAttack.setEffectiveWeight(0);
     }
 
-    if (heroActions.idle && heroActions.locomotion) {
+    if (heroActions.idle && heroActions.walk) {
       heroActions.idle.setEffectiveWeight(1);
-      heroActions.locomotion.setEffectiveWeight(0);
-    } else if (!heroActions.idle && heroActions.locomotion) {
-      heroActions.locomotion.setEffectiveWeight(1);
+      heroActions.walk.setEffectiveWeight(0);
+      if (heroActions.run) heroActions.run.setEffectiveWeight(0);
+      heroCurrentLocomotionAction = heroActions.idle;
+    } else if (!heroActions.idle && heroActions.walk) {
+      heroActions.walk.setEffectiveWeight(1);
+      if (heroActions.run) heroActions.run.setEffectiveWeight(0);
+      heroCurrentLocomotionAction = heroActions.walk;
     }
   }
+}
+
+function crossFadeHeroBaseAction(nextAction, duration = 0.18) {
+  if (!nextAction || heroCurrentLocomotionAction === nextAction) return;
+  nextAction.enabled = true;
+  nextAction.reset();
+  nextAction.play();
+
+  if (heroCurrentLocomotionAction) {
+    heroCurrentLocomotionAction.crossFadeTo(nextAction, duration, true);
+  }
+
+  heroCurrentLocomotionAction = nextAction;
+}
+
+
+function collectHeroRootMotionLocks(sceneRoot, animations) {
+  const positionTrackNodeNames = new Set();
+
+  animations.forEach((clip) => {
+    clip.tracks.forEach((track) => {
+      if (!track.name.endsWith('.position')) return;
+      const nodeName = track.name.slice(0, -9);
+      if (!nodeName) return;
+      if (!/root|armature|hips|pelvis/i.test(nodeName)) return;
+      positionTrackNodeNames.add(nodeName);
+    });
+  });
+
+  const locks = [];
+  positionTrackNodeNames.forEach((name) => {
+    const node = sceneRoot.getObjectByName(name);
+    if (!node) return;
+    locks.push({ node, baseX: node.position.x, baseZ: node.position.z });
+  });
+
+  return locks;
+}
+
+function applyHeroRootMotionLock() {
+  if (!heroRootMotionLocks || heroRootMotionLocks.length === 0) return;
+  heroRootMotionLocks.forEach((lock) => {
+    lock.node.position.x = lock.baseX;
+    lock.node.position.z = lock.baseZ;
+  });
 }
 
 function loadHeroModel() {
@@ -413,7 +505,7 @@ function loadHeroModel() {
     const manifestHero = manifest?.hero || fallbackHeroFile;
     const manifestPaths = Array.isArray(manifest?.paths) ? manifest.paths : [];
     const manifestFacingOffset = parseFacingOffset(manifest?.facingDeg);
-    heroFacingOffset = queryFacingOffset ?? localStorageFacingOffset ?? manifestFacingOffset ?? 0;
+    heroFacingOffset = queryFacingOffset ?? localStorageFacingOffset ?? manifestFacingOffset ?? Math.PI;
     heroAnimationMap = (manifest?.animations && typeof manifest.animations === 'object') ? manifest.animations : {};
 
     const candidates = [queryHero, localStorageHero, manifestHero, ...manifestPaths, fallbackHeroFile];
@@ -453,7 +545,7 @@ const cameraKick = new THREE.Vector2(0, 0);
 const viewModes = ['classic', 'fortnite'];
 const cameraModeConfig = {
   classic: { dist: 7.2, eyeHeight: 2.3, sideOffset: 0, lookHeight: 1.2 },
-  fortnite: { dist: 4.0, eyeHeight: 1.55, sideOffset: 1.25, lookHeight: 1.4 },
+  fortnite: { dist: 4.0, eyeHeight: 1.55, sideOffset: 0, lookHeight: 1.4 },
 };
 
 const state = {
@@ -463,8 +555,8 @@ const state = {
   baseSpeed: 8.3,
   accel: 42,
   drag: 19,
-  airControl: 0.45,
-  dashSpeed: 28,
+  airControl: 0.22,
+  dashSpeed: 16,
   dashTime: 0,
   dashCooldown: 0,
   dashBinding: 'key:shift',
@@ -574,7 +666,7 @@ function applyCameraKick(strength) {
 
 function activateDash() {
   if (state.dashCooldown <= 0 && state.stamina >= 18) {
-    state.dashTime = 0.17;
+    state.dashTime = 0.1;
     state.dashCooldown = 0.52;
     state.stamina -= 18;
     dashTrailTimer = 0.12;
@@ -691,27 +783,52 @@ function updateCharacterAnimation(dt, now, stride) {
   const attackWeight = activeHeroAttackAction ? activeHeroAttackAction.getEffectiveWeight() : 0;
   const attackActive = activeHeroAttackAction && (state.attackTime > 0 || attackWeight > 0.04 || heroIsCharging);
 
-  if (characterMixer && heroActions.locomotion) {
-    if (heroActions.idle) {
-      const targetLocoWeight = stride > 0.06 && !attackActive ? stride : 0;
-      heroActions.locomotion.paused = targetLocoWeight <= 0.001;
-      if (!heroActions.locomotion.paused) {
-        heroActions.locomotion.timeScale = THREE.MathUtils.lerp(0.35, 1.25, stride);
-      }
+  const isAirborne = state.pos.y > 0.03 || state.velY > 0.2;
+  const shouldJump = !!heroActions.jump && isAirborne && !attackActive;
 
-      const locomotionWeight = THREE.MathUtils.damp(heroActions.locomotion.getEffectiveWeight(), targetLocoWeight, 10, dt);
-      heroActions.locomotion.setEffectiveWeight(locomotionWeight);
-      heroActions.idle.setEffectiveWeight(1 - locomotionWeight);
+  if (shouldJump && !heroJumpingActionActive) {
+    heroJumpingActionActive = true;
+    heroActions.jump.reset();
+    heroActions.jump.paused = false;
+    heroActions.jump.setEffectiveWeight(1);
+    heroActions.jump.timeScale = 1.6;
+    heroActions.jump.play();
+  }
+
+  if (!shouldJump && heroJumpingActionActive && heroActions.jump) {
+    const jumpProgress = heroActions.jump.time / Math.max(heroActions.jump.getClip().duration, 0.001);
+    if (jumpProgress >= 0.88) {
+      heroJumpingActionActive = false;
+      heroActions.jump.setEffectiveWeight(0);
+      heroActions.jump.paused = true;
     } else {
-      const isMoving = stride > 0.08 && !attackActive;
-      heroActions.locomotion.paused = !isMoving;
-      heroActions.locomotion.setEffectiveWeight(1);
+      // Finish the clip quickly after landing so it does not get cut off.
+      heroActions.jump.timeScale = 2.1;
+      heroActions.jump.setEffectiveWeight(1);
+    }
+  }
 
-      if (isMoving) {
-        heroActions.locomotion.timeScale = THREE.MathUtils.lerp(0.75, 1.3, stride);
-      } else {
-        heroActions.locomotion.time = 0;
-      }
+  if (characterMixer && (heroActions.walk || heroActions.run)) {
+    if (!heroJumpingActionActive) {
+      const wantsRun = stride > 0.82;
+      const isMoving = stride > 0.08 && !attackActive;
+      const desiredBaseAction = isMoving
+        ? ((wantsRun && heroActions.run) ? heroActions.run : heroActions.walk)
+        : heroActions.idle || heroActions.walk || heroActions.run;
+
+      if (desiredBaseAction) crossFadeHeroBaseAction(desiredBaseAction);
+    }
+
+    if (heroActions.walk) {
+      heroActions.walk.timeScale = THREE.MathUtils.lerp(0.8, 1.1, Math.min(stride / 0.82, 1));
+      heroActions.walk.setEffectiveWeight(heroJumpingActionActive ? 0 : (heroCurrentLocomotionAction === heroActions.walk ? 1 : 0));
+    }
+    if (heroActions.run) {
+      heroActions.run.timeScale = THREE.MathUtils.lerp(0.95, 1.28, stride);
+      heroActions.run.setEffectiveWeight(heroJumpingActionActive ? 0 : (heroCurrentLocomotionAction === heroActions.run ? 1 : 0));
+    }
+    if (heroActions.idle) {
+      heroActions.idle.setEffectiveWeight(heroJumpingActionActive ? 0 : (heroCurrentLocomotionAction === heroActions.idle ? 1 : 0));
     }
   }
 
@@ -731,9 +848,13 @@ function updateCharacterAnimation(dt, now, stride) {
     if (heroActions.idle) {
       heroActions.idle.setEffectiveWeight(heroActions.idle.getEffectiveWeight() * (1 - activeWeight));
     }
-    if (heroActions.locomotion) {
-      heroActions.locomotion.setEffectiveWeight(heroActions.locomotion.getEffectiveWeight() * (1 - activeWeight));
+    if (heroActions.walk) {
+      heroActions.walk.setEffectiveWeight(heroActions.walk.getEffectiveWeight() * (1 - activeWeight));
     }
+    if (heroActions.run) {
+      heroActions.run.setEffectiveWeight(heroActions.run.getEffectiveWeight() * (1 - activeWeight));
+    }
+    if (heroActions.jump) heroActions.jump.setEffectiveWeight(heroActions.jump.getEffectiveWeight() * (1 - activeWeight));
   }
 
   if (heroModelRoot && !characterMixer) {
@@ -776,7 +897,7 @@ window.addEventListener('keydown', (e) => {
 
   if (e.code === 'Space') {
     e.preventDefault();
-    if (state.pos.y <= 0.001) state.velY = 8.2;
+    if (state.pos.y <= 0.001) state.velY = 6.6;
   }
 
   if (state.dashBinding === keyBinding(k)) activateDash();
@@ -887,7 +1008,10 @@ function tick(now) {
   prev = now;
 
   if (currentScene === 'fight') update(dt, now / 1000);
-  if (characterMixer) characterMixer.update(dt);
+  if (characterMixer) {
+    characterMixer.update(dt);
+    applyHeroRootMotionLock();
+  }
 
   cameraKick.multiplyScalar(Math.pow(0.001, dt));
   renderer.render(scene, camera);
@@ -911,7 +1035,7 @@ function update(dt, now) {
 
   const grounded = state.pos.y <= 0.001;
   const accel = state.accel * (grounded ? 1 : state.airControl);
-  const targetSpeed = state.baseSpeed * (state.dashTime > 0 ? 1.45 : 1);
+  const targetSpeed = state.baseSpeed * (state.dashTime > 0 ? 1.3 : 1) * (grounded ? 1 : 0.72);
 
   const targetVelX = moveInput.x * targetSpeed;
   const targetVelZ = moveInput.z * targetSpeed;
@@ -992,12 +1116,10 @@ function update(dt, now) {
   ).multiplyScalar(mode.sideOffset);
 
   const targetCamPos = new THREE.Vector3().copy(state.pos).add(back).add(right);
-  state.camPos.lerp(targetCamPos, 0.12);
+  state.camPos.lerp(targetCamPos, 0.24);
   camera.position.copy(state.camPos);
 
   const lookTarget = new THREE.Vector3().copy(state.pos).add(new THREE.Vector3(0, mode.lookHeight, 0));
-  if (state.viewMode === 'fortnite') lookTarget.add(right.clone().multiplyScalar(0.45));
-
   const lookWithKick = lookTarget.clone()
     .add(new THREE.Vector3(Math.sin(state.cameraYaw + Math.PI / 2) * cameraKick.x, 0, Math.cos(state.cameraYaw + Math.PI / 2) * cameraKick.x))
     .add(new THREE.Vector3(0, cameraKick.y, 0));
