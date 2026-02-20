@@ -52,6 +52,7 @@ let heroModelRoot = null;
 let characterModelLoaded = false;
 let heroModelStatus = 'LOADING HERO...';
 let heroFacingOffset = 0;
+let heroAnimationMap = {};
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x070d1a);
@@ -190,6 +191,19 @@ firestaff.position.set(0.46, 1.24, 0.08);
 firestaff.rotation.z = 0.48;
 characterVisualRoot.add(firestaff);
 
+function normalizeClipName(name) {
+  return String(name || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+function findClipByConfiguredName(animations, configuredName) {
+  if (!configuredName || typeof configuredName !== 'string') return null;
+  const wanted = normalizeClipName(configuredName);
+  if (!wanted) return null;
+
+  return animations.find((clip) => normalizeClipName(clip.name) === wanted)
+    || animations.find((clip) => normalizeClipName(clip.name).includes(wanted));
+}
+
 function applyLoadedHero(gltf, sourcePath) {
   const modelRoot = new THREE.Group();
   modelRoot.name = 'hero-model-root';
@@ -233,15 +247,36 @@ function applyLoadedHero(gltf, sourcePath) {
   if (gltf.animations && gltf.animations.length > 0) {
     characterMixer = new THREE.AnimationMixer(gltf.scene);
 
-    const trueIdleClip = gltf.animations.find((clip) => /idle|breath|stand|rest|rested/i.test(clip.name)) || null;
-    const walkClip = gltf.animations.find((clip) => /walk/i.test(clip.name)) || null;
-    const runClip = gltf.animations.find((clip) => /run|jog|sprint/i.test(clip.name)) || null;
-    const locomotionClip = walkClip || runClip || gltf.animations[0] || null;
-    const poseFallbackClip = gltf.animations.find((clip) => /pose|cast|spell|aim/i.test(clip.name)) || null;
+    const trueIdleClip = findClipByConfiguredName(gltf.animations, heroAnimationMap.idle)
+      || gltf.animations.find((clip) => /inactif\s*1|inactive\s*1|idle|breath|stand|rest|rested/i.test(clip.name))
+      || null;
+
+    const walkClip = findClipByConfiguredName(gltf.animations, heroAnimationMap.walk)
+      || gltf.animations.find((clip) => /walk/i.test(clip.name))
+      || null;
+
+    const runClip = findClipByConfiguredName(gltf.animations, heroAnimationMap.run)
+      || gltf.animations.find((clip) => /run|jog|sprint/i.test(clip.name))
+      || null;
+
+    const locomotionClip = findClipByConfiguredName(gltf.animations, heroAnimationMap.locomotion)
+      || walkClip
+      || runClip
+      || gltf.animations[0]
+      || null;
+
+    const poseFallbackClip = gltf.animations.find((clip) => /pose|aim/i.test(clip.name)) || null;
     const idleClip = trueIdleClip || (poseFallbackClip !== locomotionClip ? poseFallbackClip : null);
 
-    const chargedAttackClip = gltf.animations.find((clip) => /charge|heavy|power|cast[_-]?4|spell[_-]?4|_4$/i.test(clip.name) && clip !== idleClip) || null;
-    const basicAttackClip = gltf.animations.find((clip) => /attack|cast|spell|slash|hit|cast[_-]?3|spell[_-]?3|_3$/i.test(clip.name) && clip !== idleClip && clip !== chargedAttackClip) || null;
+    const chargedAttackClip = findClipByConfiguredName(gltf.animations, heroAnimationMap.chargedAttack)
+      || gltf.animations.find((clip) => /mage[\s_-]*soell[\s_-]*(cast|lance).*\b3\b/i.test(clip.name) && clip !== idleClip)
+      || gltf.animations.find((clip) => /charge|heavy|power|cast[_-]?3|spell[_-]?3|_3$/i.test(clip.name) && clip !== idleClip)
+      || null;
+
+    const basicAttackClip = findClipByConfiguredName(gltf.animations, heroAnimationMap.basicAttack)
+      || gltf.animations.find((clip) => /mage[\s_-]*soell[\s_-]*lance[\s_-]*sort.*\b4\b/i.test(clip.name) && clip !== idleClip && clip !== chargedAttackClip)
+      || gltf.animations.find((clip) => /attack|cast|spell|slash|hit|cast[_-]?4|spell[_-]?4|_4$/i.test(clip.name) && clip !== idleClip && clip !== chargedAttackClip)
+      || null;
 
     if (idleClip) {
       heroActions.idle = characterMixer.clipAction(idleClip);
@@ -378,6 +413,7 @@ function loadHeroModel() {
     const manifestPaths = Array.isArray(manifest?.paths) ? manifest.paths : [];
     const manifestFacingOffset = parseFacingOffset(manifest?.facingDeg);
     heroFacingOffset = queryFacingOffset ?? localStorageFacingOffset ?? manifestFacingOffset ?? 0;
+    heroAnimationMap = (manifest?.animations && typeof manifest.animations === 'object') ? manifest.animations : {};
 
     const candidates = [queryHero, localStorageHero, manifestHero, ...manifestPaths, fallbackHeroFile];
     loadCandidates(candidates);

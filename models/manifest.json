@@ -1,5 +1,11 @@
 {
   "hero": "hero.glb",
   "paths": [],
-  "facingDeg": 0
+  "facingDeg": 0,
+  "animations": {
+    "idle": "Inactif 1",
+    "locomotion": "Marche",
+    "basicAttack": "Mage Soell lance Sort 4",
+    "chargedAttack": "Mage Soell Cast 3"
+  }
 }
