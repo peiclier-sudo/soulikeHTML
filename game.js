@@ -290,6 +290,14 @@ function loadHeroModel() {
     return [`models/${clean}`, `/models/${clean}`];
   }
 
+  const heroCacheKey = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+
+  function withCacheBust(path) {
+    if (!path || /^https?:\/\//i.test(path)) return path;
+    const sep = path.includes('?') ? '&' : '?';
+    return `${path}${sep}v=${heroCacheKey}`;
+  }
+
   function setFallback(reason) {
     characterModelLoaded = false;
     characterVisualRoot.visible = true;
@@ -313,8 +321,9 @@ function loadHeroModel() {
       }
 
       const path = unique[index];
+      const requestPath = withCacheBust(path);
       loader.load(
-        path,
+        requestPath,
         (gltf) => applyLoadedHero(gltf, path),
         undefined,
         () => tryPath(index + 1)
