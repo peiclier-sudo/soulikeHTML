@@ -60,7 +60,7 @@ let heroIsCharging = false;
 let heroCurrentLocomotionAction = null;
 let heroJumpingActionActive = false;
 let heroRootMotionLocks = [];
-let heroJumpRequestedAt = -10;
+let heroJumpQueued = false;
 let heroModelRoot = null;
 let characterModelLoaded = false;
 let heroModelStatus = 'LOADING HERO...';
@@ -268,7 +268,7 @@ function applyLoadedHero(gltf, sourcePath) {
   heroCurrentLocomotionAction = null;
   heroJumpingActionActive = false;
   heroRootMotionLocks = [];
-  heroJumpRequestedAt = -10;
+  heroJumpQueued = false;
   if (gltf.animations && gltf.animations.length > 0) {
     characterMixer = new THREE.AnimationMixer(gltf.scene);
     heroRootMotionLocks = collectHeroRootMotionLocks(gltf.scene, gltf.animations);
@@ -800,22 +800,22 @@ function updateCharacterAnimation(dt, now, stride) {
   const attackActive = activeHeroAttackAction && (state.attackTime > 0 || attackWeight > 0.04 || heroIsCharging);
 
   const isAirborne = state.pos.y > 0.03 || state.velY > 0.2;
-  const jumpRecentlyRequested = (performance.now() / 1000) - heroJumpRequestedAt < 0.18;
-  const shouldJump = !!heroActions.jump && (isAirborne || jumpRecentlyRequested) && !attackActive;
 
-  if (shouldJump && !heroJumpingActionActive) triggerHeroJumpAction();
-
-  if (!shouldJump && heroJumpingActionActive && heroActions.jump) {
+  if (heroJumpingActionActive && heroActions.jump) {
     const jumpProgress = heroActions.jump.time / Math.max(heroActions.jump.getClip().duration, 0.001);
-    if (jumpProgress >= 0.72 || state.pos.y <= 0.001) {
+    const isLanding = state.pos.y <= 0.001 && state.velY <= 0;
+    if (jumpProgress >= 0.9 || (isLanding && jumpProgress >= 0.32)) {
       heroJumpingActionActive = false;
       heroActions.jump.setEffectiveWeight(0);
       heroActions.jump.paused = true;
-    } else {
-      // Finish the clip quickly after landing so it does not get cut off.
-      heroActions.jump.timeScale = 2.4;
+    } else if (isLanding) {
+      // Finish quickly once grounded, without freezing the next jump trigger.
+      heroActions.jump.timeScale = 2.6;
       heroActions.jump.setEffectiveWeight(1);
     }
+  } else if (!isAirborne && heroActions.jump) {
+    heroActions.jump.setEffectiveWeight(0);
+    heroActions.jump.paused = true;
   }
 
   if (characterMixer && (heroActions.walk || heroActions.run)) {
@@ -907,11 +907,7 @@ window.addEventListener('keydown', (e) => {
 
   if (e.code === 'Space') {
     e.preventDefault();
-    if (state.pos.y <= 0.001) {
-      state.velY = 6.6;
-      heroJumpRequestedAt = performance.now() / 1000;
-      triggerHeroJumpAction(2.05);
-    }
+    heroJumpQueued = true;
   }
 
   if (state.dashBinding === keyBinding(k)) activateDash();
@@ -1048,6 +1044,13 @@ function update(dt, now) {
   }
 
   const grounded = state.pos.y <= 0.001;
+  if (heroJumpQueued) {
+    if (grounded && state.attackRecover <= 0) {
+      state.velY = 6.6;
+      triggerHeroJumpAction(2.05);
+    }
+    heroJumpQueued = false;
+  }
   const accel = state.accel * (grounded ? 1 : state.airControl);
   const targetSpeed = state.baseSpeed * (state.dashTime > 0 ? 1.3 : 1) * (grounded ? 1 : 0.72);
 
