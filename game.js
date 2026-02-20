@@ -46,7 +46,7 @@ const menuDefinitions = {
 
 let currentScene = 'welcome';
 let characterMixer = null;
-let heroActions = { idle: null, locomotion: null };
+let heroActions = { idle: null, locomotion: null, attack: null };
 let heroModelRoot = null;
 let characterModelLoaded = false;
 let heroModelStatus = 'LOADING HERO...';
@@ -217,7 +217,7 @@ function applyLoadedHero(gltf, sourcePath) {
   heroModelStatus = `GLB HERO (${sourcePath})`;
 
   characterMixer = null;
-  heroActions = { idle: null, locomotion: null };
+  heroActions = { idle: null, locomotion: null, attack: null };
   if (gltf.animations && gltf.animations.length > 0) {
     characterMixer = new THREE.AnimationMixer(gltf.scene);
 
@@ -225,6 +225,7 @@ function applyLoadedHero(gltf, sourcePath) {
     const walkClip = gltf.animations.find((clip) => /walk/i.test(clip.name)) || null;
     const runClip = gltf.animations.find((clip) => /run|jog|sprint/i.test(clip.name)) || null;
     const locomotionClip = walkClip || runClip || gltf.animations[0] || null;
+    const attackClip = gltf.animations.find((clip) => /attack|cast|spell|slash|hit/i.test(clip.name)) || null;
 
     if (idleClip) {
       heroActions.idle = characterMixer.clipAction(idleClip);
@@ -235,6 +236,14 @@ function applyLoadedHero(gltf, sourcePath) {
       heroActions.locomotion = characterMixer.clipAction(locomotionClip);
       heroActions.locomotion.enabled = true;
       heroActions.locomotion.play();
+    }
+
+    if (attackClip) {
+      heroActions.attack = characterMixer.clipAction(attackClip);
+      heroActions.attack.setLoop(THREE.LoopOnce, 1);
+      heroActions.attack.clampWhenFinished = true;
+      heroActions.attack.enabled = false;
+      heroActions.attack.setEffectiveWeight(0);
     }
 
     if (heroActions.idle && heroActions.locomotion) {
@@ -552,6 +561,17 @@ function spawnFireball(power) {
   state.attackPower = power;
   state.attackRecover = power > 1.25 ? 0.14 : 0.08;
   applyCameraKick(power > 1.25 ? 0.016 : 0.008);
+  playHeroAttackAnimation(power);
+}
+
+function playHeroAttackAnimation(power) {
+  if (!heroActions.attack) return;
+  heroActions.attack.enabled = true;
+  heroActions.attack.paused = false;
+  heroActions.attack.time = 0;
+  heroActions.attack.setEffectiveWeight(1);
+  heroActions.attack.timeScale = power > 1.25 ? 1.05 : 1.2;
+  heroActions.attack.play();
 }
 
 function releaseFireShot() {
@@ -573,15 +593,22 @@ function releaseFireShot() {
 
 
 function updateCharacterAnimation(dt, now, stride) {
+  const attackWeight = heroActions.attack ? heroActions.attack.getEffectiveWeight() : 0;
+  const attackActive = heroActions.attack && (state.attackTime > 0 || attackWeight > 0.04);
+
   if (characterMixer && heroActions.locomotion) {
     if (heroActions.idle) {
-      heroActions.locomotion.paused = false;
-      heroActions.locomotion.timeScale = THREE.MathUtils.lerp(0.2, 1.25, stride);
-      const locomotionWeight = THREE.MathUtils.damp(heroActions.locomotion.getEffectiveWeight(), stride, 8, dt);
+      const targetLocoWeight = stride > 0.06 && !attackActive ? stride : 0;
+      heroActions.locomotion.paused = targetLocoWeight <= 0.001;
+      if (!heroActions.locomotion.paused) {
+        heroActions.locomotion.timeScale = THREE.MathUtils.lerp(0.35, 1.25, stride);
+      }
+
+      const locomotionWeight = THREE.MathUtils.damp(heroActions.locomotion.getEffectiveWeight(), targetLocoWeight, 10, dt);
       heroActions.locomotion.setEffectiveWeight(locomotionWeight);
       heroActions.idle.setEffectiveWeight(1 - locomotionWeight);
     } else {
-      const isMoving = stride > 0.08;
+      const isMoving = stride > 0.08 && !attackActive;
       heroActions.locomotion.paused = !isMoving;
       heroActions.locomotion.setEffectiveWeight(1);
 
@@ -593,6 +620,20 @@ function updateCharacterAnimation(dt, now, stride) {
     }
   }
 
+  if (heroActions.attack) {
+    const targetAttackWeight = state.attackTime > 0 ? 1 : 0;
+    const nextAttackWeight = THREE.MathUtils.damp(heroActions.attack.getEffectiveWeight(), targetAttackWeight, 16, dt);
+    heroActions.attack.setEffectiveWeight(nextAttackWeight);
+    heroActions.attack.enabled = nextAttackWeight > 0.01;
+
+    if (heroActions.idle) {
+      heroActions.idle.setEffectiveWeight(heroActions.idle.getEffectiveWeight() * (1 - nextAttackWeight));
+    }
+    if (heroActions.locomotion) {
+      heroActions.locomotion.setEffectiveWeight(heroActions.locomotion.getEffectiveWeight() * (1 - nextAttackWeight));
+    }
+  }
+
   if (heroModelRoot && !characterMixer) {
     const bob = Math.sin(now * (4 + stride * 8)) * (0.02 + stride * 0.02);
     const sway = Math.sin(now * 5) * 0.03 * (0.3 + stride);
@@ -600,6 +641,7 @@ function updateCharacterAnimation(dt, now, stride) {
     heroModelRoot.rotation.z = sway;
   }
 }
+
 
 window.addEventListener('keydown', (e) => {
   const k = normalizeKey(e);
