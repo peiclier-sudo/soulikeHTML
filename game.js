@@ -220,19 +220,27 @@ function applyLoadedHero(gltf, sourcePath) {
   if (gltf.animations && gltf.animations.length > 0) {
     characterMixer = new THREE.AnimationMixer(gltf.scene);
 
-    const idleClip = gltf.animations.find((clip) => /idle|breath/i.test(clip.name)) || gltf.animations[0];
-    const locomotionClip = gltf.animations.find((clip) => /walk|run|jog|locomotion/i.test(clip.name)) || null;
+    const idleClip = gltf.animations.find((clip) => /idle|breath|stand|rest/i.test(clip.name)) || null;
+    const walkClip = gltf.animations.find((clip) => /walk/i.test(clip.name)) || null;
+    const runClip = gltf.animations.find((clip) => /run|jog|sprint/i.test(clip.name)) || null;
+    const locomotionClip = walkClip || runClip || gltf.animations[0] || null;
 
-    heroActions.idle = characterMixer.clipAction(idleClip);
-    heroActions.idle.play();
+    if (idleClip) {
+      heroActions.idle = characterMixer.clipAction(idleClip);
+      heroActions.idle.play();
+    }
 
-    if (locomotionClip && locomotionClip !== idleClip) {
+    if (locomotionClip) {
       heroActions.locomotion = characterMixer.clipAction(locomotionClip);
-      heroActions.idle.enabled = true;
-      heroActions.idle.setEffectiveWeight(1);
       heroActions.locomotion.enabled = true;
-      heroActions.locomotion.setEffectiveWeight(0);
       heroActions.locomotion.play();
+    }
+
+    if (heroActions.idle && heroActions.locomotion) {
+      heroActions.idle.setEffectiveWeight(1);
+      heroActions.locomotion.setEffectiveWeight(0);
+    } else if (!heroActions.idle && heroActions.locomotion) {
+      heroActions.locomotion.setEffectiveWeight(1);
     }
   }
 }
@@ -552,11 +560,16 @@ function releaseFireShot() {
 
 
 function updateCharacterAnimation(dt, now, stride) {
-  if (characterMixer && heroActions.idle && heroActions.locomotion) {
-    const locomotionWeight = THREE.MathUtils.damp(heroActions.locomotion.getEffectiveWeight(), stride, 8, dt);
-    heroActions.locomotion.setEffectiveWeight(locomotionWeight);
-    heroActions.idle.setEffectiveWeight(1 - locomotionWeight);
-    heroActions.locomotion.timeScale = THREE.MathUtils.lerp(0.75, 1.3, stride);
+  if (characterMixer && heroActions.locomotion) {
+    heroActions.locomotion.timeScale = THREE.MathUtils.lerp(0.2, 1.25, stride);
+
+    if (heroActions.idle) {
+      const locomotionWeight = THREE.MathUtils.damp(heroActions.locomotion.getEffectiveWeight(), stride, 8, dt);
+      heroActions.locomotion.setEffectiveWeight(locomotionWeight);
+      heroActions.idle.setEffectiveWeight(1 - locomotionWeight);
+    } else {
+      heroActions.locomotion.setEffectiveWeight(1);
+    }
   }
 
   if (heroModelRoot && !characterMixer) {
