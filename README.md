@@ -318,6 +318,17 @@ Missing mappings must:
 Current repository is still the legacy static prototype (`index.html` + `game.js`) and serves as a gameplay reference while migrating to the target architecture.
 
 
+
+## Phase 1 Progress (Core Systems)
+
+Implemented in scaffold:
+
+- `src/core/action-catalog.ts` with canonical core ActionIds
+- `src/core/loadout-resolver.ts` resolving class + weapon -> action-to-token mappings
+- `src/core/animation-resolver.ts` resolving ActionId -> AnimToken -> clipName with fallback strategies
+- `src/systems/animation/AnimationCodex.ts` consuming resolver output and exposing debug trace logs
+- `src/systems/animation/dev-resolution-demo.ts` proving the resolution path for 5 actions
+
 ## Scaffold Status (Current Repository)
 
 The repository now includes a concrete scaffold for the target architecture under `src/`, including:
