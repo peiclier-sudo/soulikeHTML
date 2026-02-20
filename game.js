@@ -59,6 +59,7 @@ let activeHeroAttackAction = null;
 let heroIsCharging = false;
 let heroCurrentLocomotionAction = null;
 let heroJumpingActionActive = false;
+let heroRootMotionLocks = [];
 let heroModelRoot = null;
 let characterModelLoaded = false;
 let heroModelStatus = 'LOADING HERO...';
@@ -265,8 +266,10 @@ function applyLoadedHero(gltf, sourcePath) {
   activeHeroAttackAction = null;
   heroCurrentLocomotionAction = null;
   heroJumpingActionActive = false;
+  heroRootMotionLocks = [];
   if (gltf.animations && gltf.animations.length > 0) {
     characterMixer = new THREE.AnimationMixer(gltf.scene);
+    heroRootMotionLocks = collectHeroRootMotionLocks(gltf.scene, gltf.animations);
 
     const trueIdleClip = findClipByConfiguredName(gltf.animations, heroAnimationMap.idle)
       || gltf.animations.find((clip) => /inactif\s*1|inactive\s*1|idle|breath|stand|rest|rested/i.test(clip.name))
@@ -379,6 +382,38 @@ function crossFadeHeroBaseAction(nextAction, duration = 0.18) {
   }
 
   heroCurrentLocomotionAction = nextAction;
+}
+
+
+function collectHeroRootMotionLocks(sceneRoot, animations) {
+  const positionTrackNodeNames = new Set();
+
+  animations.forEach((clip) => {
+    clip.tracks.forEach((track) => {
+      if (!track.name.endsWith('.position')) return;
+      const nodeName = track.name.slice(0, -9);
+      if (!nodeName) return;
+      if (!/root|armature|hips|pelvis/i.test(nodeName)) return;
+      positionTrackNodeNames.add(nodeName);
+    });
+  });
+
+  const locks = [];
+  positionTrackNodeNames.forEach((name) => {
+    const node = sceneRoot.getObjectByName(name);
+    if (!node) return;
+    locks.push({ node, baseX: node.position.x, baseZ: node.position.z });
+  });
+
+  return locks;
+}
+
+function applyHeroRootMotionLock() {
+  if (!heroRootMotionLocks || heroRootMotionLocks.length === 0) return;
+  heroRootMotionLocks.forEach((lock) => {
+    lock.node.position.x = lock.baseX;
+    lock.node.position.z = lock.baseZ;
+  });
 }
 
 function loadHeroModel() {
@@ -973,7 +1008,10 @@ function tick(now) {
   prev = now;
 
   if (currentScene === 'fight') update(dt, now / 1000);
-  if (characterMixer) characterMixer.update(dt);
+  if (characterMixer) {
+    characterMixer.update(dt);
+    applyHeroRootMotionLock();
+  }
 
   cameraKick.multiplyScalar(Math.pow(0.001, dt));
   renderer.render(scene, camera);
