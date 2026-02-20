@@ -46,7 +46,8 @@ const menuDefinitions = {
 
 let currentScene = 'welcome';
 let characterMixer = null;
-let heroActions = { idle: null, locomotion: null, attack: null, idleIsStaticPose: false };
+let heroActions = { idle: null, locomotion: null, basicAttack: null, chargedAttack: null, idleIsStaticPose: false };
+let activeHeroAttackAction = null;
 let heroModelRoot = null;
 let characterModelLoaded = false;
 let heroModelStatus = 'LOADING HERO...';
@@ -227,17 +228,20 @@ function applyLoadedHero(gltf, sourcePath) {
   heroModelStatus = `GLB HERO (${sourcePath})`;
 
   characterMixer = null;
-  heroActions = { idle: null, locomotion: null, attack: null, idleIsStaticPose: false };
+  heroActions = { idle: null, locomotion: null, basicAttack: null, chargedAttack: null, idleIsStaticPose: false };
+  activeHeroAttackAction = null;
   if (gltf.animations && gltf.animations.length > 0) {
     characterMixer = new THREE.AnimationMixer(gltf.scene);
 
-    const trueIdleClip = gltf.animations.find((clip) => /idle|breath|stand|rest/i.test(clip.name)) || null;
+    const trueIdleClip = gltf.animations.find((clip) => /idle|breath|stand|rest|rested/i.test(clip.name)) || null;
     const walkClip = gltf.animations.find((clip) => /walk/i.test(clip.name)) || null;
     const runClip = gltf.animations.find((clip) => /run|jog|sprint/i.test(clip.name)) || null;
     const locomotionClip = walkClip || runClip || gltf.animations[0] || null;
     const poseFallbackClip = gltf.animations.find((clip) => /pose|cast|spell|aim/i.test(clip.name)) || null;
     const idleClip = trueIdleClip || (poseFallbackClip !== locomotionClip ? poseFallbackClip : null);
-    const attackClip = gltf.animations.find((clip) => /attack|cast|spell|slash|hit/i.test(clip.name) && clip !== idleClip) || null;
+
+    const chargedAttackClip = gltf.animations.find((clip) => /charge|heavy|power|cast[_-]?4|spell[_-]?4|_4$/i.test(clip.name) && clip !== idleClip) || null;
+    const basicAttackClip = gltf.animations.find((clip) => /attack|cast|spell|slash|hit|cast[_-]?3|spell[_-]?3|_3$/i.test(clip.name) && clip !== idleClip && clip !== chargedAttackClip) || null;
 
     if (idleClip) {
       heroActions.idle = characterMixer.clipAction(idleClip);
@@ -259,12 +263,20 @@ function applyLoadedHero(gltf, sourcePath) {
       heroActions.locomotion.play();
     }
 
-    if (attackClip) {
-      heroActions.attack = characterMixer.clipAction(attackClip);
-      heroActions.attack.setLoop(THREE.LoopOnce, 1);
-      heroActions.attack.clampWhenFinished = true;
-      heroActions.attack.enabled = false;
-      heroActions.attack.setEffectiveWeight(0);
+    if (basicAttackClip) {
+      heroActions.basicAttack = characterMixer.clipAction(basicAttackClip);
+      heroActions.basicAttack.setLoop(THREE.LoopOnce, 1);
+      heroActions.basicAttack.clampWhenFinished = true;
+      heroActions.basicAttack.enabled = false;
+      heroActions.basicAttack.setEffectiveWeight(0);
+    }
+
+    if (chargedAttackClip) {
+      heroActions.chargedAttack = characterMixer.clipAction(chargedAttackClip);
+      heroActions.chargedAttack.setLoop(THREE.LoopOnce, 1);
+      heroActions.chargedAttack.clampWhenFinished = true;
+      heroActions.chargedAttack.enabled = false;
+      heroActions.chargedAttack.setEffectiveWeight(0);
     }
 
     if (heroActions.idle && heroActions.locomotion) {
@@ -586,13 +598,19 @@ function spawnFireball(power) {
 }
 
 function playHeroAttackAnimation(power) {
-  if (!heroActions.attack) return;
-  heroActions.attack.enabled = true;
-  heroActions.attack.paused = false;
-  heroActions.attack.time = 0;
-  heroActions.attack.setEffectiveWeight(1);
-  heroActions.attack.timeScale = power > 1.25 ? 1.05 : 1.2;
-  heroActions.attack.play();
+  const wantsCharged = power > 1.25;
+  const chosenAction = wantsCharged
+    ? (heroActions.chargedAttack || heroActions.basicAttack)
+    : (heroActions.basicAttack || heroActions.chargedAttack);
+
+  if (!chosenAction) return;
+  activeHeroAttackAction = chosenAction;
+  chosenAction.enabled = true;
+  chosenAction.paused = false;
+  chosenAction.time = 0;
+  chosenAction.setEffectiveWeight(1);
+  chosenAction.timeScale = wantsCharged ? 1.05 : 1.2;
+  chosenAction.play();
 }
 
 function releaseFireShot() {
@@ -614,8 +632,8 @@ function releaseFireShot() {
 
 
 function updateCharacterAnimation(dt, now, stride) {
-  const attackWeight = heroActions.attack ? heroActions.attack.getEffectiveWeight() : 0;
-  const attackActive = heroActions.attack && (state.attackTime > 0 || attackWeight > 0.04);
+  const attackWeight = activeHeroAttackAction ? activeHeroAttackAction.getEffectiveWeight() : 0;
+  const attackActive = activeHeroAttackAction && (state.attackTime > 0 || attackWeight > 0.04);
 
   if (characterMixer && heroActions.locomotion) {
     if (heroActions.idle) {
@@ -641,17 +659,24 @@ function updateCharacterAnimation(dt, now, stride) {
     }
   }
 
-  if (heroActions.attack) {
-    const targetAttackWeight = state.attackTime > 0 ? 1 : 0;
-    const nextAttackWeight = THREE.MathUtils.damp(heroActions.attack.getEffectiveWeight(), targetAttackWeight, 16, dt);
-    heroActions.attack.setEffectiveWeight(nextAttackWeight);
-    heroActions.attack.enabled = nextAttackWeight > 0.01;
+  const attackActions = [heroActions.basicAttack, heroActions.chargedAttack].filter(Boolean);
+  if (attackActions.length > 0) {
+    attackActions.forEach((action) => {
+      const isActiveAction = activeHeroAttackAction === action;
+      const targetAttackWeight = isActiveAction && state.attackTime > 0 ? 1 : 0;
+      const nextAttackWeight = THREE.MathUtils.damp(action.getEffectiveWeight(), targetAttackWeight, 16, dt);
+      action.setEffectiveWeight(nextAttackWeight);
+      action.enabled = nextAttackWeight > 0.01;
+    });
+
+    const activeWeight = activeHeroAttackAction ? activeHeroAttackAction.getEffectiveWeight() : 0;
+    if (activeWeight <= 0.01 && state.attackTime <= 0) activeHeroAttackAction = null;
 
     if (heroActions.idle) {
-      heroActions.idle.setEffectiveWeight(heroActions.idle.getEffectiveWeight() * (1 - nextAttackWeight));
+      heroActions.idle.setEffectiveWeight(heroActions.idle.getEffectiveWeight() * (1 - activeWeight));
     }
     if (heroActions.locomotion) {
-      heroActions.locomotion.setEffectiveWeight(heroActions.locomotion.getEffectiveWeight() * (1 - nextAttackWeight));
+      heroActions.locomotion.setEffectiveWeight(heroActions.locomotion.getEffectiveWeight() * (1 - activeWeight));
     }
   }
 
