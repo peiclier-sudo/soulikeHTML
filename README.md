@@ -149,6 +149,8 @@ Minimum action set:
 - `MOVE`
 - `JUMP`
 - `DASH`
+- `HIT_REACT`
+- `DEATH`
 - `ATTACK_BASIC`
 - `ATTACK_CHARGED`
 - `CONSUME_HEALTH_POTION`
@@ -178,9 +180,16 @@ Good examples:
 - `Basic_Attack`
 - `Charged_Attack`
 - `Special_Slot1`
+- `Special_Slot2`
+- `Special_Slot3`
 - `Ultimate`
-- `Drink_Health_Potion`
-- `Drink_Energy_Potion`
+- `Hit_React`
+- `Death`
+- `Drink_Potion`
+
+Potion rule for consistency:
+
+- `CONSUME_HEALTH_POTION` and `CONSUME_ENERGY_POTION` both map to the same GLB clip: `Drink_Potion`.
 
 Forbidden names:
 
@@ -235,18 +244,24 @@ Missing mappings must:
     "Basic_Attack": "Basic_Attack",
     "Charged_Attack": "Charged_Attack",
     "Dash": "Dash",
+    "Hit_React": "Hit_React",
+    "Death": "Death",
     "Special_Slot1": "Special_Slot1",
     "Special_Slot2": "Special_Slot2",
     "Special_Slot3": "Special_Slot3",
     "Ultimate": "Ultimate",
-    "Drink_Health_Potion": "Drink_Health_Potion",
-    "Drink_Energy_Potion": "Drink_Energy_Potion"
+    "Drink_Potion": "Drink_Potion"
   },
   "animTokens": {
+    "HIT_REACT": "Hit_React",
+    "DEATH": "Death",
     "ATTACK_BASIC": "Basic_Attack",
     "ATTACK_CHARGED": "Charged_Attack",
     "SKILL_SLOT_1": "Special_Slot1",
-    "ULTIMATE": "Ultimate"
+    "SKILL_SLOT_2": "Special_Slot2",
+    "SKILL_SLOT_3": "Special_Slot3",
+    "ULTIMATE": "Ultimate",
+    "CONSUME_POTION": "Drink_Potion"
   }
 }
 ```
@@ -340,4 +355,3 @@ The repository now includes a concrete scaffold for the target architecture unde
 - dedicated boss scene folders under `src/scenes/boss/` (`boss-1`, `boss-2`)
 
 This lets us move feature-by-feature without losing architecture clarity.
-
