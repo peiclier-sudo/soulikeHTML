@@ -44,5 +44,6 @@ If your app is served from a sub-path, relative paths are now tried automaticall
   - `basicAttack` / `chargedAttack`: optional combat clips (not required for movement)
   - `hitReact`: optional hit reaction clip (recommended for damage feedback)
   - `death`: optional death/knockout clip
+  - `drinkPotion`: optional shared potion clip used by both health and energy consume actions
 
 Tip: use your DCC/asset viewer animation names exactly (case-insensitive; spaces/underscores tolerated).

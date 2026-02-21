@@ -87,8 +87,8 @@ export function resolveLoadout(context: LoadoutContext): ResolvedLoadout {
     ATTACK_BASIC: weaponProfile.basicAttack,
     ATTACK_CHARGED: weaponProfile.chargedAttack,
 
-    CONSUME_HEALTH_POTION: 'CONSUME_HEALTH_POTION',
-    CONSUME_ENERGY_POTION: 'CONSUME_ENERGY_POTION',
+    CONSUME_HEALTH_POTION: 'CONSUME_POTION',
+    CONSUME_ENERGY_POTION: 'CONSUME_POTION',
 
     SKILL_SLOT_1: classProfile.skillSlots.SKILL_SLOT_1,
     SKILL_SLOT_2: classProfile.skillSlots.SKILL_SLOT_2,

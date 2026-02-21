@@ -14,6 +14,7 @@
     "ability2": "",
     "ability3": "",
     "hitReact": "Hit_React",
-    "death": "Death"
+    "death": "Death",
+    "drinkPotion": "Drink_Potion"
   }
 }

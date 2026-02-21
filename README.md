@@ -181,8 +181,13 @@ Good examples:
 - `Charged_Attack`
 - `Special_Slot1`
 - `Ultimate`
-- `Drink_Health_Potion`
-- `Drink_Energy_Potion`
+- `Hit_React`
+- `Death`
+- `Drink_Potion`
+
+Potion rule for consistency:
+
+- `CONSUME_HEALTH_POTION` and `CONSUME_ENERGY_POTION` both map to the same GLB clip: `Drink_Potion`.
 
 Forbidden names:
 
@@ -243,8 +248,7 @@ Missing mappings must:
     "Special_Slot2": "Special_Slot2",
     "Special_Slot3": "Special_Slot3",
     "Ultimate": "Ultimate",
-    "Drink_Health_Potion": "Drink_Health_Potion",
-    "Drink_Energy_Potion": "Drink_Energy_Potion"
+    "Drink_Potion": "Drink_Potion"
   },
   "animTokens": {
     "HIT_REACT": "Hit_React",
@@ -252,7 +256,8 @@ Missing mappings must:
     "ATTACK_BASIC": "Basic_Attack",
     "ATTACK_CHARGED": "Charged_Attack",
     "SKILL_SLOT_1": "Special_Slot1",
-    "ULTIMATE": "Ultimate"
+    "ULTIMATE": "Ultimate",
+    "CONSUME_POTION": "Drink_Potion"
   }
 }
 ```
@@ -346,4 +351,3 @@ The repository now includes a concrete scaffold for the target architecture unde
 - dedicated boss scene folders under `src/scenes/boss/` (`boss-1`, `boss-2`)
 
 This lets us move feature-by-feature without losing architecture clarity.
-
