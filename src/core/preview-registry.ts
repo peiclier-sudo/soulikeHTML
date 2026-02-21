@@ -2,8 +2,9 @@ import type { AnimationManifest } from '@/types/animation';
 import type { BossId } from '@/types/boss';
 import type { PlayerClassId, WeaponId } from '@/types/player';
 
-type CharacterPreviewConfig = {
+export type CharacterPreviewConfig = {
   modelPath: string;
+  manifestPath: string;
   weapon: WeaponId;
   manifest: AnimationManifest;
 };
@@ -64,16 +65,19 @@ const baseManifest: AnimationManifest = {
 export const CHARACTER_PREVIEW_REGISTRY: Record<PlayerClassId, CharacterPreviewConfig> = {
   mage: {
     modelPath: '/models/characters/mage/model.glb',
+    manifestPath: '/models/characters/mage/manifest.json',
     weapon: 'arcane-staff',
     manifest: baseManifest,
   },
   warrior: {
     modelPath: '/models/characters/warrior/model.glb',
+    manifestPath: '/models/characters/warrior/manifest.json',
     weapon: 'greatsword',
     manifest: baseManifest,
   },
   rogue: {
     modelPath: '/models/characters/rogue/model.glb',
+    manifestPath: '/models/characters/rogue/manifest.json',
     weapon: 'twin-daggers',
     manifest: baseManifest,
   },

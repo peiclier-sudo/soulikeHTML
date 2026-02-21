@@ -213,9 +213,10 @@ The `/game` scene now includes a preview panel so you can:
 Asset paths used by the preview renderer:
 
 - character: `/public/models/characters/<class-id>/model.glb`
+- character manifest: `/public/models/characters/<class-id>/manifest.json`
 - boss: `/public/models/bosses/<boss-id>/model.glb`
 
-The character preview uses the codex chain (`ActionId -> AnimToken -> clipName`) so the debug behavior matches the planned runtime animation architecture.
+The character preview uses the codex chain (`ActionId -> AnimToken -> clipName`) and loads per-class manifests when present, with safe fallback to the built-in default manifest.
 
 ---
 ## Content Validation Rules

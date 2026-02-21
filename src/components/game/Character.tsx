@@ -8,6 +8,7 @@ import * as THREE from 'three';
 import { usePreviewStore } from '@/stores/usePreviewStore';
 import { CHARACTER_PREVIEW_REGISTRY } from '@/core/preview-registry';
 import { AnimationCodex } from '@/systems/animation/AnimationCodex';
+import type { AnimationManifest } from '@/types/animation';
 
 const CLASS_COLORS: Record<string, string> = {
   mage: '#7b4fff',
@@ -15,7 +16,13 @@ const CLASS_COLORS: Record<string, string> = {
   rogue: '#00c89a',
 };
 
-function CharacterModel({ modelPath }: { modelPath: string }) {
+function isAnimationManifest(data: unknown): data is AnimationManifest {
+  if (!data || typeof data !== 'object') return false;
+  const value = data as Partial<AnimationManifest>;
+  return typeof value.version === 'string' && !!value.clipMapping && typeof value.clipMapping === 'object';
+}
+
+function CharacterModel({ modelPath, manifest }: { modelPath: string; manifest: AnimationManifest }) {
   const selectedClass = usePreviewStore((s) => s.selectedClass);
   const selectedAction = usePreviewStore((s) => s.selectedAction);
   const ref = useRef<THREE.Group>(null);
@@ -23,7 +30,7 @@ function CharacterModel({ modelPath }: { modelPath: string }) {
   const { actions } = useAnimations(animations, ref);
 
   const previewConfig = CHARACTER_PREVIEW_REGISTRY[selectedClass];
-  const codex = useMemo(() => new AnimationCodex(previewConfig.manifest), [previewConfig.manifest]);
+  const codex = useMemo(() => new AnimationCodex(manifest), [manifest]);
 
   useEffect(() => {
     const trace = codex.resolveAction(selectedAction, {
@@ -73,8 +80,10 @@ function PlaceholderCapsule() {
 
 export default function Character() {
   const selectedClass = usePreviewStore((s) => s.selectedClass);
-  const modelPath = CHARACTER_PREVIEW_REGISTRY[selectedClass].modelPath;
+  const previewConfig = CHARACTER_PREVIEW_REGISTRY[selectedClass];
+  const { modelPath, manifestPath } = previewConfig;
   const [modelExists, setModelExists] = useState(false);
+  const [manifest, setManifest] = useState<AnimationManifest>(previewConfig.manifest);
 
   useEffect(() => {
     let cancelled = false;
@@ -92,6 +101,32 @@ export default function Character() {
     };
   }, [modelPath]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    setManifest(previewConfig.manifest);
+
+    fetch(manifestPath)
+      .then((response) => {
+        if (!response.ok) return null;
+        return response.json() as Promise<unknown>;
+      })
+      .then((data) => {
+        if (!cancelled && data && isAnimationManifest(data)) {
+          setManifest(data);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setManifest(previewConfig.manifest);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [manifestPath, previewConfig.manifest]);
+
   return (
     <RigidBody
       type="dynamic"
@@ -104,7 +139,7 @@ export default function Character() {
       <CapsuleCollider args={[0.5, 0.42]} />
       {modelExists ? (
         <Suspense fallback={<PlaceholderCapsule />}>
-          <CharacterModel modelPath={modelPath} />
+          <CharacterModel modelPath={modelPath} manifest={manifest} />
         </Suspense>
       ) : (
         <PlaceholderCapsule />
