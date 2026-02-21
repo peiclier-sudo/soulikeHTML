@@ -4,6 +4,8 @@ export const ACTION_CATALOG: Record<ActionId, ActionMeta> = {
   MOVE: { id: 'MOVE', label: 'Move', category: 'movement' },
   JUMP: { id: 'JUMP', label: 'Jump', category: 'movement' },
   DASH: { id: 'DASH', label: 'Dash', category: 'movement', defaultCooldownMs: 520 },
+  HIT_REACT: { id: 'HIT_REACT', label: 'Hit React', category: 'reaction' },
+  DEATH: { id: 'DEATH', label: 'Death', category: 'reaction' },
 
   ATTACK_BASIC: { id: 'ATTACK_BASIC', label: 'Basic Attack', category: 'attack' },
   ATTACK_CHARGED: { id: 'ATTACK_CHARGED', label: 'Charged Attack', category: 'attack' },

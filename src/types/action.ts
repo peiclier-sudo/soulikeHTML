@@ -2,6 +2,8 @@ export const ACTION_IDS = [
   'MOVE',
   'JUMP',
   'DASH',
+  'HIT_REACT',
+  'DEATH',
   'ATTACK_BASIC',
   'ATTACK_CHARGED',
   'CONSUME_HEALTH_POTION',
@@ -16,6 +18,7 @@ export type ActionId = (typeof ACTION_IDS)[number];
 
 export type ActionCategory =
   | 'movement'
+  | 'reaction'
   | 'attack'
   | 'consumable'
   | 'skill'

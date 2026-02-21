@@ -1,0 +1,27 @@
+{
+  "version": "1.0",
+  "fallbackIdle": "Idle",
+  "clipMapping": {
+    "Idle": "Idle",
+    "LOCOMOTION_MOVE": "Walking",
+    "LOCOMOTION_JUMP": "Jump",
+    "LOCOMOTION_DASH": "Dash",
+    "ATTACK_BASIC": "Basic_Attack",
+    "ATTACK_CHARGED": "Charged_Attack",
+    "SKILL_SLOT_1": "Special_Slot1",
+    "SKILL_SLOT_2": "Special_Slot2",
+    "SKILL_SLOT_3": "Special_Slot3",
+    "ULTIMATE": "Ultimate",
+    "REACTION_HIT": "Hit_React",
+    "REACTION_DEATH": "Death",
+    "CONSUME_POTION": "Drink_Potion"
+  },
+  "aliases": {
+    "STAFF_ATTACK_BASIC_CAST": "Basic_Attack",
+    "STAFF_ATTACK_CHARGED_CAST": "Charged_Attack",
+    "STAFF_ULTIMATE_APOCALYPSE": "Ultimate",
+    "MAGE_SPECIAL_SLOT_1_FIREBALL": "Special_Slot1",
+    "MAGE_SPECIAL_SLOT_2_FROST_NOVA": "Special_Slot2",
+    "MAGE_SPECIAL_SLOT_3_LIGHTNING_STORM": "Special_Slot3"
+  }
+}
