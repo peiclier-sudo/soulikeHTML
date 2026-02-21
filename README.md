@@ -149,6 +149,8 @@ Minimum action set:
 - `MOVE`
 - `JUMP`
 - `DASH`
+- `HIT_REACT`
+- `DEATH`
 - `ATTACK_BASIC`
 - `ATTACK_CHARGED`
 - `CONSUME_HEALTH_POTION`
@@ -178,9 +180,16 @@ Good examples:
 - `Basic_Attack`
 - `Charged_Attack`
 - `Special_Slot1`
+- `Special_Slot2`
+- `Special_Slot3`
 - `Ultimate`
-- `Drink_Health_Potion`
-- `Drink_Energy_Potion`
+- `Hit_React`
+- `Death`
+- `Drink_Potion`
+
+Potion rule for consistency:
+
+- `CONSUME_HEALTH_POTION` and `CONSUME_ENERGY_POTION` both map to the same GLB clip: `Drink_Potion`.
 
 Forbidden names:
 
@@ -192,6 +201,23 @@ Forbidden names:
 
 ---
 
+
+## In-Game Preview Workflow (Class + Boss + Animations)
+
+The `/game` scene now includes a preview panel so you can:
+
+- select `class` (`mage` / `warrior` / `rogue`)
+- select `boss` (`boss-1` / `boss-2`)
+- select any `ActionId` and see the character play the resolved clip
+
+Asset paths used by the preview renderer:
+
+- character: `/public/models/characters/<class-id>/model.glb`
+- boss: `/public/models/bosses/<boss-id>/model.glb`
+
+The character preview uses the codex chain (`ActionId -> AnimToken -> clipName`) so the debug behavior matches the planned runtime animation architecture.
+
+---
 ## Content Validation Rules
 
 At load-time, validation must attempt:
@@ -235,18 +261,24 @@ Missing mappings must:
     "Basic_Attack": "Basic_Attack",
     "Charged_Attack": "Charged_Attack",
     "Dash": "Dash",
+    "Hit_React": "Hit_React",
+    "Death": "Death",
     "Special_Slot1": "Special_Slot1",
     "Special_Slot2": "Special_Slot2",
     "Special_Slot3": "Special_Slot3",
     "Ultimate": "Ultimate",
-    "Drink_Health_Potion": "Drink_Health_Potion",
-    "Drink_Energy_Potion": "Drink_Energy_Potion"
+    "Drink_Potion": "Drink_Potion"
   },
   "animTokens": {
+    "HIT_REACT": "Hit_React",
+    "DEATH": "Death",
     "ATTACK_BASIC": "Basic_Attack",
     "ATTACK_CHARGED": "Charged_Attack",
     "SKILL_SLOT_1": "Special_Slot1",
-    "ULTIMATE": "Ultimate"
+    "SKILL_SLOT_2": "Special_Slot2",
+    "SKILL_SLOT_3": "Special_Slot3",
+    "ULTIMATE": "Ultimate",
+    "CONSUME_POTION": "Drink_Potion"
   }
 }
 ```
@@ -340,4 +372,3 @@ The repository now includes a concrete scaffold for the target architecture unde
 - dedicated boss scene folders under `src/scenes/boss/` (`boss-1`, `boss-2`)
 
 This lets us move feature-by-feature without losing architecture clarity.
-

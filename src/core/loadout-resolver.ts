@@ -81,12 +81,14 @@ export function resolveLoadout(context: LoadoutContext): ResolvedLoadout {
     MOVE: 'LOCOMOTION_MOVE',
     JUMP: 'LOCOMOTION_JUMP',
     DASH: 'LOCOMOTION_DASH',
+    HIT_REACT: 'REACTION_HIT',
+    DEATH: 'REACTION_DEATH',
 
     ATTACK_BASIC: weaponProfile.basicAttack,
     ATTACK_CHARGED: weaponProfile.chargedAttack,
 
-    CONSUME_HEALTH_POTION: 'CONSUME_HEALTH_POTION',
-    CONSUME_ENERGY_POTION: 'CONSUME_ENERGY_POTION',
+    CONSUME_HEALTH_POTION: 'CONSUME_POTION',
+    CONSUME_ENERGY_POTION: 'CONSUME_POTION',
 
     SKILL_SLOT_1: classProfile.skillSlots.SKILL_SLOT_1,
     SKILL_SLOT_2: classProfile.skillSlots.SKILL_SLOT_2,
