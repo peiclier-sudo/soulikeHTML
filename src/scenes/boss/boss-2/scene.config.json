@@ -1,7 +1,7 @@
 {
   "id": "boss-2",
   "name": "Future Boss Scene",
-  "bossAsset": "src/models/bosses/boss-2/model.glb",
+  "bossAsset": "/models/bosses/boss-2/model.glb",
   "arena": "arena-02",
   "music": "boss-theme-02"
 }
