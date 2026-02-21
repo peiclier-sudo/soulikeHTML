@@ -12,6 +12,8 @@
     "chargedAttack": "",
     "ability1": "",
     "ability2": "",
-    "ability3": ""
+    "ability3": "",
+    "hitReact": "Hit_React",
+    "death": "Death"
   }
 }

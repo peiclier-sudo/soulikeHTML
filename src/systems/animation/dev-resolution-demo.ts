@@ -10,6 +10,8 @@ const demoManifest: AnimationManifest = {
   clipMapping: {
     LOCOMOTION_MOVE: 'Walking',
     LOCOMOTION_DASH: 'Dash',
+    REACTION_HIT: 'Hit_React',
+    REACTION_DEATH: 'Death',
     STAFF_ATTACK_CHARGED_CAST: 'Charged_Attack',
     MAGE_SPECIAL_SLOT_1_FIREBALL: 'Special_Slot1',
     STAFF_ULTIMATE_APOCALYPSE: 'Ultimate',
@@ -21,6 +23,6 @@ const demoManifest: AnimationManifest = {
 const codex = new AnimationCodex(demoManifest);
 
 codex.debugResolutionPaths(
-  ['ATTACK_BASIC', 'ATTACK_CHARGED', 'SKILL_SLOT_1', 'ULTIMATE', 'DASH'],
+  ['ATTACK_BASIC', 'ATTACK_CHARGED', 'SKILL_SLOT_1', 'ULTIMATE', 'DASH', 'HIT_REACT', 'DEATH'],
   { playerClass: 'mage', weapon: 'arcane-staff' }
 );

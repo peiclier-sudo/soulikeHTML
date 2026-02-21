@@ -42,5 +42,7 @@ If your app is served from a sub-path, relative paths are now tried automaticall
   - `jump`: jump clip (played once while airborne)
   - `locomotion`: optional fallback when `walk` is missing
   - `basicAttack` / `chargedAttack`: optional combat clips (not required for movement)
+  - `hitReact`: optional hit reaction clip (recommended for damage feedback)
+  - `death`: optional death/knockout clip
 
 Tip: use your DCC/asset viewer animation names exactly (case-insensitive; spaces/underscores tolerated).
