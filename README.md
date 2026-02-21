@@ -201,6 +201,23 @@ Forbidden names:
 
 ---
 
+
+## In-Game Preview Workflow (Class + Boss + Animations)
+
+The `/game` scene now includes a preview panel so you can:
+
+- select `class` (`mage` / `warrior` / `rogue`)
+- select `boss` (`boss-1` / `boss-2`)
+- select any `ActionId` and see the character play the resolved clip
+
+Asset paths used by the preview renderer:
+
+- character: `/public/models/characters/<class-id>/model.glb`
+- boss: `/public/models/bosses/<boss-id>/model.glb`
+
+The character preview uses the codex chain (`ActionId -> AnimToken -> clipName`) so the debug behavior matches the planned runtime animation architecture.
+
+---
 ## Content Validation Rules
 
 At load-time, validation must attempt:
