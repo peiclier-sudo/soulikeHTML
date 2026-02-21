@@ -1,61 +1,64 @@
 'use client';
 
-/**
- * Character.tsx — R3F character slot
- *
- * HOW TO DROP IN YOUR MODEL
- * ─────────────────────────
- * 1. Put your .glb in /public/models/<classId>.glb
- *    e.g. /public/models/mage.glb
- *
- * 2. Set MODEL_PATH below:
- *    const MODEL_PATH = '/models/mage.glb';
- *
- * 3. The <CharacterModel> component will load it and
- *    hand you `scene` + `animations` via useGLTF/useAnimations.
- *    Wire up actions['idle']?.play() etc. inside the useEffect.
- *
- * Until a model is set, a coloured capsule placeholder renders
- * (tinted by the selected class colour).
- */
-
-import { Suspense, useRef } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { useGLTF, useAnimations } from '@react-three/drei';
-import { RigidBody, CapsuleCollider } from '@react-three/rapier';
+import { useAnimations, useGLTF } from '@react-three/drei';
+import { CapsuleCollider, RigidBody } from '@react-three/rapier';
 import * as THREE from 'three';
-import { usePlayerStore } from '@/stores/usePlayerStore';
-
-// ─── SET THIS TO YOUR GLB PATH ────────────────────────────────────────────────
-const MODEL_PATH = ''; // e.g. '/models/mage.glb'
-// ─────────────────────────────────────────────────────────────────────────────
+import { usePreviewStore } from '@/stores/usePreviewStore';
+import { CHARACTER_PREVIEW_REGISTRY } from '@/core/preview-registry';
+import { AnimationCodex } from '@/systems/animation/AnimationCodex';
+import type { AnimationManifest } from '@/types/animation';
 
 const CLASS_COLORS: Record<string, string> = {
-  mage:    '#7b4fff',
+  mage: '#7b4fff',
   warrior: '#e05a00',
-  rogue:   '#00c89a',
+  rogue: '#00c89a',
 };
 
-// ── Actual GLB model (only mounted when MODEL_PATH is set) ────────────────────
-function CharacterModel() {
+function isAnimationManifest(data: unknown): data is AnimationManifest {
+  if (!data || typeof data !== 'object') return false;
+  const value = data as Partial<AnimationManifest>;
+  return typeof value.version === 'string' && !!value.clipMapping && typeof value.clipMapping === 'object';
+}
+
+function CharacterModel({ modelPath, manifest }: { modelPath: string; manifest: AnimationManifest }) {
+  const selectedClass = usePreviewStore((s) => s.selectedClass);
+  const selectedAction = usePreviewStore((s) => s.selectedAction);
   const ref = useRef<THREE.Group>(null);
-  const { scene, animations } = useGLTF(MODEL_PATH);
+  const { scene, animations } = useGLTF(modelPath);
   const { actions } = useAnimations(animations, ref);
 
-  // Example animation bootstrap — uncomment when your GLB has clips:
-  // useEffect(() => {
-  //   actions['idle']?.reset().fadeIn(0.3).play();
-  //   return () => { actions['idle']?.fadeOut(0.3); };
-  // }, [actions]);
+  const previewConfig = CHARACTER_PREVIEW_REGISTRY[selectedClass];
+  const codex = useMemo(() => new AnimationCodex(manifest), [manifest]);
+
+  useEffect(() => {
+    const trace = codex.resolveAction(selectedAction, {
+      playerClass: selectedClass,
+      weapon: previewConfig.weapon,
+    });
+
+    const clip = actions[trace.clipName] ?? actions.Idle;
+    if (!clip) {
+      console.warn(`[CharacterPreview] Missing clip "${trace.clipName}" for action ${selectedAction}`);
+      return;
+    }
+
+    Object.values(actions).forEach((action) => action?.fadeOut(0.1));
+    clip.reset().fadeIn(0.15).play();
+
+    return () => {
+      clip.fadeOut(0.1);
+    };
+  }, [actions, codex, previewConfig.weapon, selectedAction, selectedClass]);
 
   return <primitive ref={ref} object={scene} castShadow />;
 }
 
-// ── Placeholder capsule (visible while no GLB is loaded) ─────────────────────
 function PlaceholderCapsule() {
   const ref = useRef<THREE.Mesh>(null);
-  const classId = usePlayerStore((s) => s.classId);
-  const color = classId ? (CLASS_COLORS[classId] ?? '#888888') : '#888888';
+  const selectedClass = usePreviewStore((s) => s.selectedClass);
+  const color = CLASS_COLORS[selectedClass] ?? '#888888';
 
   useFrame((_, dt) => {
     if (ref.current) ref.current.rotation.y += dt * 0.7;
@@ -75,10 +78,56 @@ function PlaceholderCapsule() {
   );
 }
 
-// ── Public component ──────────────────────────────────────────────────────────
 export default function Character() {
+  const selectedClass = usePreviewStore((s) => s.selectedClass);
+  const previewConfig = CHARACTER_PREVIEW_REGISTRY[selectedClass];
+  const { modelPath, manifestPath } = previewConfig;
+  const [modelExists, setModelExists] = useState(false);
+  const [manifest, setManifest] = useState<AnimationManifest>(previewConfig.manifest);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    fetch(modelPath, { method: 'HEAD' })
+      .then((response) => {
+        if (!cancelled) setModelExists(response.ok);
+      })
+      .catch(() => {
+        if (!cancelled) setModelExists(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [modelPath]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    setManifest(previewConfig.manifest);
+
+    fetch(manifestPath)
+      .then((response) => {
+        if (!response.ok) return null;
+        return response.json() as Promise<unknown>;
+      })
+      .then((data) => {
+        if (!cancelled && data && isAnimationManifest(data)) {
+          setManifest(data);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setManifest(previewConfig.manifest);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [manifestPath, previewConfig.manifest]);
+
   return (
-    // Spawn the rigid body slightly above the floor so physics drops it in
     <RigidBody
       type="dynamic"
       colliders={false}
@@ -88,9 +137,9 @@ export default function Character() {
       angularDamping={1}
     >
       <CapsuleCollider args={[0.5, 0.42]} />
-      {MODEL_PATH ? (
+      {modelExists ? (
         <Suspense fallback={<PlaceholderCapsule />}>
-          <CharacterModel />
+          <CharacterModel modelPath={modelPath} manifest={manifest} />
         </Suspense>
       ) : (
         <PlaceholderCapsule />
