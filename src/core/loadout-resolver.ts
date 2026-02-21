@@ -81,6 +81,8 @@ export function resolveLoadout(context: LoadoutContext): ResolvedLoadout {
     MOVE: 'LOCOMOTION_MOVE',
     JUMP: 'LOCOMOTION_JUMP',
     DASH: 'LOCOMOTION_DASH',
+    HIT_REACT: 'REACTION_HIT',
+    DEATH: 'REACTION_DEATH',
 
     ATTACK_BASIC: weaponProfile.basicAttack,
     ATTACK_CHARGED: weaponProfile.chargedAttack,

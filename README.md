@@ -149,6 +149,8 @@ Minimum action set:
 - `MOVE`
 - `JUMP`
 - `DASH`
+- `HIT_REACT`
+- `DEATH`
 - `ATTACK_BASIC`
 - `ATTACK_CHARGED`
 - `CONSUME_HEALTH_POTION`
@@ -235,6 +237,8 @@ Missing mappings must:
     "Basic_Attack": "Basic_Attack",
     "Charged_Attack": "Charged_Attack",
     "Dash": "Dash",
+    "Hit_React": "Hit_React",
+    "Death": "Death",
     "Special_Slot1": "Special_Slot1",
     "Special_Slot2": "Special_Slot2",
     "Special_Slot3": "Special_Slot3",
@@ -243,6 +247,8 @@ Missing mappings must:
     "Drink_Energy_Potion": "Drink_Energy_Potion"
   },
   "animTokens": {
+    "HIT_REACT": "Hit_React",
+    "DEATH": "Death",
     "ATTACK_BASIC": "Basic_Attack",
     "ATTACK_CHARGED": "Charged_Attack",
     "SKILL_SLOT_1": "Special_Slot1",
