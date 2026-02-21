@@ -180,6 +180,8 @@ Good examples:
 - `Basic_Attack`
 - `Charged_Attack`
 - `Special_Slot1`
+- `Special_Slot2`
+- `Special_Slot3`
 - `Ultimate`
 - `Hit_React`
 - `Death`
@@ -256,6 +258,8 @@ Missing mappings must:
     "ATTACK_BASIC": "Basic_Attack",
     "ATTACK_CHARGED": "Charged_Attack",
     "SKILL_SLOT_1": "Special_Slot1",
+    "SKILL_SLOT_2": "Special_Slot2",
+    "SKILL_SLOT_3": "Special_Slot3",
     "ULTIMATE": "Ultimate",
     "CONSUME_POTION": "Drink_Potion"
   }
