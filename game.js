@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'GLTFLoader';
 import { CharacterAnimationController } from './lib/character-animation-controller.js';
+import { CameraController } from './lib/camera-controller.js';
 
 const canvas = document.getElementById('game');
 const hud = document.getElementById('hud');
@@ -66,6 +67,8 @@ renderer.setSize(canvas.width, canvas.height, false);
 renderer.shadowMap.enabled = true;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.35;
+
+const cameraController = new CameraController(camera, { initialMode: 'classic' });
 
 const hemi = new THREE.HemisphereLight(0xb8d3ff, 0x1a2233, 1.45);
 scene.add(hemi);
@@ -395,13 +398,6 @@ let mouseAttackHold = false;
 let dashTrailTimer = 0;
 
 const fireballs = [];
-const cameraKick = new THREE.Vector2(0, 0);
-
-const viewModes = ['classic', 'fortnite'];
-const cameraModeConfig = {
-  classic: { dist: 7.2, eyeHeight: 2.3, sideOffset: 0, lookHeight: 1.2 },
-  fortnite: { dist: 4.0, eyeHeight: 1.55, sideOffset: 0, lookHeight: 1.4 },
-};
 
 const state = {
   pos: new THREE.Vector3(0, 0, 4),
@@ -428,7 +424,6 @@ const state = {
   enemyHp: 100,
   enemyHitLock: 0,
   viewMode: 'classic',
-  camPos: new THREE.Vector3(0, 4.5, 8),
 };
 
 function releasePointerLock() {
@@ -507,16 +502,11 @@ function bindingLabel(binding) {
 }
 
 function getCameraGroundForward() {
-  const forward = new THREE.Vector3();
-  camera.getWorldDirection(forward);
-  forward.y = 0;
-  if (forward.lengthSq() < 0.0001) return new THREE.Vector3(Math.sin(state.yaw), 0, Math.cos(state.yaw));
-  return forward.normalize();
+  return cameraController.getGroundForward(state.yaw);
 }
 
 function applyCameraKick(strength) {
-  cameraKick.x += (Math.random() - 0.5) * strength * 0.8;
-  cameraKick.y += strength;
+  cameraController.applyKick(strength);
 }
 
 function activateDash() {
@@ -655,8 +645,7 @@ window.addEventListener('keydown', (e) => {
   }
 
   if (k === 'v') {
-    const idx = viewModes.indexOf(state.viewMode);
-    state.viewMode = viewModes[(idx + 1) % viewModes.length];
+    state.viewMode = cameraController.cycleMode();
   }
 
   if (k === 'c' && animator) {
@@ -785,7 +774,7 @@ function tick(now) {
   if (currentScene === 'fight') update(dt, now / 1000);
   if (animator) applyHeroRootMotionLock();
 
-  cameraKick.multiplyScalar(Math.pow(0.001, dt));
+  cameraController.decayKick(dt);
   renderer.render(scene, camera);
   requestAnimationFrame(tick);
 }
@@ -874,28 +863,7 @@ function update(dt, now) {
 
   updateFireballs(dt, now);
 
-  const mode = cameraModeConfig[state.viewMode];
-  const back = new THREE.Vector3(
-    Math.sin(state.cameraYaw) * mode.dist * Math.cos(state.cameraPitch),
-    Math.sin(state.cameraPitch) * mode.dist + mode.eyeHeight,
-    Math.cos(state.cameraYaw) * mode.dist * Math.cos(state.cameraPitch)
-  );
-
-  const right = new THREE.Vector3(
-    Math.sin(state.cameraYaw + Math.PI / 2),
-    0,
-    Math.cos(state.cameraYaw + Math.PI / 2)
-  ).multiplyScalar(mode.sideOffset);
-
-  const targetCamPos = new THREE.Vector3().copy(state.pos).add(back).add(right);
-  state.camPos.lerp(targetCamPos, 0.24);
-  camera.position.copy(state.camPos);
-
-  const lookTarget = new THREE.Vector3().copy(state.pos).add(new THREE.Vector3(0, mode.lookHeight, 0));
-  const lookWithKick = lookTarget.clone()
-    .add(new THREE.Vector3(Math.sin(state.cameraYaw + Math.PI / 2) * cameraKick.x, 0, Math.cos(state.cameraYaw + Math.PI / 2) * cameraKick.x))
-    .add(new THREE.Vector3(0, cameraKick.y, 0));
-  camera.lookAt(lookWithKick);
+  cameraController.update({ playerPos: state.pos, cameraYaw: state.cameraYaw, cameraPitch: state.cameraPitch });
 
   const hold = chargeStart ? ((performance.now() - chargeStart) / 1000).toFixed(2) : '0.00';
   const lock = state.pointerLocked ? 'LOCKED' : 'CLICK CANVAS';
