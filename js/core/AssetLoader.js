@@ -247,7 +247,11 @@ export class AssetLoader {
                             if ('specularIntensity' in mat) mat.specularIntensity = 0.05;
                             if ('clearcoat' in mat) mat.clearcoat = 0.0;
                             if ('sheen' in mat) mat.sheen = 0.0;
-                            if (mat.color) mat.color.multiplyScalar(0.18);
+                            // Match player baseline and neutralize emissive so boss is not blown out/whiter.
+                            if (mat.color) mat.color.multiplyScalar(0.32);
+                            if ('emissive' in mat) mat.emissive.setRGB(0, 0, 0);
+                            if ('emissiveIntensity' in mat) mat.emissiveIntensity = 0.0;
+                            if ('emissiveMap' in mat) mat.emissiveMap = null;
                             if (mat.map) {
                                 mat.map.premultiplyAlpha = false;
                                 mat.map.needsUpdate = true;
