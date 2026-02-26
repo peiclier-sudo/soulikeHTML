@@ -734,6 +734,7 @@ export class CombatSystem {
         this.gameState.combat.isWhipAttacking = true;
         this.whipTimer = this.whipDuration;
         this.whipHitOnce = true;
+        if (this.onProjectileHit) this.onProjectileHit({ whipHit: true, bloodflailCharges: chargesUsed, punchFinish: true });
     }
 
     spawnFireball(isCharged = false) {
