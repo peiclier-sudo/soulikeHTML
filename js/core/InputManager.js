@@ -92,7 +92,7 @@ export class InputManager {
             this.prevKeyChars = { ...this.keyChars };
             this._inputReady = true;
         }
-        const lifeDrainKey = (this.keys['KeyX'] || this.keyChars['x']) && !(this.prevKeys['KeyX'] || this.prevKeyChars['x']);
+        const bloodNovaKey = (this.keys['KeyX'] || this.keyChars['x']) && !(this.prevKeys['KeyX'] || this.prevKeyChars['x']);
         const shieldKey = (this.keys['KeyC'] || this.keyChars['c']) && !(this.prevKeys['KeyC'] || this.prevKeyChars['c']);
         const healthPotionKey = (this.keys['KeyDigit1'] || this.keyChars['&']) && !(this.prevKeys['KeyDigit1'] || this.prevKeyChars['&']);
         return {
@@ -109,7 +109,8 @@ export class InputManager {
             ultimate: this.keys['KeyF'], // F = Ultimate when bar full
             crimsonEruption: this.keys['KeyQ'] && !this.prevKeys['KeyQ'], // A on AZERTY (KeyQ) = Crimson Eruption
             whipAttack: this.keys['KeyE'] && !this.prevKeys['KeyE'],     // E (AZERTY) = Whip attack
-            lifeDrain: lifeDrainKey,  // X = Life drain (KeyX or key that types 'x' for AZERTY)
+            bloodNova: bloodNovaKey, // X = Blood Nova (KeyX or key that types 'x' for AZERTY)
+            lifeDrain: false,       // Legacy input path disabled (replaced by Blood Nova)
             shield: shieldKey,       // C = Blood shield (6 s), AZERTY KeyC or key that types 'c'
             healthPotion: healthPotionKey, // & = Health potion (AZERTY: KeyDigit1 or key that types '&')
             interact: this.keys['KeyE'],
