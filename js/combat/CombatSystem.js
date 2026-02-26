@@ -723,28 +723,12 @@ export class CombatSystem {
     executeBloodCrescend(chargesUsed, multiplier) {
         if (this.bloodCrescend) return;
         const weaponPos = this.character.getWeaponPosition();
-        const fallbackDir = this.character.getForwardDirection().clone().normalize();
 
-        let bestMesh = null;
-        let bestScore = Infinity;
-        for (const enemyMesh of this.enemies) {
-            const enemy = enemyMesh.userData?.enemy;
-            if (!enemy || enemy.health <= 0) continue;
-            enemyMesh.getWorldPosition(this._enemyPos);
-            const d = weaponPos.distanceToSquared(this._enemyPos);
-            const bossBias = enemy.isBoss ? -25 : 0;
-            const score = d + bossBias;
-            if (score < bestScore) {
-                bestScore = score;
-                bestMesh = enemyMesh;
-            }
-        }
-
-        const dir = fallbackDir.clone();
-        if (bestMesh) {
-            bestMesh.getWorldPosition(this._enemyPos);
-            dir.copy(this._enemyPos).sub(weaponPos).normalize();
-        }
+        // Always launch horizontally in the current camera angle (yaw), blade-like.
+        const dir = this.character.getForwardDirection().clone();
+        dir.y = 0;
+        if (dir.lengthSq() < 0.0001) dir.set(0, 0, -1);
+        dir.normalize();
 
         this.spawnBloodCrescend(weaponPos.clone().addScaledVector(dir, 0.8), dir, chargesUsed, multiplier);
         this.gameState.combat.isWhipAttacking = true;
