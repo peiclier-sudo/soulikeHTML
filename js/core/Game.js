@@ -50,6 +50,9 @@ export class Game {
         this.lastPunchOffset = new THREE.Vector3(0, 0, 0);
         this.punchDecay = 0.78;
         this._shieldCenter = new THREE.Vector3();
+
+        // Hit-stop (brief time freeze on heavy impacts)
+        this.hitStopTime = 0;
         
         // Initialize core systems
         this.initRenderer();
@@ -149,7 +152,7 @@ export class Game {
         );
         
         // UI Manager (camera for project damage numbers at hit position)
-        this.uiManager = new UIManager(this.gameState, this.camera);
+        this.uiManager = new UIManager(this.gameState, this.camera, this.combatSystem, this.character);
 
         // Spawn one random boss in the arena
         this.boss = null;
@@ -272,6 +275,14 @@ export class Game {
         this.elapsedTime = this.clock.getElapsedTime();
 
         this.updateFPS();
+
+        if (this.hitStopTime > 0) {
+            this.hitStopTime = Math.max(0, this.hitStopTime - this.deltaTime);
+            this.render();
+            this.inputManager.resetFrameInput();
+            return;
+        }
+
         this.update();
         this.render();
     }
@@ -401,6 +412,9 @@ export class Game {
 
         // Update character with input
         this.character.update(this.deltaTime, input, this.mouseSensitivity);
+
+        // Super Dash collision damage sweep
+        this.applySuperDashDamage();
         
         // Apply screen shake after camera update (short impact feel)
         this.applyScreenShake();
@@ -451,6 +465,27 @@ export class Game {
 
         // Reset per-frame input
         this.inputManager.resetFrameInput();
+    }
+
+
+    applySuperDashDamage() {
+        if (!this.character?.isDashing || !this.character?.isSuperDashing || !this.combatSystem?.enemies) return;
+        const pos = this.character.position;
+        for (const enemyMesh of this.combatSystem.enemies) {
+            const enemy = enemyMesh.userData?.enemy;
+            if (!enemy || enemy.health <= 0) continue;
+            const id = enemy._damageAnchorId || enemy.name || String(enemyMesh.id);
+            if (this.character.superDashHitSet.has(id)) continue;
+            enemyMesh.getWorldPosition(this.combatSystem._enemyPos);
+            const hitRadius = (enemy.hitRadius ?? (enemy.isBoss ? 2.5 : 0.8)) + 1.4;
+            if (pos.distanceTo(this.combatSystem._enemyPos) > hitRadius) continue;
+            enemy.takeDamage(this.character.superDashDamage);
+            enemy.staggerTimer = Math.max(enemy.staggerTimer, 0.55);
+            enemy.state = 'stagger';
+            this.character.superDashHitSet.add(id);
+            this.gameState.emit('damageNumber', { position: this.combatSystem._enemyPos.clone(), damage: this.character.superDashDamage, isCritical: true, anchorId: this.combatSystem._getDamageAnchorId(enemy) });
+            this.onProjectileHit({ whipHit: true, punchFinish: true });
+        }
     }
 
     render() {
@@ -519,14 +554,20 @@ export class Game {
         this.targetMouseSensitivity = value;
     }
     
+
+
+    triggerHitStop(duration = 0.05) {
+        this.hitStopTime = Math.max(this.hitStopTime, duration);
+    }
     onProjectileHit(payload = {}) {
-        const { charged, isBoss, isUltimate, whipHit, whipWindup, bloodflailCharges } = payload;
+        const { charged, isBoss, isUltimate, whipHit, whipWindup, bloodflailCharges, punchFinish, bloodNova, crimsonEruption } = payload;
         if (isUltimate) {
             this.shakeIntensity = 0.1;
             this.shakeDuration = 0.35;
             this.shakeTime = this.shakeDuration;
             this.ultimateBloomTime = 0.6;
             this.ultimateBloomDuration = 0.6;
+            this.triggerHitStop(0.08);
         } else if (whipHit) {
             const isFiveCharge = bloodflailCharges === 5;
             this.shakeIntensity = isFiveCharge ? 0.12 : 0.055;
@@ -536,15 +577,38 @@ export class Game {
             this.ultimateBloomDuration = isFiveCharge ? 0.6 : 0.4;
             this.ultimateFovTime = isFiveCharge ? 0.25 : 0.2;
             this.lastPunchOffset.copy(this.character.getForwardDirection()).multiplyScalar(isFiveCharge ? 0.28 : 0.22);
+            this.triggerHitStop(punchFinish ? 0.07 : 0.05);
+            if (punchFinish) {
+                this.shakeIntensity *= 1.28;
+                this.shakeDuration += 0.06;
+                this.ultimateBloomTime = Math.max(this.ultimateBloomTime, 0.48);
+                this.ultimateBloomDuration = Math.max(this.ultimateBloomDuration, 0.48);
+                this.lastPunchOffset.multiplyScalar(1.26);
+            }
         } else if (whipWindup) {
             this.shakeIntensity = 0.016;
             this.shakeDuration = 0.07;
             this.shakeTime = this.shakeDuration;
+        } else if (crimsonEruption) {
+            this.shakeIntensity = 0.06;
+            this.shakeDuration = 0.2;
+            this.ultimateBloomTime = 0.28;
+            this.ultimateBloomDuration = 0.28;
+            this.lastPunchOffset.copy(this.character.getForwardDirection()).multiplyScalar(0.1);
+            this.triggerHitStop(0.05);
+        } else if (bloodNova) {
+            this.shakeIntensity = 0.085;
+            this.shakeDuration = 0.28;
+            this.ultimateBloomTime = 0.42;
+            this.ultimateBloomDuration = 0.42;
+            this.lastPunchOffset.copy(this.character.getForwardDirection()).multiplyScalar(0.16);
+            this.triggerHitStop(0.055);
         } else {
             // Projectile hit: slight shake for basic, slightly more for charged
             const base = 0.022;
             this.shakeIntensity = base * (charged ? 1.6 : 1) * (isBoss ? 1.4 : 1);
             this.shakeDuration = charged ? 0.2 : 0.14;
+            this.triggerHitStop(charged ? 0.045 : 0.03);
         }
         this.shakeTime = this.shakeDuration;
     }

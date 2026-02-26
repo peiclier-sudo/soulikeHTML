@@ -273,7 +273,7 @@ export class ParticleSystem {
             p.userData.active = true; p.userData.lifetime = 0; p.userData.maxLifetime = 0.4 + Math.random() * 0.4; p.visible = true;
             p.material.color.setHex(bleedColor());
             p.userData.velocity.set(dir.x * (-0.5 - Math.random() * 1.5) + (Math.random() - 0.5) * 3, (Math.random() - 0.5) * 2, dir.z * (-0.5 - Math.random() * 1.5) + (Math.random() - 0.5) * 3);
-            p.material.opacity = 0.9;
+            p.material.opacity = 1;
             this.activeParticles.push(p);
         }
         const halfN = Math.floor(n * 0.5);
@@ -450,6 +450,45 @@ export class ParticleSystem {
         this.addTemporaryLight(center.clone(), 0xaa0a0a, 95, 1);
     }
 
+
+
+    emitBloodNovaBurst(center, radius = 10) {
+        if (!center) return;
+        const m = Math.max(0.5, this.qualityMultiplier);
+        const ringPts = Math.floor(34 * m);
+        const swirlLayers = 4;
+        for (let layer = 0; layer < swirlLayers; layer++) {
+            const yOff = 0.08 + layer * 0.16;
+            const rMul = 0.55 + layer * 0.28;
+            for (let i = 0; i < ringPts; i++) {
+                const t = (i / ringPts) * Math.PI * 2;
+                const px = center.x + Math.cos(t) * radius * rMul;
+                const pz = center.z + Math.sin(t) * radius * rMul;
+                const p = this.getFromPool('spark');
+                if (!p) break;
+                p.position.set(px, center.y + yOff, pz);
+                p.userData.active = true; p.userData.lifetime = 0; p.userData.maxLifetime = 0.55 + Math.random() * 0.45; p.visible = true;
+                p.material.color.setHex(bleedColor()); p.material.opacity = 1;
+                const tangential = 18 + layer * 5;
+                p.userData.velocity.set(-Math.sin(t) * tangential + (Math.random() - 0.5) * 2, 8 + Math.random() * 9, Math.cos(t) * tangential + (Math.random() - 0.5) * 2);
+                this.activeParticles.push(p);
+            }
+        }
+        const core = Math.floor(70 * m);
+        for (let i = 0; i < core; i++) {
+            const p = this.getFromPool('ember');
+            if (!p) break;
+            p.position.set(center.x + (Math.random() - 0.5) * 1.4, center.y + Math.random() * 0.4, center.z + (Math.random() - 0.5) * 1.4);
+            p.userData.active = true; p.userData.lifetime = 0; p.userData.maxLifetime = 1.0 + Math.random() * 0.8; p.visible = true;
+            p.material.color.setHex(bleedColor()); p.material.opacity = 1;
+            p.material.blending = THREE.AdditiveBlending; p.material.depthWrite = false;
+            const a = Math.random() * Math.PI * 2;
+            const sp = 18 + Math.random() * 16;
+            p.userData.velocity.set(Math.cos(a) * sp, 7 + Math.random() * 10, Math.sin(a) * sp);
+            this.activeParticles.push(p);
+        }
+        this.addTemporaryLight(center.clone(), 0xaa0a0a, 135, 0.95);
+    }
     emitPunchBurst(position) {
         const m = Math.max(0.5, this.qualityMultiplier);
         const nS = Math.floor(24 * m);
@@ -468,17 +507,17 @@ export class ParticleSystem {
         this.addTemporaryLight(position.clone(), 0xaa0a0a, 58, 0.4);
     }
 
-    emitHealEffect(center, count = 18) {
+    emitHealEffect(center, count = 36) {
         const n = Math.floor(count * Math.max(0.5, this.qualityMultiplier));
         const greens = [0x22cc44, 0x33dd55, 0x44ee66, 0x28b850, 0x2dd66a];
         for (let i = 0; i < n; i++) {
             const p = this.pools.heal.pop();
             if (!p) break;
             p.position.set(center.x + (Math.random() - 0.5) * 0.8, center.y + (Math.random() - 0.2) * 0.6, center.z + (Math.random() - 0.5) * 0.8);
-            p.userData.active = true; p.userData.lifetime = 0; p.userData.maxLifetime = 0.9; p.visible = true;
+            p.userData.active = true; p.userData.lifetime = 0; p.userData.maxLifetime = 1.2; p.visible = true;
             p.userData.velocity.set((Math.random() - 0.5) * (0.4 + Math.random() * 0.5), 1.8 + Math.random() * 1.4, (Math.random() - 0.5) * (0.4 + Math.random() * 0.5));
             p.material.color.setHex(greens[Math.floor(Math.random() * greens.length)]);
-            p.material.opacity = 0.9;
+            p.material.opacity = 1;
             this.activeParticles.push(p);
         }
         this.addTemporaryLight(center.clone(), 0x22cc44, 25, 0.35);

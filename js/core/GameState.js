@@ -40,14 +40,15 @@ export class GameState {
             isChargedAttacking: false,
             chargeTimer: 0,
             chargeDuration: 1.0,
-            minChargeToRelease: 0.4,
+            minChargeToRelease: 1.0,
             releasedCharge: 0,
             isWhipAttacking: false,
             isLifeDraining: false,
             shieldActive: false,
             shieldTimeRemaining: 0,
             isDrinkingPotion: false,
-            drinkingPotionTimer: 0
+            drinkingPotionTimer: 0,
+            nextAttackDamageMultiplier: 1.0
         };
         
         // Movement state
@@ -86,7 +87,7 @@ export class GameState {
         };
         this.requestUltimateSlashSpawn = false;
         /** Set true to test ultimate: F triggers it without needing charge */
-        this.ultimateTestMode = true;
+        this.ultimateTestMode = false;
     }
     
     // Health management
