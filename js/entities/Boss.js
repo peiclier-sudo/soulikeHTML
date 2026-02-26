@@ -87,11 +87,11 @@ export class Boss extends Enemy {
                         if ('envMap' in mat) mat.envMap = null;
                         if ('envMapIntensity' in mat) mat.envMapIntensity = 0.0;
                         if ('metalness' in mat) mat.metalness = 0.02;
-                        if ('roughness' in mat) mat.roughness = 0.98;
-                        if ('specularIntensity' in mat) mat.specularIntensity = 0.02;
+                        if ('roughness' in mat) mat.roughness = 0.97;
+                        if ('specularIntensity' in mat) mat.specularIntensity = 0.05;
                         if ('clearcoat' in mat) mat.clearcoat = 0.0;
                         if ('sheen' in mat) mat.sheen = 0.0;
-                        if ('emissiveIntensity' in mat) mat.emissiveIntensity = 0.30;
+                        if ('emissiveIntensity' in mat) mat.emissiveIntensity = 0.33;
                         if (mat.map) {
                             mat.map.premultiplyAlpha = false;
                             mat.map.needsUpdate = true;
