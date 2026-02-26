@@ -93,6 +93,7 @@ export class InputManager {
             this._inputReady = true;
         }
         const bloodNovaKey = (this.keys['KeyX'] || this.keyChars['x']) && !(this.prevKeys['KeyX'] || this.prevKeyChars['x']);
+        const superDashKey = (this.keys['Digit2'] || this.keys['KeyDigit2'] || this.keyChars['é']) && !(this.prevKeys['Digit2'] || this.prevKeys['KeyDigit2'] || this.prevKeyChars['é']);
         const shieldKey = (this.keys['KeyC'] || this.keyChars['c']) && !(this.prevKeys['KeyC'] || this.prevKeyChars['c']);
         const healthPotionKey = (this.keys['KeyDigit1'] || this.keyChars['&']) && !(this.prevKeys['KeyDigit1'] || this.prevKeyChars['&']);
         return {
@@ -106,6 +107,7 @@ export class InputManager {
             run: this.keys['KeyW'],  // Z on French keyboard (KeyW position)
             jump: this.keys['Space'],
             dash: this.keys['KeyR'],   // R = dash forward
+            superDash: superDashKey, // é (AZERTY Digit2) = Super Dash
             ultimate: this.keys['KeyF'], // F = Ultimate when bar full
             crimsonEruption: this.keys['KeyQ'] && !this.prevKeys['KeyQ'], // A on AZERTY (KeyQ) = Crimson Eruption
             whipAttack: this.keys['KeyE'] && !this.prevKeys['KeyE'],     // E (AZERTY) = Whip attack

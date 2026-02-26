@@ -47,6 +47,11 @@ export class Character {
         this.dashStartPos = new THREE.Vector3();
         this.dashDirection = new THREE.Vector3();
         this.dashCooldown = 0;
+        this.superDashCooldown = 0;
+        this.superDashCooldownDuration = 20;
+        this.superDashDamage = 80;
+        this.isSuperDashing = false;
+        this.superDashHitSet = new Set();
         this.postDashTilt = 0;  // Smooth mesh tilt back to 0 after dash
         this.dashVfx = null;
 
@@ -817,25 +822,35 @@ export class Character {
             this.isGrounded = false;
         }
 
+        // é (AZERTY Digit2) = Super Dash
+        if (input.superDash && this.superDashCooldown <= 0 && !this.isDashing && this.gameState.useStamina(20)) {
+            const dashDir = moveVector.length() > 0 ? moveVector.clone().normalize() : forward;
+            this.startDash(dashDir, true);
+            this.gameState.combat.nextAttackDamageMultiplier = 2.0;
+        }
+
         // R = dash in movement direction (or forward if not moving)
         if (input.dash && this.dashCooldown <= 0 &&
             this.gameState.useStamina(12)) {
             const dashDir = moveVector.length() > 0
                 ? moveVector.clone().normalize()
                 : forward;
-            this.startDash(dashDir);
+            this.startDash(dashDir, false);
         }
     }
 
-    startDash(forwardDir) {
+    startDash(forwardDir, isSuper = false) {
         const dir = forwardDir.clone().normalize();
         this.dashStartPos.copy(this.position);
         this.dashDirection.copy(dir);
         this.rotation.y = Math.atan2(dir.x, dir.z);
         this.velocity.set(0, 0, 0);
         this.isDashing = true;
-        this.dashTimer = this.dashDuration;
-        this.dashCooldown = 0.7;
+        this.isSuperDashing = isSuper;
+        this.superDashHitSet.clear();
+        this.dashTimer = isSuper ? this.dashDuration * 1.15 : this.dashDuration;
+        this.dashCooldown = isSuper ? 1.2 : 0.7;
+        if (isSuper) this.superDashCooldown = this.superDashCooldownDuration;
         this.gameState.combat.invulnerable = true;
         if (this.dashVfx) this.dashVfx.dispose();
         this.dashVfx = createDashVFX(this.scene);
@@ -845,6 +860,7 @@ export class Character {
         this.dashTimer -= deltaTime;
         if (this.dashTimer <= 0) {
             this.isDashing = false;
+            this.isSuperDashing = false;
             this.gameState.combat.invulnerable = false;
             const coastSpeed = 3.5;
             this.velocity.x = this.dashDirection.x * coastSpeed;
@@ -856,8 +872,9 @@ export class Character {
             const t = 1 - this.dashTimer / this.dashDuration;
             const easeOutQuint = 1 - Math.pow(1 - t, 5);
             const boundary = 18.5;
-            this.position.x = this.dashStartPos.x + this.dashDirection.x * this.dashDistance * easeOutQuint;
-            this.position.z = this.dashStartPos.z + this.dashDirection.z * this.dashDistance * easeOutQuint;
+            const dist = this.isSuperDashing ? this.dashDistance * 2.0 : this.dashDistance;
+            this.position.x = this.dashStartPos.x + this.dashDirection.x * dist * easeOutQuint;
+            this.position.z = this.dashStartPos.z + this.dashDirection.z * dist * easeOutQuint;
             this.position.x = Math.max(-boundary, Math.min(boundary, this.position.x));
             this.position.z = Math.max(-boundary, Math.min(boundary, this.position.z));
         }
@@ -899,6 +916,7 @@ export class Character {
         this.gameState.regenerateStamina(deltaTime);
 
         if (this.dashCooldown > 0) this.dashCooldown -= deltaTime;
+        if (this.superDashCooldown > 0) this.superDashCooldown -= deltaTime;
     }
 
     updateMesh() {
@@ -962,6 +980,8 @@ export class Character {
             if (this.isPlayingUltimate) {
                 const ultAct = this.actions['Special attack 1'] || this.actions['Ultimate'];
                 targetUpper = ultAct ? (ultAct === this.actions['Special attack 1'] ? 'Special attack 1' : 'Ultimate') : 'none';
+            } else if (this.isSuperDashing) {
+                targetUpper = this.actions['Special attack 1'] ? 'Special attack 1' : (this.actions['Whip'] ? 'Whip' : 'none');
             } else if (this.gameState.combat.isChargedAttacking || this.gameState.combat.isCharging) {
                 targetUpper = this.actions['Charged attack'] ? 'Charged attack' : 'none';
             } else if (this.gameState.combat.isDrinkingPotion) {
@@ -995,6 +1015,8 @@ export class Character {
             let targetAnimation = 'Idle';
             if (this.isDashing) {
                 targetAnimation = this.actions['Fast running'] ? 'Fast running' : 'Run';
+            } else if (this.isSuperDashing) {
+                targetAnimation = this.actions['Special attack 1'] ? 'Special attack 1' : (this.actions['Whip'] ? 'Whip' : 'Fast running');
             } else if (this.gameState.combat.isChargedAttacking || this.gameState.combat.isCharging) {
                 targetAnimation = this.actions['Charged attack'] ? 'Charged attack' : 'Idle';
             } else if (this.gameState.combat.isDrinkingPotion) {

@@ -5,10 +5,11 @@
 import * as THREE from 'three';
 
 export class UIManager {
-    constructor(gameState, camera = null, combatSystem = null) {
+    constructor(gameState, camera = null, combatSystem = null, character = null) {
         this.gameState = gameState;
         this.camera = camera;
         this.combatSystem = combatSystem;
+        this.character = character;
         this._projectedPos = new THREE.Vector3();
         this._damageAnchorScreenCache = new Map();
         this._canvas = document.getElementById('game-canvas');
@@ -102,6 +103,10 @@ export class UIManager {
         const potionCount = this.gameState.player.healthPotions ?? 0;
         if (potionCount <= 0) setBox('ability-potion', false, 'Empty');
         else setBox('ability-potion', potionCd <= 0, potionCd <= 0 ? `Ready x${potionCount}` : `${fmt(potionCd)} x${potionCount}`);
+
+        const sDashCd = this.character?.superDashCooldown ?? 0;
+        const dashing = this.character?.isSuperDashing === true;
+        setBox('ability-superdash', sDashCd <= 0 && !dashing, dashing ? 'Dashing' : (sDashCd <= 0 ? 'Ready' : fmt(sDashCd)));
     }
 
     showNoBloodEssenceFeedback() {
@@ -219,6 +224,7 @@ export class UIManager {
     setCamera(camera) {
         this.camera = camera;
         this.combatSystem = combatSystem;
+        this.character = character;
     }
 
     showDamageNumber(worldPosition, damage, isCritical, anchorId = null) {

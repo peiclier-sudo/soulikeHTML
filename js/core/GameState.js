@@ -47,7 +47,8 @@ export class GameState {
             shieldActive: false,
             shieldTimeRemaining: 0,
             isDrinkingPotion: false,
-            drinkingPotionTimer: 0
+            drinkingPotionTimer: 0,
+            nextAttackDamageMultiplier: 1.0
         };
         
         // Movement state

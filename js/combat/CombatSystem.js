@@ -515,6 +515,13 @@ export class CombatSystem {
         }
     }
     
+
+
+    _consumeNextAttackMultiplier() {
+        const m = Math.max(1, this.gameState?.combat?.nextAttackDamageMultiplier ?? 1);
+        if (m > 1) this.gameState.combat.nextAttackDamageMultiplier = 1.0;
+        return m;
+    }
     startAttack() {
         if (!this.gameState.startAttack()) {
             return;
@@ -586,7 +593,8 @@ export class CombatSystem {
         const comboMultiplier = 1 + (this.gameState.combat.comboCount - 1) * 0.2;
         const isCritical = Math.random() < 0.15;
 
-        let damage = Math.floor(baseDamage * comboMultiplier);
+        const nextMult = this._consumeNextAttackMultiplier();
+        let damage = Math.floor(baseDamage * comboMultiplier * nextMult);
         if (isCritical) {
             damage = Math.floor(damage * 1.5);
         }
@@ -621,7 +629,8 @@ export class CombatSystem {
             const enemy = this._getEnemyFromHitObject(hit.object);
             if (enemy) {
                 this.whipHitOnce = true;
-                enemy.takeDamage(this.whipDamage);
+                const whipDamage = Math.floor(this.whipDamage * this._consumeNextAttackMultiplier());
+                enemy.takeDamage(whipDamage);
                 enemy.staggerTimer = Math.max(enemy.staggerTimer, 0.72);
                 enemy.state = 'stagger';
                 this.gameState.addUltimateCharge('charged');
@@ -640,7 +649,7 @@ export class CombatSystem {
     /** E = Bloodflail: consume all blood charges, instant melee hit with scaled damage and VFX. */
     executeBloodflail(chargesUsed, multiplier) {
         const baseWhipDamage = 45;
-        const finalDamage = Math.floor(baseWhipDamage * multiplier);
+        const finalDamage = Math.floor(baseWhipDamage * multiplier * this._consumeNextAttackMultiplier());
         const weaponPos = this.character.getWeaponPosition();
         const playerForward = this.character.getForwardDirection().clone().normalize();
         this.raycaster.set(weaponPos, playerForward);
@@ -686,7 +695,7 @@ export class CombatSystem {
         }
 
         const speed = 20;
-        const damage = isCharged ? 55 : 20;
+        const damage = Math.floor((isCharged ? 55 : 20) * this._consumeNextAttackMultiplier());
         const maxLifetime = isCharged ? 2.4 : 1.5;
         const releaseBurst = isCharged ? 0.15 : 0;
 

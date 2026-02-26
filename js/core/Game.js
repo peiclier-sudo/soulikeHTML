@@ -149,7 +149,7 @@ export class Game {
         );
         
         // UI Manager (camera for project damage numbers at hit position)
-        this.uiManager = new UIManager(this.gameState, this.camera, this.combatSystem);
+        this.uiManager = new UIManager(this.gameState, this.camera, this.combatSystem, this.character);
 
         // Spawn one random boss in the arena
         this.boss = null;
@@ -401,6 +401,9 @@ export class Game {
 
         // Update character with input
         this.character.update(this.deltaTime, input, this.mouseSensitivity);
+
+        // Super Dash collision damage sweep
+        this.applySuperDashDamage();
         
         // Apply screen shake after camera update (short impact feel)
         this.applyScreenShake();
@@ -451,6 +454,27 @@ export class Game {
 
         // Reset per-frame input
         this.inputManager.resetFrameInput();
+    }
+
+
+    applySuperDashDamage() {
+        if (!this.character?.isDashing || !this.character?.isSuperDashing || !this.combatSystem?.enemies) return;
+        const pos = this.character.position;
+        for (const enemyMesh of this.combatSystem.enemies) {
+            const enemy = enemyMesh.userData?.enemy;
+            if (!enemy || enemy.health <= 0) continue;
+            const id = enemy._damageAnchorId || enemy.name || String(enemyMesh.id);
+            if (this.character.superDashHitSet.has(id)) continue;
+            enemyMesh.getWorldPosition(this.combatSystem._enemyPos);
+            const hitRadius = (enemy.hitRadius ?? (enemy.isBoss ? 2.5 : 0.8)) + 1.4;
+            if (pos.distanceTo(this.combatSystem._enemyPos) > hitRadius) continue;
+            enemy.takeDamage(this.character.superDashDamage);
+            enemy.staggerTimer = Math.max(enemy.staggerTimer, 0.55);
+            enemy.state = 'stagger';
+            this.character.superDashHitSet.add(id);
+            this.gameState.emit('damageNumber', { position: this.combatSystem._enemyPos.clone(), damage: this.character.superDashDamage, isCritical: true, anchorId: this.combatSystem._getDamageAnchorId(enemy) });
+            this.onProjectileHit({ whipHit: true, punchFinish: true });
+        }
     }
 
     render() {
