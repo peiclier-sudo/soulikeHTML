@@ -149,7 +149,7 @@ export class Game {
         );
         
         // UI Manager (camera for project damage numbers at hit position)
-        this.uiManager = new UIManager(this.gameState, this.camera);
+        this.uiManager = new UIManager(this.gameState, this.camera, this.combatSystem, this.character);
 
         // Spawn one random boss in the arena
         this.boss = null;
@@ -401,6 +401,9 @@ export class Game {
 
         // Update character with input
         this.character.update(this.deltaTime, input, this.mouseSensitivity);
+
+        // Super Dash collision damage sweep
+        this.applySuperDashDamage();
         
         // Apply screen shake after camera update (short impact feel)
         this.applyScreenShake();
@@ -451,6 +454,27 @@ export class Game {
 
         // Reset per-frame input
         this.inputManager.resetFrameInput();
+    }
+
+
+    applySuperDashDamage() {
+        if (!this.character?.isDashing || !this.character?.isSuperDashing || !this.combatSystem?.enemies) return;
+        const pos = this.character.position;
+        for (const enemyMesh of this.combatSystem.enemies) {
+            const enemy = enemyMesh.userData?.enemy;
+            if (!enemy || enemy.health <= 0) continue;
+            const id = enemy._damageAnchorId || enemy.name || String(enemyMesh.id);
+            if (this.character.superDashHitSet.has(id)) continue;
+            enemyMesh.getWorldPosition(this.combatSystem._enemyPos);
+            const hitRadius = (enemy.hitRadius ?? (enemy.isBoss ? 2.5 : 0.8)) + 1.4;
+            if (pos.distanceTo(this.combatSystem._enemyPos) > hitRadius) continue;
+            enemy.takeDamage(this.character.superDashDamage);
+            enemy.staggerTimer = Math.max(enemy.staggerTimer, 0.55);
+            enemy.state = 'stagger';
+            this.character.superDashHitSet.add(id);
+            this.gameState.emit('damageNumber', { position: this.combatSystem._enemyPos.clone(), damage: this.character.superDashDamage, isCritical: true, anchorId: this.combatSystem._getDamageAnchorId(enemy) });
+            this.onProjectileHit({ whipHit: true, punchFinish: true });
+        }
     }
 
     render() {
@@ -520,7 +544,7 @@ export class Game {
     }
     
     onProjectileHit(payload = {}) {
-        const { charged, isBoss, isUltimate, whipHit, whipWindup, bloodflailCharges } = payload;
+        const { charged, isBoss, isUltimate, whipHit, whipWindup, bloodflailCharges, punchFinish, bloodNova } = payload;
         if (isUltimate) {
             this.shakeIntensity = 0.1;
             this.shakeDuration = 0.35;
@@ -536,10 +560,23 @@ export class Game {
             this.ultimateBloomDuration = isFiveCharge ? 0.6 : 0.4;
             this.ultimateFovTime = isFiveCharge ? 0.25 : 0.2;
             this.lastPunchOffset.copy(this.character.getForwardDirection()).multiplyScalar(isFiveCharge ? 0.28 : 0.22);
+            if (punchFinish) {
+                this.shakeIntensity *= 1.28;
+                this.shakeDuration += 0.06;
+                this.ultimateBloomTime = Math.max(this.ultimateBloomTime, 0.48);
+                this.ultimateBloomDuration = Math.max(this.ultimateBloomDuration, 0.48);
+                this.lastPunchOffset.multiplyScalar(1.26);
+            }
         } else if (whipWindup) {
             this.shakeIntensity = 0.016;
             this.shakeDuration = 0.07;
             this.shakeTime = this.shakeDuration;
+        } else if (bloodNova) {
+            this.shakeIntensity = 0.085;
+            this.shakeDuration = 0.28;
+            this.ultimateBloomTime = 0.42;
+            this.ultimateBloomDuration = 0.42;
+            this.lastPunchOffset.copy(this.character.getForwardDirection()).multiplyScalar(0.16);
         } else {
             // Projectile hit: slight shake for basic, slightly more for charged
             const base = 0.022;

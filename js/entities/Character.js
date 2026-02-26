@@ -34,6 +34,7 @@ export class Character {
         this.cameraYaw = 0;
         this.pitchLimit = Math.PI / 3;  // Limit vertical rotation
         this.cameraSmoothSpeed = 18;    // Snappier camera follow for responsive feel
+        this._cameraBobTime = 0;
 
         // State
         this.isGrounded = true;
@@ -46,6 +47,11 @@ export class Character {
         this.dashStartPos = new THREE.Vector3();
         this.dashDirection = new THREE.Vector3();
         this.dashCooldown = 0;
+        this.superDashCooldown = 0;
+        this.superDashCooldownDuration = 20;
+        this.superDashDamage = 80;
+        this.isSuperDashing = false;
+        this.superDashHitSet = new Set();
         this.postDashTilt = 0;  // Smooth mesh tilt back to 0 after dash
         this.dashVfx = null;
 
@@ -651,25 +657,15 @@ export class Character {
         const drainAction = this.actions['Special attack 3'] || this.actions['Special attack 2'] || this.actions['Whip'];
         // E = Bloodflail is started by Game → CombatSystem.executeBloodflail(), not from input here
         const drinkAction = this.actions['Drink'] || this.actions['Special attack 2'];
-        if (this.gameState.combat.isDrinkingPotion && drinkAction) {
-            if (this.currentUpperState !== 'Drink') {
-                this.playLoco('Idle', 0.15);
-                const drinkAnimName = this.actions['Drink'] ? 'Drink' : 'Special attack 2';
-                const anim = this.actions[drinkAnimName];
-                if (anim) {
-                    anim.reset();
-                    anim.setEffectiveTimeScale(this.actions['Drink'] ? 1 : 0.9);
-                }
-                this.playUpper(drinkAnimName, 0.1, 0.15);
-                this.currentUpperState = 'Drink';
-            }
-        } else if (this.currentUpperState === 'Drink') {
+        // Potion uses gameplay/VFX only; keep normal locomotion and avoid forcing a dedicated upper animation.
+        if (this.gameState.combat.isDrinkingPotion && this.currentUpperState === 'Drink') {
             this.playUpper('none', 0.08, 0.15);
             this.currentUpperState = null;
         }
         if (this.gameState.combat.isLifeDraining && drainAction) {
             if (this.currentUpperState !== 'LifeDrain') {
-                this.playLoco('Idle', 0.15);
+                const drinkLoco = this.gameState.movement.isMoving ? ((this.gameState.movement.isRunning && this.actions['Run']) ? 'Run' : (this.actions['Walk'] ? 'Walk' : 'Idle')) : 'Idle';
+                this.playLoco(drinkLoco, 0.12);
                 const drainAnimName = this.actions['Special attack 3'] ? 'Special attack 3' : (this.actions['Special attack 2'] ? 'Special attack 2' : 'Whip');
                 this.playUpper(drainAnimName, 0.1, 0.15);
                 const drainAnim = this.actions[drainAnimName];
@@ -745,7 +741,11 @@ export class Character {
         this.cameraPitch = Math.max(-0.5, Math.min(this.pitchLimit, this.cameraPitch));
 
         const horizontalDistance = this.cameraDistance * Math.cos(this.cameraPitch);
-        const verticalDistance = this.cameraDistance * Math.sin(this.cameraPitch) + this.cameraHeight;
+        const planarSpeed = Math.hypot(this.velocity.x, this.velocity.z);
+        this._cameraBobTime += deltaTime * (2.5 + planarSpeed * 0.65);
+        const bobAmp = Math.min(0.05, planarSpeed * 0.0045);
+        const bobOffset = Math.sin(this._cameraBobTime) * bobAmp;
+        const verticalDistance = this.cameraDistance * Math.sin(this.cameraPitch) + this.cameraHeight + bobOffset;
 
         const targetX = this.position.x + horizontalDistance * Math.sin(this.cameraYaw);
         const targetY = this.position.y + verticalDistance;
@@ -755,7 +755,8 @@ export class Character {
         this._camTarget.set(targetX, targetY, targetZ);
         this.camera.position.lerp(this._camTarget, smoothFactor);
 
-        this._lookAt.set(this.position.x, this.position.y + this.cameraLookAtHeight, this.position.z);
+        const lookBob = Math.cos(this._cameraBobTime * 0.8) * (bobAmp * 0.45);
+        this._lookAt.set(this.position.x, this.position.y + this.cameraLookAtHeight + lookBob, this.position.z);
         this.camera.lookAt(this._lookAt);
     }
     
@@ -821,25 +822,35 @@ export class Character {
             this.isGrounded = false;
         }
 
+        // é (AZERTY Digit2) = Super Dash
+        if (input.superDash && this.superDashCooldown <= 0 && !this.isDashing && this.gameState.useStamina(20)) {
+            const dashDir = moveVector.length() > 0 ? moveVector.clone().normalize() : forward;
+            this.startDash(dashDir, true);
+            this.gameState.combat.nextAttackDamageMultiplier = 2.0;
+        }
+
         // R = dash in movement direction (or forward if not moving)
         if (input.dash && this.dashCooldown <= 0 &&
             this.gameState.useStamina(12)) {
             const dashDir = moveVector.length() > 0
                 ? moveVector.clone().normalize()
                 : forward;
-            this.startDash(dashDir);
+            this.startDash(dashDir, false);
         }
     }
 
-    startDash(forwardDir) {
+    startDash(forwardDir, isSuper = false) {
         const dir = forwardDir.clone().normalize();
         this.dashStartPos.copy(this.position);
         this.dashDirection.copy(dir);
         this.rotation.y = Math.atan2(dir.x, dir.z);
         this.velocity.set(0, 0, 0);
         this.isDashing = true;
-        this.dashTimer = this.dashDuration;
-        this.dashCooldown = 0.7;
+        this.isSuperDashing = isSuper;
+        this.superDashHitSet.clear();
+        this.dashTimer = isSuper ? this.dashDuration * 1.15 : this.dashDuration;
+        this.dashCooldown = isSuper ? 1.2 : 0.7;
+        if (isSuper) this.superDashCooldown = this.superDashCooldownDuration;
         this.gameState.combat.invulnerable = true;
         if (this.dashVfx) this.dashVfx.dispose();
         this.dashVfx = createDashVFX(this.scene);
@@ -849,6 +860,7 @@ export class Character {
         this.dashTimer -= deltaTime;
         if (this.dashTimer <= 0) {
             this.isDashing = false;
+            this.isSuperDashing = false;
             this.gameState.combat.invulnerable = false;
             const coastSpeed = 3.5;
             this.velocity.x = this.dashDirection.x * coastSpeed;
@@ -860,8 +872,9 @@ export class Character {
             const t = 1 - this.dashTimer / this.dashDuration;
             const easeOutQuint = 1 - Math.pow(1 - t, 5);
             const boundary = 18.5;
-            this.position.x = this.dashStartPos.x + this.dashDirection.x * this.dashDistance * easeOutQuint;
-            this.position.z = this.dashStartPos.z + this.dashDirection.z * this.dashDistance * easeOutQuint;
+            const dist = this.isSuperDashing ? this.dashDistance * 2.0 : this.dashDistance;
+            this.position.x = this.dashStartPos.x + this.dashDirection.x * dist * easeOutQuint;
+            this.position.z = this.dashStartPos.z + this.dashDirection.z * dist * easeOutQuint;
             this.position.x = Math.max(-boundary, Math.min(boundary, this.position.x));
             this.position.z = Math.max(-boundary, Math.min(boundary, this.position.z));
         }
@@ -903,6 +916,7 @@ export class Character {
         this.gameState.regenerateStamina(deltaTime);
 
         if (this.dashCooldown > 0) this.dashCooldown -= deltaTime;
+        if (this.superDashCooldown > 0) this.superDashCooldown -= deltaTime;
     }
 
     updateMesh() {
@@ -966,10 +980,12 @@ export class Character {
             if (this.isPlayingUltimate) {
                 const ultAct = this.actions['Special attack 1'] || this.actions['Ultimate'];
                 targetUpper = ultAct ? (ultAct === this.actions['Special attack 1'] ? 'Special attack 1' : 'Ultimate') : 'none';
+            } else if (this.isSuperDashing && this.gameState.combat.isWhipAttacking !== true) {
+                targetUpper = this.actions['Special attack 1'] ? 'Special attack 1' : (this.actions['Whip'] ? 'Whip' : 'none');
             } else if (this.gameState.combat.isChargedAttacking || this.gameState.combat.isCharging) {
                 targetUpper = this.actions['Charged attack'] ? 'Charged attack' : 'none';
             } else if (this.gameState.combat.isDrinkingPotion) {
-                targetUpper = (this.actions['Drink'] || this.actions['Special attack 2']) ? (this.actions['Drink'] ? 'Drink' : 'Special attack 2') : 'none';
+                targetUpper = 'none';
             } else if (this.gameState.combat.isLifeDraining) {
                 targetUpper = (this.actions['Special attack 3'] || this.actions['Special attack 2'] || this.actions['Whip']) ? (this.actions['Special attack 3'] ? 'Special attack 3' : (this.actions['Special attack 2'] ? 'Special attack 2' : 'Whip')) : 'none';
             } else if (this.gameState.combat.isWhipAttacking) {
@@ -999,10 +1015,12 @@ export class Character {
             let targetAnimation = 'Idle';
             if (this.isDashing) {
                 targetAnimation = this.actions['Fast running'] ? 'Fast running' : 'Run';
+            } else if (this.isSuperDashing && this.gameState.combat.isWhipAttacking !== true) {
+                targetAnimation = this.actions['Special attack 1'] ? 'Special attack 1' : (this.actions['Whip'] ? 'Whip' : 'Fast running');
             } else if (this.gameState.combat.isChargedAttacking || this.gameState.combat.isCharging) {
                 targetAnimation = this.actions['Charged attack'] ? 'Charged attack' : 'Idle';
             } else if (this.gameState.combat.isDrinkingPotion) {
-                targetAnimation = (this.actions['Drink'] || this.actions['Special attack 2']) ? (this.actions['Drink'] ? 'Drink' : 'Special attack 2') : 'Idle';
+                targetAnimation = this.gameState.movement.isMoving ? ((this.gameState.movement.isRunning && this.actions['Run']) ? 'Run' : (this.actions['Walk'] ? 'Walk' : 'Idle')) : 'Idle';
             } else if (this.gameState.combat.isLifeDraining) {
                 targetAnimation = (this.actions['Special attack 3'] || this.actions['Special attack 2'] || this.actions['Whip']) ? (this.actions['Special attack 3'] ? 'Special attack 3' : (this.actions['Special attack 2'] ? 'Special attack 2' : 'Whip')) : 'Idle';
             } else if (this.gameState.combat.isWhipAttacking) {
