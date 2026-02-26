@@ -48,6 +48,7 @@ export class Game {
         this.shakeIntensity = 0;
         this.lastShakeOffset = new THREE.Vector3(0, 0, 0);
         this.lastPunchOffset = new THREE.Vector3(0, 0, 0);
+        this.shakeSeed = Math.random() * 1000;
         this.punchDecay = 0.78;
         this._shieldCenter = new THREE.Vector3();
 
@@ -614,23 +615,28 @@ export class Game {
     }
     
     applyScreenShake() {
+        this.camera.position.sub(this.lastShakeOffset);
+
         if (this.shakeTime <= 0) {
-            if (this.lastShakeOffset.x !== 0 || this.lastShakeOffset.y !== 0 || this.lastShakeOffset.z !== 0) {
-                this.camera.position.sub(this.lastShakeOffset);
-                this.lastShakeOffset.set(0, 0, 0);
-            }
+            this.lastShakeOffset.multiplyScalar(0.78);
+            if (this.lastShakeOffset.lengthSq() < 1e-7) this.lastShakeOffset.set(0, 0, 0);
+            this.camera.position.add(this.lastShakeOffset);
             return;
         }
-        this.camera.position.sub(this.lastShakeOffset);
+
         this.shakeTime = Math.max(0, this.shakeTime - this.deltaTime);
-        const t = this.shakeTime / this.shakeDuration;
-        const smoothT = t * t * (3 - 2 * t);
-        const amt = this.shakeIntensity * smoothT;
+        const t = this.shakeDuration > 0 ? this.shakeTime / this.shakeDuration : 0;
+        const envelope = t * t * (3 - 2 * t);
+        const amt = this.shakeIntensity * envelope;
+        const time = this.elapsedTime + this.shakeSeed;
+
+        // Multi-frequency sine shake: smoother than frame-random jitter but still punchy.
         this.lastShakeOffset.set(
-            (Math.random() - 0.5) * 2 * amt,
-            (Math.random() - 0.5) * 2 * amt,
-            (Math.random() - 0.5) * 2 * amt * 0.3
+            amt * (Math.sin(time * 47.0) * 0.75 + Math.sin(time * 83.0 + 1.3) * 0.35),
+            amt * (Math.sin(time * 61.0 + 2.1) * 0.9 + Math.sin(time * 109.0 + 0.4) * 0.25),
+            amt * (Math.sin(time * 39.0 + 0.7) * 0.22)
         );
+
         this.camera.position.add(this.lastShakeOffset);
     }
     
