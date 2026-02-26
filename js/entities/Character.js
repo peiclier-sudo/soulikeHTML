@@ -737,15 +737,6 @@ export class Character {
         this.cameraYaw += deltaYaw;
         this.cameraPitch += deltaPitch;
 
-        // Heading assist during dash/superdash: gently steer camera toward dash direction.
-        if (this.isDashing && this.dashDirection.lengthSq() > 1e-6) {
-            const desiredYaw = Math.atan2(this.dashDirection.x, this.dashDirection.z);
-            let yawDiff = desiredYaw - this.cameraYaw;
-            while (yawDiff > Math.PI) yawDiff -= 2 * Math.PI;
-            while (yawDiff < -Math.PI) yawDiff += 2 * Math.PI;
-            const assist = this.isSuperDashing ? 0.22 : 0.12;
-            this.cameraYaw += yawDiff * Math.min(1, assist * (deltaTime * 60));
-        }
 
         // Clamp pitch (prevent camera going too high or too low)
         this.cameraPitch = Math.max(-0.5, Math.min(this.pitchLimit, this.cameraPitch));
