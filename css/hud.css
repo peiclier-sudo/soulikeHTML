@@ -70,6 +70,18 @@
     100% { opacity: 0; transform: translate(-50%, -50%) scale(1); }
 }
 
+
+.reticule.reticule-flash-ready .reticule-dot,
+.reticule.reticule-flash-ready .reticule-line {
+    animation: reticuleFlashReady 0.26s ease-out forwards;
+}
+
+@keyframes reticuleFlashReady {
+    0% { filter: none; }
+    50% { background: rgba(170, 150, 255, 0.95); box-shadow: 0 0 12px rgba(140, 120, 255, 0.95); }
+    100% { filter: none; }
+}
+
 /* Reticule flash when E with 0 charges */
 .reticule.reticule-flash-red .reticule-dot,
 .reticule.reticule-flash-red .reticule-line {
@@ -383,6 +395,17 @@
     border-color: rgba(160, 80, 80, 0.5);
 }
 
+
+
+.cooldown-ready-pulse {
+    animation: cooldownReadyPulse 0.34s ease-out;
+}
+
+@keyframes cooldownReadyPulse {
+    0% { transform: scale(1); filter: brightness(1); }
+    45% { transform: scale(1.04); filter: brightness(1.25); }
+    100% { transform: scale(1); filter: brightness(1); }
+}
 /* Damage Numbers */
 #damage-numbers {
     position: absolute;
@@ -427,6 +450,28 @@
     text-shadow: 2px 2px 4px black, 0 0 15px rgba(255, 170, 0, 0.8);
 }
 
+
+.damage-number.heavy {
+    animation: damageHeavyPop 1.05s ease-out forwards;
+}
+
+.damage-number.ability {
+    color: #ff7f9f;
+    text-shadow: 2px 2px 4px black, 0 0 14px rgba(255, 80, 120, 0.75);
+    animation: damageAbilityBurst 1.1s ease-out forwards;
+}
+
+@keyframes damageHeavyPop {
+    0% { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
+    35% { opacity: 1; transform: translate(-50%, -65%) scale(1.35); }
+    100% { opacity: 0; transform: translate(-50%, -95%) scale(1.0); }
+}
+
+@keyframes damageAbilityBurst {
+    0% { opacity: 1; transform: translate(-50%, -50%) scale(1.0); }
+    40% { opacity: 1; transform: translate(-44%, -70%) scale(1.25); }
+    100% { opacity: 0; transform: translate(-38%, -98%) scale(0.95); }
+}
 @keyframes damageFloat {
     0% {
         opacity: 1;

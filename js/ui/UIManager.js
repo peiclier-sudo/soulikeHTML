@@ -13,6 +13,9 @@ export class UIManager {
         this._projectedPos = new THREE.Vector3();
         this._damageAnchorScreenCache = new Map();
         this._canvas = document.getElementById('game-canvas');
+        this._abilityReadyState = new Map();
+        this._superDashWasReady = true;
+        this._ultimateWasReady = false;
         
         // Cache DOM elements
         this.elements = {
@@ -41,10 +44,26 @@ export class UIManager {
         
     }
     
+
+
+    _pulseCooldownElement(el) {
+        if (!el) return;
+        el.classList.remove('cooldown-ready-pulse');
+        void el.offsetWidth;
+        el.classList.add('cooldown-ready-pulse');
+        setTimeout(() => el.classList.remove('cooldown-ready-pulse'), 360);
+
+        if (this.elements.reticule) {
+            this.elements.reticule.classList.remove('reticule-flash-ready');
+            void this.elements.reticule.offsetWidth;
+            this.elements.reticule.classList.add('reticule-flash-ready');
+            setTimeout(() => this.elements.reticule?.classList.remove('reticule-flash-ready'), 260);
+        }
+    }
     setupEventListeners() {
         // Damage number events
         this.gameState.on('damageNumber', (data) => {
-            this.showDamageNumber(data.position, data.damage, data.isCritical, data.anchorId);
+            this.showDamageNumber(data.position, data.damage, data.isCritical, data.anchorId, data.kind);
         });
         
         // Health change events
@@ -87,8 +106,11 @@ export class UIManager {
             const box = document.getElementById(id);
             const timer = document.getElementById(`${id}-timer`);
             if (!box || !timer) return;
+            const wasReady = this._abilityReadyState.get(id) === true;
             box.dataset.ready = ready ? 'true' : 'false';
             timer.textContent = text;
+            if (ready && !wasReady) this._pulseCooldownElement(box);
+            this._abilityReadyState.set(id, !!ready);
         };
 
         const eruptionCd = this.combatSystem?.crimsonEruptionCooldown ?? 0;
@@ -110,7 +132,12 @@ export class UIManager {
         const sDashMax = this.character?.superDashCooldownDuration ?? 20;
         const sDashPct = sDashCd <= 0 ? 100 : Math.max(0, 100 - (sDashCd / sDashMax) * 100);
         if (this.elements.superDashFill) this.elements.superDashFill.style.width = `${sDashPct}%`;
-        if (this.elements.superDashBar) this.elements.superDashBar.classList.toggle('ready', sDashCd <= 0 && this.character?.isSuperDashing !== true);
+        const superReady = sDashCd <= 0 && this.character?.isSuperDashing !== true;
+        if (this.elements.superDashBar) {
+            this.elements.superDashBar.classList.toggle('ready', superReady);
+            if (superReady && !this._superDashWasReady) this._pulseCooldownElement(this.elements.superDashBar);
+        }
+        this._superDashWasReady = superReady;
     }
 
     showNoBloodEssenceFeedback() {
@@ -203,7 +230,10 @@ export class UIManager {
             this.elements.ultimateFill.style.width = `${pct}%`;
         }
         if (this.elements.ultimateBar) {
-            this.elements.ultimateBar.classList.toggle('ready', charge >= 100);
+            const ready = charge >= 100;
+            this.elements.ultimateBar.classList.toggle('ready', ready);
+            if (ready && !this._ultimateWasReady) this._pulseCooldownElement(this.elements.ultimateBar);
+            this._ultimateWasReady = ready;
         }
     }
     
@@ -231,11 +261,14 @@ export class UIManager {
         this.character = character;
     }
 
-    showDamageNumber(worldPosition, damage, isCritical, anchorId = null) {
+    showDamageNumber(worldPosition, damage, isCritical, anchorId = null, kind = null) {
         if (!this.elements.damageNumbers) return;
 
         const damageEl = document.createElement('div');
-        damageEl.className = `damage-number ${isCritical ? 'critical' : ''}`;
+        const classes = ['damage-number'];
+        if (isCritical) classes.push('critical');
+        if (kind) classes.push(kind);
+        damageEl.className = classes.join(' ');
         damageEl.textContent = damage.toString();
 
         let x, y;

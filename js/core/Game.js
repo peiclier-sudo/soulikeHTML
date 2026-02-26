@@ -50,6 +50,9 @@ export class Game {
         this.lastPunchOffset = new THREE.Vector3(0, 0, 0);
         this.punchDecay = 0.78;
         this._shieldCenter = new THREE.Vector3();
+
+        // Hit-stop (brief time freeze on heavy impacts)
+        this.hitStopTime = 0;
         
         // Initialize core systems
         this.initRenderer();
@@ -272,6 +275,14 @@ export class Game {
         this.elapsedTime = this.clock.getElapsedTime();
 
         this.updateFPS();
+
+        if (this.hitStopTime > 0) {
+            this.hitStopTime = Math.max(0, this.hitStopTime - this.deltaTime);
+            this.render();
+            this.inputManager.resetFrameInput();
+            return;
+        }
+
         this.update();
         this.render();
     }
@@ -543,14 +554,20 @@ export class Game {
         this.targetMouseSensitivity = value;
     }
     
+
+
+    triggerHitStop(duration = 0.05) {
+        this.hitStopTime = Math.max(this.hitStopTime, duration);
+    }
     onProjectileHit(payload = {}) {
-        const { charged, isBoss, isUltimate, whipHit, whipWindup, bloodflailCharges, punchFinish, bloodNova } = payload;
+        const { charged, isBoss, isUltimate, whipHit, whipWindup, bloodflailCharges, punchFinish, bloodNova, crimsonEruption } = payload;
         if (isUltimate) {
             this.shakeIntensity = 0.1;
             this.shakeDuration = 0.35;
             this.shakeTime = this.shakeDuration;
             this.ultimateBloomTime = 0.6;
             this.ultimateBloomDuration = 0.6;
+            this.triggerHitStop(0.08);
         } else if (whipHit) {
             const isFiveCharge = bloodflailCharges === 5;
             this.shakeIntensity = isFiveCharge ? 0.12 : 0.055;
@@ -560,6 +577,7 @@ export class Game {
             this.ultimateBloomDuration = isFiveCharge ? 0.6 : 0.4;
             this.ultimateFovTime = isFiveCharge ? 0.25 : 0.2;
             this.lastPunchOffset.copy(this.character.getForwardDirection()).multiplyScalar(isFiveCharge ? 0.28 : 0.22);
+            this.triggerHitStop(punchFinish ? 0.07 : 0.05);
             if (punchFinish) {
                 this.shakeIntensity *= 1.28;
                 this.shakeDuration += 0.06;
@@ -571,17 +589,26 @@ export class Game {
             this.shakeIntensity = 0.016;
             this.shakeDuration = 0.07;
             this.shakeTime = this.shakeDuration;
+        } else if (crimsonEruption) {
+            this.shakeIntensity = 0.06;
+            this.shakeDuration = 0.2;
+            this.ultimateBloomTime = 0.28;
+            this.ultimateBloomDuration = 0.28;
+            this.lastPunchOffset.copy(this.character.getForwardDirection()).multiplyScalar(0.1);
+            this.triggerHitStop(0.05);
         } else if (bloodNova) {
             this.shakeIntensity = 0.085;
             this.shakeDuration = 0.28;
             this.ultimateBloomTime = 0.42;
             this.ultimateBloomDuration = 0.42;
             this.lastPunchOffset.copy(this.character.getForwardDirection()).multiplyScalar(0.16);
+            this.triggerHitStop(0.055);
         } else {
             // Projectile hit: slight shake for basic, slightly more for charged
             const base = 0.022;
             this.shakeIntensity = base * (charged ? 1.6 : 1) * (isBoss ? 1.4 : 1);
             this.shakeDuration = charged ? 0.2 : 0.14;
+            this.triggerHitStop(charged ? 0.045 : 0.03);
         }
         this.shakeTime = this.shakeDuration;
     }
