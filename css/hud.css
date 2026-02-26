@@ -9,6 +9,26 @@
     z-index: 100;
 }
 
+/* Player damage feedback (full-screen red pulse) */
+#player-hit-overlay {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 180;
+    opacity: 0;
+    background: radial-gradient(circle at 50% 50%, rgba(255, 80, 80, 0.08) 0%, rgba(120, 0, 0, 0.24) 60%, rgba(20, 0, 0, 0.45) 100%);
+}
+
+#player-hit-overlay.hit-flash {
+    animation: playerHitFlash 0.28s ease-out forwards;
+}
+
+@keyframes playerHitFlash {
+    0% { opacity: 0; }
+    15% { opacity: 1; }
+    100% { opacity: 0; }
+}
+
 /* Stat Bars */
 .stat-bar {
     position: absolute;
@@ -358,6 +378,23 @@
     animation: damageFloat 1s ease-out forwards;
     pointer-events: none;
     transform: translate(-50%, -50%);
+}
+
+.player-damage-taken {
+    position: absolute;
+    font-size: 2.1rem;
+    font-weight: 700;
+    color: #ff6161;
+    text-shadow: 0 0 10px rgba(255, 70, 70, 0.9), 2px 2px 4px black;
+    animation: playerDamagePop 0.7s ease-out forwards;
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+}
+
+@keyframes playerDamagePop {
+    0% { opacity: 0; transform: translate(-50%, -50%) scale(0.9); }
+    20% { opacity: 1; transform: translate(-50%, -50%) scale(1.15); }
+    100% { opacity: 0; transform: translate(-50%, -65%) scale(0.95); }
 }
 
 .damage-number.critical {

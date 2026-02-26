@@ -8,12 +8,12 @@ import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { Enemy } from './Enemy.js';
 
 const BOSS_NAMES = ['Gorrath the Unbroken', 'Malkhor Ironhide', 'Thurnax Bloodhorn', 'Varok the Trampler', 'Grommash Skullsplitter'];
-const BOSS_COLOR = 0x5a3a2a;
+const BOSS_COLOR = 0x3a2818; // procedural fallback only; GLB boss uses same treatment as character (0.32 multiply)
 
 const ATK = { PUNCH: 0, REVERSE: 1, CHARGED: 2 };
 const ATK_COUNT = 3;
 
-const POOL_SIZE = 60;
+const POOL_SIZE = 36;
 
 export class Boss extends Enemy {
     constructor(scene, position, config = {}) {
@@ -56,25 +56,55 @@ export class Boss extends Enemy {
 
         if (template) {
             const model = SkeletonUtils.clone(template);
-            model.scale.setScalar(4.5);
+            model.scale.setScalar(2.1);
             model.visible = true;
             model.traverse((child) => {
                 if (child.isMesh && child.material) {
+                    if (child.geometry?.isBufferGeometry) {
+                        child.geometry.computeVertexNormals();
+                        if (typeof child.geometry.normalizeNormals === 'function') {
+                            child.geometry.normalizeNormals();
+                        }
+                    }
                     child.visible = true;
                     child.castShadow = true;
                     child.receiveShadow = true;
-                    child.material = child.material.clone();
-                    child.material.transparent = false;
-                    child.material.opacity = 1.0;
-                    if ('alphaTest' in child.material) child.material.alphaTest = 0;
-                    if (child.material.color) child.material.color.setHex(BOSS_COLOR);
-                    child.material.metalness = 0.35;
-                    child.material.roughness = 0.7;
+                    const wasArrayMaterial = Array.isArray(child.material);
+                    const materials = wasArrayMaterial ? child.material : [child.material];
+                    child.material = materials.map((m) => {
+                        const mat = m.clone();
+                        mat.transparent = false;
+                        mat.opacity = 1.0;
+                        mat.alphaTest = 0.0;
+                        if ('alphaMap' in mat) mat.alphaMap = null;
+                        if ('transmission' in mat) mat.transmission = 0;
+                        if ('premultipliedAlpha' in mat) mat.premultipliedAlpha = false;
+                        if ('blending' in mat) mat.blending = THREE.NormalBlending;
+                        if ('side' in mat) mat.side = THREE.FrontSide;
+                        mat.depthWrite = true;
+                        mat.depthTest = true;
+                        mat.flatShading = false;
+                        if ('envMap' in mat) mat.envMap = null;
+                        if ('envMapIntensity' in mat) mat.envMapIntensity = 0.0;
+                        if ('metalness' in mat) mat.metalness = 0.02;
+                        if ('roughness' in mat) mat.roughness = 0.98;
+                        if ('specularIntensity' in mat) mat.specularIntensity = 0.02;
+                        if ('clearcoat' in mat) mat.clearcoat = 0.0;
+                        if ('sheen' in mat) mat.sheen = 0.0;
+                        if (mat.map) {
+                            mat.map.premultiplyAlpha = false;
+                            mat.map.needsUpdate = true;
+                        }
+                        mat.needsUpdate = true;
+                        return mat;
+                    });
+                    if (!wasArrayMaterial) child.material = child.material[0];
                 }
             });
 
             this.mesh = model;
             this.mesh.userData.enemy = this;
+            this.addToonOutline(this.mesh, 1.04);
 
             if (animData?.clips?.length > 0) {
                 this.mixer = new THREE.AnimationMixer(model);
@@ -167,6 +197,48 @@ export class Boss extends Enemy {
         this._chargedRange = this.hitRadius + 10;
         this._chaseStopDist = this.hitRadius + 1;
         this._initPool();
+    }
+
+    addToonOutline(root, thickness = 1.04) {
+        if (!root) return;
+        const outlineMat = new THREE.MeshBasicMaterial({
+            color: 0x000000,
+            side: THREE.BackSide,
+            transparent: false,
+            opacity: 1.0,
+            depthWrite: true,
+            depthTest: true,
+            toneMapped: false,
+            polygonOffset: true,
+            polygonOffsetFactor: 1,
+            polygonOffsetUnits: 1
+        });
+
+        root.traverse((child) => {
+            if (!child.isMesh || !child.geometry) return;
+            if (child.userData?.isOutline) return;
+
+            let outline = null;
+            if (child.isSkinnedMesh && child.skeleton) {
+                outline = new THREE.SkinnedMesh(child.geometry, outlineMat);
+                outline.bind(child.skeleton, child.bindMatrix);
+                outline.bindMode = child.bindMode;
+            } else {
+                outline = new THREE.Mesh(child.geometry, outlineMat);
+            }
+
+            outline.name = `${child.name || 'bossMesh'}_outline`;
+            outline.userData.isOutline = true;
+            outline.renderOrder = (child.renderOrder || 0) - 0.2;
+            outline.frustumCulled = false;
+            outline.position.copy(child.position);
+            outline.quaternion.copy(child.quaternion);
+            outline.scale.copy(child.scale).multiplyScalar(thickness);
+            outline.castShadow = false;
+            outline.receiveShadow = false;
+
+            if (child.parent) child.parent.add(outline);
+        });
     }
 
     _createProceduralBoss(config) {
@@ -409,15 +481,15 @@ export class Boss extends Enemy {
 
         switch (chosen) {
             case ATK.PUNCH:
-                this._attackDuration = 1.9;
+                this._attackDuration = 1.55;
                 this._atkCooldowns[chosen] = 1.6;
                 break;
             case ATK.REVERSE:
-                this._attackDuration = 2.1;
+                this._attackDuration = 1.75;
                 this._atkCooldowns[chosen] = 2.4;
                 break;
             case ATK.CHARGED:
-                this._attackDuration = 3.1;
+                this._attackDuration = 2.55;
                 this._atkCooldowns[chosen] = 4.2;
                 break;
         }
@@ -452,9 +524,15 @@ export class Boss extends Enemy {
     // ===================== PUNCH =====================
 
     _tickPunch(dt, t, playerPos) {
-        const hitStart = 0.8, hitEnd = 1.2;
+        const hitStart = 0.58, hitEnd = 0.9;
 
-        if (t < hitStart * 0.5) {
+        if (t < 0.28 && playerPos) {
+            // Short backward windup before the punch.
+            this._tmpVec.subVectors(this.position, playerPos).normalize();
+            this._tmpVec.y = 0;
+            this.position.addScaledVector(this._tmpVec, this.speed * 0.14 * dt);
+            this._clampArena();
+        } else if (t < hitStart * 0.5) {
             if (playerPos) {
                 this._tmpVec.subVectors(playerPos, this.position).normalize();
                 this._tmpVec.y = 0;
@@ -468,8 +546,14 @@ export class Boss extends Enemy {
             this._light.position.copy(this._tmpVec);
             this._light.intensity = 20 + 8 * Math.sin(t * 20);
             this._light.color.setHex(0xcc6633);
+            // Warmup telegraph ring for clearer read before damage frame.
+            if (!this._ringMesh.visible) this._ringMesh.visible = true;
+            this._ringMesh.position.set(this.position.x, 0.14, this.position.z);
+            this._ringMat.color.setHex(0xffaa66);
+            this._ringMat.opacity = 0.35;
+            this._ringMesh.scale.setScalar(this.hitRadius * 0.42);
 
-            if (Math.random() < 0.5) {
+            if (Math.random() < 0.25) {
                 const s = this.hitRadius * 0.3;
                 this._spawnParticle(
                     this._tmpVec.x + (Math.random() - 0.5) * s,
@@ -498,14 +582,16 @@ export class Boss extends Enemy {
 
         if (t > hitEnd) {
             this._light.intensity = Math.max(0, this._light.intensity - dt * 50);
+            this._ringMat.opacity = Math.max(0, this._ringMat.opacity - dt * 2.5);
+            if (this._ringMat.opacity <= 0.01) this._ringMesh.visible = false;
         }
     }
 
     // ===================== REVERSE PUNCH =====================
 
     _tickReversePunch(dt, t, playerPos) {
-        const hitStart = 0.95;
-        const hitEnd = 1.45;
+        const hitStart = 0.68;
+        const hitEnd = 1.06;
 
         if (t < hitStart * 0.45 && playerPos) {
             this._tmpVec.subVectors(playerPos, this.position).normalize();
@@ -514,13 +600,23 @@ export class Boss extends Enemy {
             this._clampArena();
         }
 
+        if (t > 0.35 && t < 0.8) {
+            // Give reverse punch extra body twist for readability.
+            this.mesh.rotation.y += dt * 1.8;
+        }
+
         if (t >= hitStart && t <= hitEnd) {
             this._getFistPos(this._tmpVec);
             this._light.position.copy(this._tmpVec);
             this._light.intensity = 24 + 10 * Math.sin(t * 22);
             this._light.color.setHex(0xbb55cc);
+            if (!this._ringMesh.visible) this._ringMesh.visible = true;
+            this._ringMesh.position.set(this.position.x, 0.16, this.position.z);
+            this._ringMat.color.setHex(0xcc88ff);
+            this._ringMat.opacity = 0.4;
+            this._ringMesh.scale.setScalar(this.hitRadius * 0.52);
 
-            if (Math.random() < 0.65) {
+            if (Math.random() < 0.3) {
                 const s = this.hitRadius * 0.36;
                 this._spawnParticle(
                     this._tmpVec.x + (Math.random() - 0.5) * s,
@@ -540,16 +636,20 @@ export class Boss extends Enemy {
             }
         }
 
-        if (t > hitEnd) this._light.intensity = Math.max(0, this._light.intensity - dt * 45);
+        if (t > hitEnd) {
+            this._light.intensity = Math.max(0, this._light.intensity - dt * 45);
+            this._ringMat.opacity = Math.max(0, this._ringMat.opacity - dt * 2.2);
+            if (this._ringMat.opacity <= 0.01) this._ringMesh.visible = false;
+        }
     }
 
     // ===================== CHARGED SMASH =====================
 
     _tickChargedSmash(dt, t, playerPos) {
         const windStart = 0.0;
-        const windEnd = 1.6;
-        const hitStart = 1.75;
-        const hitEnd = 2.05;
+        const windEnd = 1.2;
+        const hitStart = 1.28;
+        const hitEnd = 1.6;
 
         if (t >= windStart && t < windEnd) {
             // Charged pressure: walk the boss forward slowly while building VFX.
@@ -571,8 +671,11 @@ export class Boss extends Enemy {
             this._ringMesh.scale.setScalar(0.45 + p * (this.hitRadius * 0.42));
             this._ringMat.opacity = 0.45 + p * 0.35;
             this._ringMat.color.setHex(0xcc3300);
+            // Telegraph pulse: the faster it pulses, the closer the slam.
+            const pulseAlpha = 0.2 + 0.8 * (0.5 + 0.5 * Math.sin(t * (10 + p * 16)));
+            this._ringMat.opacity *= pulseAlpha;
 
-            if (Math.random() < 0.55) {
+            if (Math.random() < 0.25) {
                 const a = Math.random() * Math.PI * 2;
                 const r = this.hitRadius * (0.35 + Math.random() * 0.5);
                 this._spawnParticle(
@@ -623,25 +726,29 @@ export class Boss extends Enemy {
             switch (this.activeAttack) {
                 case ATK.PUNCH:
                     targetAnim = 'Attack';
-                    timeScale = 1.0;
+                    if (this.activeAttackTimer < 0.28) timeScale = 0.78;
+                    else if (this.activeAttackTimer < 0.92) timeScale = 1.68;
+                    else timeScale = 0.88;
                     break;
                 case ATK.REVERSE:
                     targetAnim = this.actions['ReversePunch'] ? 'ReversePunch' : 'Attack';
-                    timeScale = 1.0;
+                    if (this.activeAttackTimer < 0.36) timeScale = 0.76;
+                    else if (this.activeAttackTimer < 1.05) timeScale = 1.72;
+                    else timeScale = 0.86;
                     break;
                 case ATK.CHARGED:
                     targetAnim = this.actions['Charged']
                         ? 'Charged'
                         : (this.actions['ReversePunch'] ? 'ReversePunch' : 'Attack');
                     // Slow windup then violent release.
-                    if (this.activeAttackTimer < 1.5) timeScale = 0.55;
-                    else if (this.activeAttackTimer < 2.1) timeScale = 1.9;
-                    else timeScale = 1.0;
+                    if (this.activeAttackTimer < 1.1) timeScale = 0.52;
+                    else if (this.activeAttackTimer < 1.68) timeScale = 2.25;
+                    else timeScale = 0.9;
                     break;
             }
         } else if (this.state === 'chase') {
             targetAnim = this.actions['Run'] ? 'Run' : (this.actions['Walk'] ? 'Walk' : 'Idle');
-            timeScale = 1.3;
+            timeScale = 1.18;
         } else if (this.state === 'stagger') {
             targetAnim = 'Idle';
             timeScale = 0.3;

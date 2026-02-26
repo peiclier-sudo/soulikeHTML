@@ -34,9 +34,9 @@ export class Game {
 
         // Quality settings (optimized for performance)
         this.qualitySettings = {
-            shadows: 'low',
+            shadows: 'high',
             particles: 'low',
-            postProcessing: false
+            postProcessing: true
         };
         
         this.mouseSensitivity = 1.0;
@@ -65,26 +65,28 @@ export class Game {
     initRenderer() {
         this.renderer = new THREE.WebGLRenderer({
             canvas: this.canvas,
-            antialias: false,
+            antialias: true,
+            alpha: false,
             powerPreference: 'high-performance',
             stencil: false,
             depth: true
         });
         
         this.renderer.setSize(window.innerWidth, window.innerHeight);
-        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1));
+        // Slight supersampling for cleaner silhouettes without huge perf hit.
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.25));
         this.renderer.shadowMap.enabled = true;
-        this.renderer.shadowMap.type = THREE.BasicShadowMap;
+        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        this.renderer.toneMappingExposure = 1.2;
+        this.renderer.toneMappingExposure = 0.95;
         this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     }
 
     initScene() {
         this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0x08080e);
+        this.scene.background = new THREE.Color(0x0a0d16);
 
-        this.scene.fog = new THREE.FogExp2(0x08080e, 0.025);
+        this.scene.fog = new THREE.FogExp2(0x0a0d16, 0.02);
     }
     
     initCamera() {
@@ -110,10 +112,10 @@ export class Game {
         this.bloomResolutionScale = 0.5;
         this.bloomPass = new UnrealBloomPass(
             new THREE.Vector2(w * this.bloomResolutionScale, h * this.bloomResolutionScale),
-            0.3, 0.25, 0.9
+            0.15, 0.26, 0.98
         );
         this.composer.addPass(this.bloomPass);
-        this.baseBloomStrength = 0.25;
+        this.baseBloomStrength = 0.12;
         this.ultimateBloomTime = 0;
         this.ultimateBloomDuration = 0.4;
     }

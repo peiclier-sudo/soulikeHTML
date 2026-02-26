@@ -49,7 +49,12 @@ export class UIManager {
         
         // Health change events
         this.gameState.on('healthChanged', (health) => {
+            const prevHealth = this._lastHealth ?? health;
             this.updateHealthBar(health);
+            if (health < prevHealth) {
+                this.showPlayerHitFeedback(prevHealth - health);
+            }
+            this._lastHealth = health;
         });
         
         // Stamina change events
@@ -125,6 +130,33 @@ export class UIManager {
         if (this.elements.healthText) {
             this.elements.healthText.textContent = `${Math.ceil(health)}/${maxHealth}`;
         }
+    }
+
+    showPlayerHitFeedback(damageTaken = 0) {
+        // Classic playerfeel cue: quick red vignette + center text + reticule pulse.
+        let overlay = document.getElementById('player-hit-overlay');
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = 'player-hit-overlay';
+            document.body.appendChild(overlay);
+        }
+        overlay.classList.remove('hit-flash');
+        // Force restart animation.
+        void overlay.offsetWidth;
+        overlay.classList.add('hit-flash');
+
+        if (this.elements.reticule) {
+            this.elements.reticule.classList.add('reticule-flash-red');
+            setTimeout(() => this.elements.reticule?.classList.remove('reticule-flash-red'), 220);
+        }
+
+        const dmgEl = document.createElement('div');
+        dmgEl.className = 'player-damage-taken';
+        dmgEl.textContent = `-${Math.ceil(damageTaken)}`;
+        dmgEl.style.left = '50%';
+        dmgEl.style.top = '58%';
+        this.elements.damageNumbers?.appendChild(dmgEl);
+        setTimeout(() => dmgEl.remove(), 700);
     }
     
     updateStaminaBar(stamina) {

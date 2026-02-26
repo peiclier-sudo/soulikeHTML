@@ -85,27 +85,60 @@ export class AssetLoader {
      * Load the integrated character model (character_3k_mage.glb) with embedded animations
      */
     async loadCharacterModel() {
-        const characterUrl = './models/character_3k_mage.glb';
+        const characterUrl = './models/character_3k_mage.glb?v=20260226-1';
 
         try {
             const characterGltf = await this.loadGLTF(characterUrl);
             const model = characterGltf.scene;
 
-            // Scale to match game scale (adjust if character appears too big/small)
-            model.scale.setScalar(1.0);
+            // User-requested upscale for the 3k mage asset.
+            model.scale.setScalar(10.0);
 
             // Enable shadows on all meshes
             model.traverse((child) => {
                 if (child.isMesh) {
+                    if (child.geometry?.isBufferGeometry) {
+                        // Smooth shading pass so low-poly meshes feel rounder.
+                        child.geometry.computeVertexNormals();
+                        if (typeof child.geometry.normalizeNormals === 'function') {
+                            child.geometry.normalizeNormals();
+                        }
+                    }
                     child.castShadow = true;
                     child.receiveShadow = true;
                     if (child.material) {
-                        child.material = child.material.clone();
-                        child.material.metalness = 0.4;
-                        child.material.roughness = 0.6;
-                        if (child.material.color) {
-                            child.material.color.multiplyScalar(0.55);
-                        }
+                        const wasArrayMaterial = Array.isArray(child.material);
+                        const materials = wasArrayMaterial ? child.material : [child.material];
+                        child.material = materials.map((m) => {
+                            const mat = m.clone();
+                            // Force fully opaque, no alpha-based transparency or discard
+                            mat.transparent = false;
+                            mat.opacity = 1.0;
+                            mat.alphaTest = 0.0;
+                            if ('alphaMap' in mat) mat.alphaMap = null;
+                            if ('transmission' in mat) mat.transmission = 0;
+                            if ('thickness' in mat) mat.thickness = 0;
+                            if ('premultipliedAlpha' in mat) mat.premultipliedAlpha = false;
+                            if ('blending' in mat) mat.blending = THREE.NormalBlending;
+                            if ('side' in mat) mat.side = THREE.FrontSide;
+                            mat.depthWrite = true;
+                            mat.depthTest = true;
+                            mat.flatShading = false;
+                            if ('metalness' in mat) mat.metalness = 0.02;
+                            if ('roughness' in mat) mat.roughness = 0.97;
+                            if ('envMapIntensity' in mat) mat.envMapIntensity = 0.0;
+                            if ('specularIntensity' in mat) mat.specularIntensity = 0.05;
+                            if ('clearcoat' in mat) mat.clearcoat = 0.0;
+                            if ('sheen' in mat) mat.sheen = 0.0;
+                            if (mat.color) mat.color.multiplyScalar(0.32);
+                            if (mat.map) {
+                                mat.map.premultiplyAlpha = false;
+                                mat.map.needsUpdate = true;
+                            }
+                            mat.needsUpdate = true;
+                            return mat;
+                        });
+                        if (!wasArrayMaterial) child.material = child.material[0];
                     }
                 }
             });
@@ -173,7 +206,8 @@ export class AssetLoader {
         const base = (typeof window !== 'undefined' && window.location)
             ? window.location.href.replace(/[#?].*$/, '').replace(/[^/]*$/, '')
             : '';
-        const bossUrl = base ? (base + 'models/Boss1_3k.glb') : './models/Boss1_3k.glb';
+        const bossPath = 'models/Boss1_3k.glb?v=20260226-1';
+        const bossUrl = base ? (base + bossPath) : ('./' + bossPath);
         console.log('Loading boss from:', bossUrl);
         try {
             const gltf = await this.loadGLTF(bossUrl);
@@ -181,10 +215,47 @@ export class AssetLoader {
             model.scale.setScalar(1.0);
             model.traverse((child) => {
                 if (child.isMesh) {
+                    if (child.geometry?.isBufferGeometry) {
+                        // Smooth shading pass so low-poly meshes feel rounder.
+                        child.geometry.computeVertexNormals();
+                        if (typeof child.geometry.normalizeNormals === 'function') {
+                            child.geometry.normalizeNormals();
+                        }
+                    }
                     child.castShadow = true;
                     child.receiveShadow = true;
                     if (child.material) {
-                        child.material = child.material.clone();
+                        const wasArrayMaterial = Array.isArray(child.material);
+                        const materials = wasArrayMaterial ? child.material : [child.material];
+                        child.material = materials.map((m) => {
+                            const mat = m.clone();
+                            mat.transparent = false;
+                            mat.opacity = 1.0;
+                            mat.alphaTest = 0.0;
+                            if ('alphaMap' in mat) mat.alphaMap = null;
+                            if ('transmission' in mat) mat.transmission = 0;
+                            if ('thickness' in mat) mat.thickness = 0;
+                            if ('premultipliedAlpha' in mat) mat.premultipliedAlpha = false;
+                            if ('blending' in mat) mat.blending = THREE.NormalBlending;
+                            if ('side' in mat) mat.side = THREE.FrontSide;
+                            mat.depthWrite = true;
+                            mat.depthTest = true;
+                            mat.flatShading = false;
+                            if ('metalness' in mat) mat.metalness = 0.02;
+                            if ('roughness' in mat) mat.roughness = 0.97;
+                            if ('envMapIntensity' in mat) mat.envMapIntensity = 0.0;
+                            if ('specularIntensity' in mat) mat.specularIntensity = 0.05;
+                            if ('clearcoat' in mat) mat.clearcoat = 0.0;
+                            if ('sheen' in mat) mat.sheen = 0.0;
+                            if (mat.color) mat.color.multiplyScalar(0.18);
+                            if (mat.map) {
+                                mat.map.premultiplyAlpha = false;
+                                mat.map.needsUpdate = true;
+                            }
+                            mat.needsUpdate = true;
+                            return mat;
+                        });
+                        if (!wasArrayMaterial) child.material = child.material[0];
                     }
                 }
             });

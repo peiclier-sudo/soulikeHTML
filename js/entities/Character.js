@@ -178,6 +178,9 @@ export class Character {
                 }
             });
 
+            // Borderlands-style thick black outline (inverted hull), clearly visible.
+            this.addToonOutline(this.mesh, 1.035);
+
             this.scene.add(this.mesh);
 
             // Setup animation system
@@ -212,11 +215,56 @@ export class Character {
 
         this.mesh = group;
         this.mesh.position.copy(this.position);
+        this.addToonOutline(this.mesh, 1.04);
         this.scene.add(this.mesh);
 
         // Use procedural animation for fallback
         this.useProceduralAnimation = true;
         console.log('Fallback character mesh created');
+    }
+
+    addToonOutline(root, thickness = 1.035) {
+        if (!root) return;
+        const outlineMat = new THREE.MeshBasicMaterial({
+            color: 0x000000,
+            side: THREE.BackSide,
+            transparent: false,
+            opacity: 1.0,
+            depthWrite: true,
+            depthTest: true,
+            toneMapped: false,
+            polygonOffset: true,
+            polygonOffsetFactor: 1,
+            polygonOffsetUnits: 1
+        });
+
+        root.traverse((child) => {
+            if (!child.isMesh || !child.geometry) return;
+            if (child.userData?.isOutline) return;
+
+            let outline = null;
+            if (child.isSkinnedMesh && child.skeleton) {
+                outline = new THREE.SkinnedMesh(child.geometry, outlineMat);
+                outline.bind(child.skeleton, child.bindMatrix);
+                outline.bindMode = child.bindMode;
+            } else {
+                outline = new THREE.Mesh(child.geometry, outlineMat);
+            }
+
+            outline.name = `${child.name || 'mesh'}_outline`;
+            outline.userData.isOutline = true;
+            outline.renderOrder = (child.renderOrder || 0) - 0.2;
+            outline.frustumCulled = false;
+            outline.position.copy(child.position);
+            outline.quaternion.copy(child.quaternion);
+            outline.scale.copy(child.scale).multiplyScalar(thickness);
+            outline.castShadow = false;
+            outline.receiveShadow = false;
+
+            if (child.parent) {
+                child.parent.add(outline);
+            }
+        });
     }
 
     /**
