@@ -9,6 +9,7 @@ export class UIManager {
         this.gameState = gameState;
         this.camera = camera;
         this._projectedPos = new THREE.Vector3();
+        this._damageAnchorScreenCache = new Map();
         this._canvas = document.getElementById('game-canvas');
         
         // Cache DOM elements
@@ -44,7 +45,7 @@ export class UIManager {
     setupEventListeners() {
         // Damage number events
         this.gameState.on('damageNumber', (data) => {
-            this.showDamageNumber(data.position, data.damage, data.isCritical);
+            this.showDamageNumber(data.position, data.damage, data.isCritical, data.anchorId);
         });
         
         // Health change events
@@ -217,7 +218,7 @@ export class UIManager {
         this.camera = camera;
     }
 
-    showDamageNumber(worldPosition, damage, isCritical) {
+    showDamageNumber(worldPosition, damage, isCritical, anchorId = null) {
         if (!this.elements.damageNumbers) return;
 
         const damageEl = document.createElement('div');
@@ -225,20 +226,23 @@ export class UIManager {
         damageEl.textContent = damage.toString();
 
         let x, y;
-        if (this.camera && worldPosition && typeof worldPosition.x === 'number') {
+        const cached = anchorId ? this._damageAnchorScreenCache.get(anchorId) : null;
+        if (cached && performance.now() - cached.time < 140) {
+            x = cached.x;
+            y = cached.y;
+        } else if (this.camera && worldPosition && typeof worldPosition.x === 'number') {
             this._projectedPos.copy(worldPosition).project(this.camera);
             const w = this._canvas?.clientWidth ?? window.innerWidth;
             const h = this._canvas?.clientHeight ?? window.innerHeight;
             x = (this._projectedPos.x * 0.5 + 0.5) * w;
             y = (-this._projectedPos.y * 0.5 + 0.5) * h;
-            damageEl.style.left = `${x}px`;
-            damageEl.style.top = `${y}px`;
+            if (anchorId) this._damageAnchorScreenCache.set(anchorId, { x, y, time: performance.now() });
         } else {
-            x = window.innerWidth / 2 + (Math.random() - 0.5) * 120;
-            y = window.innerHeight / 2 + (Math.random() - 0.5) * 80;
-            damageEl.style.left = `${x}px`;
-            damageEl.style.top = `${y}px`;
+            x = window.innerWidth * 0.5;
+            y = window.innerHeight * 0.45;
         }
+        damageEl.style.left = `${x}px`;
+        damageEl.style.top = `${y}px`;
 
         this.elements.damageNumbers.appendChild(damageEl);
 
