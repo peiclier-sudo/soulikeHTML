@@ -67,7 +67,7 @@ export class GameState {
                 damage: 25,
                 staminaCost: 5,
                 attackSpeed: 1.0,
-                range: 2.5
+                range: 2.75
             },
             armor: {
                 name: 'Knight Armor',
@@ -250,4 +250,3 @@ export class GameState {
         this.flags = { ...this.flags, ...parsed.flags };
     }
 }
-

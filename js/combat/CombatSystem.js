@@ -645,7 +645,8 @@ export class CombatSystem {
             const hitRadius = enemy.hitRadius ?? (enemy.isBoss ? 2.5 : 0.8);
             if (dist > range + hitRadius) continue;
             this._meleeToEnemy.normalize();
-            if (this._meleeToEnemy.dot(playerForward) < 0.3) continue;
+            // Slightly wider lateral hit cone to reduce near-miss frustration at close range.
+            if (this._meleeToEnemy.dot(playerForward) < 0.22) continue;
             this._meleeHitThisSwing = true;
             this.onHit({ object: enemyMesh, point: this._enemyPos.clone(), distance: dist });
             return;
@@ -1415,4 +1416,3 @@ export class CombatSystem {
         }
     }
 }
-

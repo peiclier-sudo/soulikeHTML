@@ -47,7 +47,9 @@ export class Game {
         this.shakeDuration = 0.15;
         this.shakeIntensity = 0;
         this.lastShakeOffset = new THREE.Vector3(0, 0, 0);
+        this.targetShakeOffset = new THREE.Vector3(0, 0, 0);
         this.lastPunchOffset = new THREE.Vector3(0, 0, 0);
+        this.shakeSeed = Math.random() * 1000;
         this.punchDecay = 0.78;
         this._shieldCenter = new THREE.Vector3();
 
@@ -570,20 +572,21 @@ export class Game {
             this.triggerHitStop(0.08);
         } else if (whipHit) {
             const isFiveCharge = bloodflailCharges === 5;
-            this.shakeIntensity = isFiveCharge ? 0.12 : 0.055;
-            this.shakeDuration = isFiveCharge ? 0.35 : 0.22;
+            this.shakeIntensity = isFiveCharge ? 0.1 : 0.045;
+            this.shakeDuration = isFiveCharge ? 0.32 : 0.2;
             this.shakeTime = this.shakeDuration;
             this.ultimateBloomTime = isFiveCharge ? 0.6 : 0.4;
             this.ultimateBloomDuration = isFiveCharge ? 0.6 : 0.4;
-            this.ultimateFovTime = isFiveCharge ? 0.25 : 0.2;
-            this.lastPunchOffset.copy(this.character.getForwardDirection()).multiplyScalar(isFiveCharge ? 0.28 : 0.22);
-            this.triggerHitStop(punchFinish ? 0.07 : 0.05);
+            this.ultimateFovTime = isFiveCharge ? 0.32 : 0.24;
+            this.lastPunchOffset.copy(this.character.getForwardDirection()).multiplyScalar(isFiveCharge ? 0.36 : 0.28);
+            this.triggerHitStop(punchFinish ? 0.09 : 0.05);
             if (punchFinish) {
-                this.shakeIntensity *= 1.28;
-                this.shakeDuration += 0.06;
-                this.ultimateBloomTime = Math.max(this.ultimateBloomTime, 0.48);
-                this.ultimateBloomDuration = Math.max(this.ultimateBloomDuration, 0.48);
-                this.lastPunchOffset.multiplyScalar(1.26);
+                this.shakeIntensity *= 1.18;
+                this.shakeDuration += 0.08;
+                this.ultimateFovTime = Math.max(this.ultimateFovTime, 0.36);
+                this.ultimateBloomTime = Math.max(this.ultimateBloomTime, 0.52);
+                this.ultimateBloomDuration = Math.max(this.ultimateBloomDuration, 0.52);
+                this.lastPunchOffset.multiplyScalar(1.42);
             }
         } else if (whipWindup) {
             this.shakeIntensity = 0.016;
@@ -604,33 +607,38 @@ export class Game {
             this.lastPunchOffset.copy(this.character.getForwardDirection()).multiplyScalar(0.16);
             this.triggerHitStop(0.055);
         } else {
-            // Projectile hit: slight shake for basic, slightly more for charged
-            const base = 0.022;
-            this.shakeIntensity = base * (charged ? 1.6 : 1) * (isBoss ? 1.4 : 1);
-            this.shakeDuration = charged ? 0.2 : 0.14;
+            // Projectile hit: keep boss-hit shake subtle/smooth to avoid buggy-looking jitter.
+            const base = isBoss ? 0.0065 : 0.022;
+            this.shakeIntensity = base * (charged ? 1.35 : 1);
+            this.shakeDuration = isBoss ? (charged ? 0.24 : 0.2) : (charged ? 0.2 : 0.14);
             this.triggerHitStop(charged ? 0.045 : 0.03);
         }
         this.shakeTime = this.shakeDuration;
     }
     
     applyScreenShake() {
-        if (this.shakeTime <= 0) {
-            if (this.lastShakeOffset.x !== 0 || this.lastShakeOffset.y !== 0 || this.lastShakeOffset.z !== 0) {
-                this.camera.position.sub(this.lastShakeOffset);
-                this.lastShakeOffset.set(0, 0, 0);
-            }
-            return;
-        }
         this.camera.position.sub(this.lastShakeOffset);
-        this.shakeTime = Math.max(0, this.shakeTime - this.deltaTime);
-        const t = this.shakeTime / this.shakeDuration;
-        const smoothT = t * t * (3 - 2 * t);
-        const amt = this.shakeIntensity * smoothT;
-        this.lastShakeOffset.set(
-            (Math.random() - 0.5) * 2 * amt,
-            (Math.random() - 0.5) * 2 * amt,
-            (Math.random() - 0.5) * 2 * amt * 0.3
-        );
+
+        if (this.shakeTime <= 0) {
+            this.targetShakeOffset.set(0, 0, 0);
+        } else {
+            this.shakeTime = Math.max(0, this.shakeTime - this.deltaTime);
+            const t = this.shakeDuration > 0 ? this.shakeTime / this.shakeDuration : 0;
+            const envelope = t * t * (3 - 2 * t);
+            const amt = this.shakeIntensity * envelope;
+            const time = this.elapsedTime + this.shakeSeed;
+
+            // Lower-frequency blended sine shake: smooth and impactful without jitter.
+            this.targetShakeOffset.set(
+                amt * (Math.sin(time * 20.0) * 0.72 + Math.sin(time * 31.0 + 1.2) * 0.28),
+                amt * (Math.sin(time * 24.0 + 2.0) * 0.88 + Math.sin(time * 36.0 + 0.35) * 0.22),
+                amt * (Math.sin(time * 17.0 + 0.65) * 0.18)
+            );
+        }
+
+        const blend = Math.min(1, this.deltaTime * 22);
+        this.lastShakeOffset.lerp(this.targetShakeOffset, blend);
+        if (this.lastShakeOffset.lengthSq() < 1e-7) this.lastShakeOffset.set(0, 0, 0);
         this.camera.position.add(this.lastShakeOffset);
     }
     
