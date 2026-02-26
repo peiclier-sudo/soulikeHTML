@@ -247,7 +247,9 @@ export class AssetLoader {
                             if ('specularIntensity' in mat) mat.specularIntensity = 0.05;
                             if ('clearcoat' in mat) mat.clearcoat = 0.0;
                             if ('sheen' in mat) mat.sheen = 0.0;
-                            if (mat.color) mat.color.multiplyScalar(0.18);
+                            // Keep the same grayscale darkening pass as the player character
+                            // so both assets share the same look-dev baseline.
+                            if (mat.color) mat.color.multiplyScalar(0.32);
                             if (mat.map) {
                                 mat.map.premultiplyAlpha = false;
                                 mat.map.needsUpdate = true;
