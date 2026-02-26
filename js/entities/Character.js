@@ -980,7 +980,7 @@ export class Character {
             if (this.isPlayingUltimate) {
                 const ultAct = this.actions['Special attack 1'] || this.actions['Ultimate'];
                 targetUpper = ultAct ? (ultAct === this.actions['Special attack 1'] ? 'Special attack 1' : 'Ultimate') : 'none';
-            } else if (this.isSuperDashing) {
+            } else if (this.isSuperDashing && this.gameState.combat.isWhipAttacking !== true) {
                 targetUpper = this.actions['Special attack 1'] ? 'Special attack 1' : (this.actions['Whip'] ? 'Whip' : 'none');
             } else if (this.gameState.combat.isChargedAttacking || this.gameState.combat.isCharging) {
                 targetUpper = this.actions['Charged attack'] ? 'Charged attack' : 'none';
@@ -1015,7 +1015,7 @@ export class Character {
             let targetAnimation = 'Idle';
             if (this.isDashing) {
                 targetAnimation = this.actions['Fast running'] ? 'Fast running' : 'Run';
-            } else if (this.isSuperDashing) {
+            } else if (this.isSuperDashing && this.gameState.combat.isWhipAttacking !== true) {
                 targetAnimation = this.actions['Special attack 1'] ? 'Special attack 1' : (this.actions['Whip'] ? 'Whip' : 'Fast running');
             } else if (this.gameState.combat.isChargedAttacking || this.gameState.combat.isCharging) {
                 targetAnimation = this.actions['Charged attack'] ? 'Charged attack' : 'Idle';

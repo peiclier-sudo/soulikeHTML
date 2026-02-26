@@ -164,6 +164,51 @@
     50% { opacity: 0.7; box-shadow: 0 0 12px rgba(180, 40, 40, 0.8); }
 }
 
+
+/* Super Dash Bar – above ultimate, violet/arcane color */
+.superdash-bar {
+    position: absolute;
+    right: 26px;
+    bottom: 218px;
+    width: 292px;
+    z-index: 10;
+}
+
+.superdash-bar-bg {
+    position: relative;
+    width: 100%;
+    height: 12px;
+    background: rgba(0, 0, 0, 0.62);
+    border: 1px solid rgba(128, 110, 255, 0.45);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.superdash-bar-fill {
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 100%;
+    width: 100%;
+    border-radius: 4px;
+    background: linear-gradient(180deg, #9b7bff 0%, #6a45d1 55%, #3f2592 100%);
+    box-shadow: inset 0 1px 0 rgba(210, 190, 255, 0.35);
+    transition: width 0.12s linear;
+}
+
+.superdash-bar.ready .superdash-bar-fill {
+    box-shadow: inset 0 1px 0 rgba(235, 225, 255, 0.5), 0 0 12px rgba(130, 100, 255, 0.55);
+}
+
+.superdash-bar-label {
+    display: block;
+    text-align: center;
+    font-size: 0.62rem;
+    color: rgba(198, 184, 255, 0.96);
+    letter-spacing: 0.12rem;
+    margin-top: 3px;
+}
+
 /* Ultimate Bar – under life and stamina; fills when you hit opponent (6 charged / 12 basic), F to use */
 .ultimate-bar {
     position: absolute;
@@ -525,6 +570,7 @@
     .health-bar { left: 12px; bottom: 96px; width: 240px; }
     .stamina-bar { left: 12px; bottom: 68px; width: 240px; }
     .charge-bar { left: 12px; bottom: 36px; width: 240px; }
+    .superdash-bar { width: 240px; right: 12px; bottom: 194px; }
     .ultimate-bar { width: 240px; right: 12px; bottom: 142px; }
     #boss-health { width: 90%; }
 }

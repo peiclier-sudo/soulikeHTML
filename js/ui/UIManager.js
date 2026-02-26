@@ -30,6 +30,8 @@ export class UIManager {
             deathScreen: document.getElementById('death-screen'),
             ultimateBar: document.getElementById('ultimate-bar'),
             ultimateFill: document.getElementById('ultimate-fill'),
+            superDashBar: document.getElementById('superdash-bar'),
+            superDashFill: document.getElementById('superdash-fill'),
             noBloodEssence: document.getElementById('no-blood-essence'),
             reticule: document.getElementById('reticule')
         };
@@ -105,8 +107,10 @@ export class UIManager {
         else setBox('ability-potion', potionCd <= 0, potionCd <= 0 ? `Ready x${potionCount}` : `${fmt(potionCd)} x${potionCount}`);
 
         const sDashCd = this.character?.superDashCooldown ?? 0;
-        const dashing = this.character?.isSuperDashing === true;
-        setBox('ability-superdash', sDashCd <= 0 && !dashing, dashing ? 'Dashing' : (sDashCd <= 0 ? 'Ready' : fmt(sDashCd)));
+        const sDashMax = this.character?.superDashCooldownDuration ?? 20;
+        const sDashPct = sDashCd <= 0 ? 100 : Math.max(0, 100 - (sDashCd / sDashMax) * 100);
+        if (this.elements.superDashFill) this.elements.superDashFill.style.width = `${sDashPct}%`;
+        if (this.elements.superDashBar) this.elements.superDashBar.classList.toggle('ready', sDashCd <= 0 && this.character?.isSuperDashing !== true);
     }
 
     showNoBloodEssenceFeedback() {
