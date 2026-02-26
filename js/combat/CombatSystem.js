@@ -95,6 +95,13 @@ export class CombatSystem {
         this._drainUp = new THREE.Vector3();
         this._drainPath = Array.from({ length: 140 }, () => new THREE.Vector3());
         this._lastDrainBloodSecond = 0; // +1 blood charge per full second of life drain
+
+        // Blood Nova (X): short blood burst that roots/freezes enemies, especially bosses.
+        this.bloodNovaCooldown = 0;
+        this.bloodNovaCooldownDuration = 10;
+        this.bloodNovaRadius = 12;
+        this.bloodNovaDamage = 35;
+        this.bloodNovaFreezeDuration = 2.4;
     }
 
     /** Crescent / croissant shape for ultimate slash (arc shape) */
@@ -233,8 +240,53 @@ export class CombatSystem {
         return closest;
     }
 
+
+
+    _getDamageAnchorId(enemy) {
+        if (!enemy) return null;
+        if (!enemy._damageAnchorId) enemy._damageAnchorId = `enemy-${Math.random().toString(36).slice(2, 10)}`;
+        return enemy._damageAnchorId;
+    }
+
+    castBloodNova() {
+        if (this.bloodNovaCooldown > 0) return false;
+        const center = this.character.position.clone();
+        let hitCount = 0;
+        for (const enemyMesh of this.enemies) {
+            const enemy = enemyMesh.userData?.enemy;
+            if (!enemy || enemy.isAlive === false || enemy.health <= 0) continue;
+            enemyMesh.getWorldPosition(this._enemyPos);
+            const dist = center.distanceTo(this._enemyPos);
+            const modelRadius = enemy.hitRadius ?? (enemy.isBoss ? 2.5 : 0.8);
+            if (dist > this.bloodNovaRadius + modelRadius) continue;
+            enemy.takeDamage(this.bloodNovaDamage);
+            enemy.staggerTimer = Math.max(enemy.staggerTimer, this.bloodNovaFreezeDuration + (enemy.isBoss ? 0.8 : 0.0));
+            enemy.state = 'stagger';
+            hitCount++;
+            this.gameState.emit('damageNumber', {
+                position: this._enemyPos.clone(),
+                damage: this.bloodNovaDamage,
+                isCritical: enemy.isBoss === true,
+                anchorId: this._getDamageAnchorId(enemy)
+            });
+        }
+        if (hitCount > 0) {
+            this.bloodNovaCooldown = this.bloodNovaCooldownDuration;
+            this.gameState.addBloodCharge(1);
+            if (this.particleSystem) {
+                this.particleSystem.emitBloodNovaBurst(center, this.bloodNovaRadius);
+                this.particleSystem.emitBloodMatterExplosion(center);
+                this.particleSystem.emitUltimateExplosion(center);
+            }
+            if (this.onProjectileHit) this.onProjectileHit({ bloodNova: true, hits: hitCount, novaRadius: this.bloodNovaRadius });
+            return true;
+        }
+        return false;
+    }
     update(deltaTime, input) {
         if (this.crimsonEruptionCooldown > 0) this.crimsonEruptionCooldown -= deltaTime;
+        if (this.bloodNovaCooldown > 0) this.bloodNovaCooldown -= deltaTime;
+        if (input.bloodNova) this.castBloodNova();
         if (this.gameState.combat.isLifeDraining) {
             if (input.lifeDrain) {
                 this._endLifeDrain(true);
@@ -260,7 +312,7 @@ export class CombatSystem {
                                 this.gameState.addBloodCharge(1);
                                 this._lastDrainBloodSecond = secondsFull;
                             }
-                            this.gameState.emit('damageNumber', { position: this._enemyPos.clone(), damage, isCritical: false });
+                            this.gameState.emit('damageNumber', { position: this._enemyPos.clone(), damage, isCritical: false, anchorId: this._getDamageAnchorId(this.lifeDrainTarget) });
                             if (this.particleSystem) this.particleSystem.emitDrainFlow(this._enemyPos, this.character.position, 18);
                         }
                         this.lifeDrainBeamTime += deltaTime;
@@ -540,7 +592,7 @@ export class CombatSystem {
             hitInfo.object.userData.enemy.takeDamage(damage);
             this.gameState.addUltimateCharge('basic');
             const hitPos = hitInfo.point?.clone() ?? hitInfo.object.getWorldPosition?.(new THREE.Vector3()) ?? this.character.position.clone();
-            this.gameState.emit('damageNumber', { position: hitPos, damage, isCritical });
+            this.gameState.emit('damageNumber', { position: hitPos, damage, isCritical, anchorId: this._getDamageAnchorId(hitInfo.object.userData.enemy) });
         }
     }
 
@@ -566,16 +618,17 @@ export class CombatSystem {
             if (enemy) {
                 this.whipHitOnce = true;
                 enemy.takeDamage(this.whipDamage);
-                enemy.staggerTimer = Math.max(enemy.staggerTimer, 0.55);
+                enemy.staggerTimer = Math.max(enemy.staggerTimer, 0.72);
                 enemy.state = 'stagger';
                 this.gameState.addUltimateCharge('charged');
                 if (this.particleSystem) {
                     hit.object.getWorldPosition(this._enemyPos);
                     this.particleSystem.emitPunchBurst(this._enemyPos.clone());
-                    this.particleSystem.emitSparks(this._enemyPos.clone(), 28);
-                    this.particleSystem.emitEmbers(this._enemyPos.clone(), 22);
+                    this.particleSystem.emitBloodMatterExplosion(this._enemyPos.clone());
+                    this.particleSystem.emitSparks(this._enemyPos.clone(), 36);
+                    this.particleSystem.emitEmbers(this._enemyPos.clone(), 28);
                 }
-                if (this.onProjectileHit) this.onProjectileHit({ whipHit: true });
+                if (this.onProjectileHit) this.onProjectileHit({ whipHit: true, punchFinish: true });
             }
         }
     }
@@ -594,17 +647,18 @@ export class CombatSystem {
             const enemy = this._getEnemyFromHitObject(hit.object);
             if (enemy) {
                 enemy.takeDamage(finalDamage);
-                enemy.staggerTimer = Math.max(enemy.staggerTimer, 0.55);
+                enemy.staggerTimer = Math.max(enemy.staggerTimer, 0.72);
                 enemy.state = 'stagger';
                 this.gameState.addUltimateCharge('charged');
                 hit.object.getWorldPosition(this._enemyPos);
                 if (this.particleSystem) {
                     this.particleSystem.emitPunchBurst(this._enemyPos.clone());
-                    this.particleSystem.emitSparks(this._enemyPos.clone(), 28 + chargesUsed * 4);
-                    this.particleSystem.emitEmbers(this._enemyPos.clone(), 22 + chargesUsed * 3);
+                    this.particleSystem.emitBloodMatterExplosion(this._enemyPos.clone());
+                    this.particleSystem.emitSparks(this._enemyPos.clone(), 34 + chargesUsed * 6);
+                    this.particleSystem.emitEmbers(this._enemyPos.clone(), 26 + chargesUsed * 5);
                 }
-                this.gameState.emit('damageNumber', { position: this._enemyPos.clone(), damage: finalDamage, isCritical: chargesUsed >= 4 });
-                if (this.onProjectileHit) this.onProjectileHit({ whipHit: true, bloodflailCharges: chargesUsed });
+                this.gameState.emit('damageNumber', { position: this._enemyPos.clone(), damage: finalDamage, isCritical: chargesUsed >= 4, anchorId: this._getDamageAnchorId(enemy) });
+                if (this.onProjectileHit) this.onProjectileHit({ whipHit: true, bloodflailCharges: chargesUsed, punchFinish: true });
             }
         }
         this.gameState.combat.isWhipAttacking = true;
@@ -711,8 +765,8 @@ export class CombatSystem {
                     enemyMesh.userData.enemy.takeDamage(p.damage);
                     hit = true;
                     this.gameState.addUltimateCharge(p.isCharged ? 'charged' : 'basic');
-                    if (!p.isCharged) this.gameState.addBloodCharge(1);
-                    this.gameState.emit('damageNumber', { position: this._enemyPos.clone(), damage: p.damage, isCritical: false });
+                    this.gameState.addBloodCharge(p.isCharged ? 2 : 1);
+                    this.gameState.emit('damageNumber', { position: this._enemyPos.clone(), damage: p.damage, isCritical: false, anchorId: this._getDamageAnchorId(enemy) });
                     if (this.particleSystem) {
                         this.particleSystem.emitHitEffect(fireballPos);
                         this.particleSystem.emitEmbers(fireballPos, p.isCharged ? 6 : 3);
@@ -907,17 +961,17 @@ export class CombatSystem {
                 float noise = n(vPosition * 8.0 + time) * 0.08;
                 r += noise;
                 r = clamp(r, 0.0, 1.0);
-                vec3 darkCore = vec3(0.02, 0.0, 0.01);
-                vec3 darkMid = vec3(0.07, 0.01, 0.02);
-                vec3 bloodMid = vec3(0.25, 0.02, 0.03);
-                vec3 bloodOuter = vec3(0.55, 0.04, 0.04);
-                vec3 redSurface = vec3(0.75, 0.06, 0.05);
+                vec3 darkCore = vec3(0.03, 0.0, 0.005);
+                vec3 darkMid = vec3(0.12, 0.0, 0.01);
+                vec3 bloodMid = vec3(0.38, 0.01, 0.02);
+                vec3 bloodOuter = vec3(0.72, 0.02, 0.03);
+                vec3 redSurface = vec3(0.95, 0.04, 0.05);
                 float fresnel = pow(1.0 - max(dot(normalize(vNormal), vec3(0, 0, 1)), 0.0), 1.8);
                 vec3 col = mix(darkCore, darkMid, smoothstep(0.0, 0.35, r));
                 col = mix(col, bloodMid, smoothstep(0.35, 0.6, r));
                 col = mix(col, bloodOuter, smoothstep(0.6, 0.82, r));
                 col = mix(col, redSurface, smoothstep(0.82, 1.0, r));
-                col += vec3(0.12, 0.01, 0.01) * fresnel;
+                col += vec3(0.2, 0.02, 0.02) * fresnel;
                 gl_FragColor = vec4(col, alpha);
             }
         `;
@@ -978,7 +1032,11 @@ export class CombatSystem {
         if (!center || this.crimsonEruptionCooldown > 0) return;
         this.crimsonEruptionCooldown = this.crimsonEruptionCooldownDuration;
         const r = this.crimsonEruptionRadius;
-        if (this.particleSystem) this.particleSystem.emitCrimsonEruptionRing(center, r);
+        if (this.particleSystem) {
+            this.particleSystem.emitCrimsonEruptionRing(center, r);
+            this.particleSystem.emitBloodMatterExplosion(center);
+            this.particleSystem.emitUltimateEndExplosion(center);
+        }
         this._spawnCrimsonEruptionVfx(center, r);
         this._centerFlat.set(center.x, 0, center.z);
         let crimsonHitCount = 0;
@@ -991,7 +1049,7 @@ export class CombatSystem {
             enemyMesh.userData.enemy.staggerTimer = Math.max(enemyMesh.userData.enemy.staggerTimer, 0.8);
             enemyMesh.userData.enemy.state = 'stagger';
             enemyMesh.getWorldPosition(this._enemyPos);
-            this.gameState.emit('damageNumber', { position: this._enemyPos.clone(), damage: this.crimsonEruptionDamage, isCritical: false });
+            this.gameState.emit('damageNumber', { position: this._enemyPos.clone(), damage: this.crimsonEruptionDamage, isCritical: false, anchorId: this._getDamageAnchorId(enemyMesh.userData.enemy) });
             crimsonHitCount++;
         }
         if (crimsonHitCount > 0) this.gameState.addBloodCharge(2);
@@ -1006,8 +1064,8 @@ export class CombatSystem {
         mesh.castShadow = false;
         const group = new THREE.Group();
         group.frustumCulled = false;
-        const orbLight = new THREE.PointLight(0xaa0a0a, 0, 55, 2.5);
-        const outerGlow = new THREE.PointLight(0x880808, 0, 35, 1.2);
+        const orbLight = new THREE.PointLight(0xc1081a, 0, 55, 2.5);
+        const outerGlow = new THREE.PointLight(0x7a0010, 0, 35, 1.2);
         group.add(mesh); group.add(orbLight); group.add(outerGlow);
         return { group, orbMat, sphereGeo, orbLight, outerGlow, velocity: new THREE.Vector3() };
     }
@@ -1090,7 +1148,7 @@ export class CombatSystem {
             if (orbPos.distanceTo(this._enemyPos) < hitRadius) {
                 const damage = Math.floor(s.baseDamage * Math.min(1.5, Math.max(0.3, s.currentScale)));
                 enemyMesh.userData.enemy.takeDamage(damage);
-                this.gameState.emit('damageNumber', { position: this._enemyPos.clone(), damage, isCritical: true });
+                this.gameState.emit('damageNumber', { position: this._enemyPos.clone(), damage, isCritical: true, anchorId: this._getDamageAnchorId(enemyMesh.userData.enemy) });
                 if (this.particleSystem) {
                     this.particleSystem.emitUltimateEndExplosion(orbPos);
                 }

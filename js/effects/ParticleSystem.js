@@ -450,6 +450,45 @@ export class ParticleSystem {
         this.addTemporaryLight(center.clone(), 0xaa0a0a, 95, 1);
     }
 
+
+
+    emitBloodNovaBurst(center, radius = 10) {
+        if (!center) return;
+        const m = Math.max(0.5, this.qualityMultiplier);
+        const ringPts = Math.floor(26 * m);
+        const swirlLayers = 3;
+        for (let layer = 0; layer < swirlLayers; layer++) {
+            const yOff = 0.08 + layer * 0.16;
+            const rMul = 0.55 + layer * 0.28;
+            for (let i = 0; i < ringPts; i++) {
+                const t = (i / ringPts) * Math.PI * 2;
+                const px = center.x + Math.cos(t) * radius * rMul;
+                const pz = center.z + Math.sin(t) * radius * rMul;
+                const p = this.getFromPool('spark');
+                if (!p) break;
+                p.position.set(px, center.y + yOff, pz);
+                p.userData.active = true; p.userData.lifetime = 0; p.userData.maxLifetime = 0.55 + Math.random() * 0.45; p.visible = true;
+                p.material.color.setHex(bleedColor()); p.material.opacity = 1;
+                const tangential = 13 + layer * 4;
+                p.userData.velocity.set(-Math.sin(t) * tangential + (Math.random() - 0.5) * 2, 8 + Math.random() * 9, Math.cos(t) * tangential + (Math.random() - 0.5) * 2);
+                this.activeParticles.push(p);
+            }
+        }
+        const core = Math.floor(40 * m);
+        for (let i = 0; i < core; i++) {
+            const p = this.getFromPool('ember');
+            if (!p) break;
+            p.position.set(center.x + (Math.random() - 0.5) * 1.4, center.y + Math.random() * 0.4, center.z + (Math.random() - 0.5) * 1.4);
+            p.userData.active = true; p.userData.lifetime = 0; p.userData.maxLifetime = 1.0 + Math.random() * 0.8; p.visible = true;
+            p.material.color.setHex(bleedColor()); p.material.opacity = 1;
+            p.material.blending = THREE.AdditiveBlending; p.material.depthWrite = false;
+            const a = Math.random() * Math.PI * 2;
+            const sp = 18 + Math.random() * 16;
+            p.userData.velocity.set(Math.cos(a) * sp, 7 + Math.random() * 10, Math.sin(a) * sp);
+            this.activeParticles.push(p);
+        }
+        this.addTemporaryLight(center.clone(), 0xaa0a0a, 110, 0.75);
+    }
     emitPunchBurst(position) {
         const m = Math.max(0.5, this.qualityMultiplier);
         const nS = Math.floor(24 * m);

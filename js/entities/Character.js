@@ -34,6 +34,7 @@ export class Character {
         this.cameraYaw = 0;
         this.pitchLimit = Math.PI / 3;  // Limit vertical rotation
         this.cameraSmoothSpeed = 18;    // Snappier camera follow for responsive feel
+        this._cameraBobTime = 0;
 
         // State
         this.isGrounded = true;
@@ -652,8 +653,9 @@ export class Character {
         // E = Bloodflail is started by Game → CombatSystem.executeBloodflail(), not from input here
         const drinkAction = this.actions['Drink'] || this.actions['Special attack 2'];
         if (this.gameState.combat.isDrinkingPotion && drinkAction) {
+            const drinkLoco = this.gameState.movement.isMoving ? ((this.gameState.movement.isRunning && this.actions['Run']) ? 'Run' : (this.actions['Walk'] ? 'Walk' : 'Idle')) : 'Idle';
+            this.playLoco(drinkLoco, 0.12);
             if (this.currentUpperState !== 'Drink') {
-                this.playLoco('Idle', 0.15);
                 const drinkAnimName = this.actions['Drink'] ? 'Drink' : 'Special attack 2';
                 const anim = this.actions[drinkAnimName];
                 if (anim) {
@@ -669,7 +671,8 @@ export class Character {
         }
         if (this.gameState.combat.isLifeDraining && drainAction) {
             if (this.currentUpperState !== 'LifeDrain') {
-                this.playLoco('Idle', 0.15);
+                const drinkLoco = this.gameState.movement.isMoving ? ((this.gameState.movement.isRunning && this.actions['Run']) ? 'Run' : (this.actions['Walk'] ? 'Walk' : 'Idle')) : 'Idle';
+                this.playLoco(drinkLoco, 0.12);
                 const drainAnimName = this.actions['Special attack 3'] ? 'Special attack 3' : (this.actions['Special attack 2'] ? 'Special attack 2' : 'Whip');
                 this.playUpper(drainAnimName, 0.1, 0.15);
                 const drainAnim = this.actions[drainAnimName];
@@ -745,7 +748,11 @@ export class Character {
         this.cameraPitch = Math.max(-0.5, Math.min(this.pitchLimit, this.cameraPitch));
 
         const horizontalDistance = this.cameraDistance * Math.cos(this.cameraPitch);
-        const verticalDistance = this.cameraDistance * Math.sin(this.cameraPitch) + this.cameraHeight;
+        const planarSpeed = Math.hypot(this.velocity.x, this.velocity.z);
+        this._cameraBobTime += deltaTime * (2.5 + planarSpeed * 0.65);
+        const bobAmp = Math.min(0.05, planarSpeed * 0.0045);
+        const bobOffset = Math.sin(this._cameraBobTime) * bobAmp;
+        const verticalDistance = this.cameraDistance * Math.sin(this.cameraPitch) + this.cameraHeight + bobOffset;
 
         const targetX = this.position.x + horizontalDistance * Math.sin(this.cameraYaw);
         const targetY = this.position.y + verticalDistance;
@@ -755,7 +762,8 @@ export class Character {
         this._camTarget.set(targetX, targetY, targetZ);
         this.camera.position.lerp(this._camTarget, smoothFactor);
 
-        this._lookAt.set(this.position.x, this.position.y + this.cameraLookAtHeight, this.position.z);
+        const lookBob = Math.cos(this._cameraBobTime * 0.8) * (bobAmp * 0.45);
+        this._lookAt.set(this.position.x, this.position.y + this.cameraLookAtHeight + lookBob, this.position.z);
         this.camera.lookAt(this._lookAt);
     }
     

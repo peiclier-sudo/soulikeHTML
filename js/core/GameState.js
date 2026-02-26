@@ -86,7 +86,7 @@ export class GameState {
         };
         this.requestUltimateSlashSpawn = false;
         /** Set true to test ultimate: F triggers it without needing charge */
-        this.ultimateTestMode = true;
+        this.ultimateTestMode = false;
     }
     
     // Health management
