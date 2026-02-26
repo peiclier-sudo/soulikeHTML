@@ -40,7 +40,7 @@ export class GameState {
             isChargedAttacking: false,
             chargeTimer: 0,
             chargeDuration: 1.0,
-            minChargeToRelease: 0.4,
+            minChargeToRelease: 1.0,
             releasedCharge: 0,
             isWhipAttacking: false,
             isLifeDraining: false,

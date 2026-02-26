@@ -652,20 +652,8 @@ export class Character {
         const drainAction = this.actions['Special attack 3'] || this.actions['Special attack 2'] || this.actions['Whip'];
         // E = Bloodflail is started by Game → CombatSystem.executeBloodflail(), not from input here
         const drinkAction = this.actions['Drink'] || this.actions['Special attack 2'];
-        if (this.gameState.combat.isDrinkingPotion && drinkAction) {
-            const drinkLoco = this.gameState.movement.isMoving ? ((this.gameState.movement.isRunning && this.actions['Run']) ? 'Run' : (this.actions['Walk'] ? 'Walk' : 'Idle')) : 'Idle';
-            this.playLoco(drinkLoco, 0.12);
-            if (this.currentUpperState !== 'Drink') {
-                const drinkAnimName = this.actions['Drink'] ? 'Drink' : 'Special attack 2';
-                const anim = this.actions[drinkAnimName];
-                if (anim) {
-                    anim.reset();
-                    anim.setEffectiveTimeScale(this.actions['Drink'] ? 1 : 0.9);
-                }
-                this.playUpper(drinkAnimName, 0.1, 0.15);
-                this.currentUpperState = 'Drink';
-            }
-        } else if (this.currentUpperState === 'Drink') {
+        // Potion uses gameplay/VFX only; keep normal locomotion and avoid forcing a dedicated upper animation.
+        if (this.gameState.combat.isDrinkingPotion && this.currentUpperState === 'Drink') {
             this.playUpper('none', 0.08, 0.15);
             this.currentUpperState = null;
         }
@@ -977,7 +965,7 @@ export class Character {
             } else if (this.gameState.combat.isChargedAttacking || this.gameState.combat.isCharging) {
                 targetUpper = this.actions['Charged attack'] ? 'Charged attack' : 'none';
             } else if (this.gameState.combat.isDrinkingPotion) {
-                targetUpper = (this.actions['Drink'] || this.actions['Special attack 2']) ? (this.actions['Drink'] ? 'Drink' : 'Special attack 2') : 'none';
+                targetUpper = 'none';
             } else if (this.gameState.combat.isLifeDraining) {
                 targetUpper = (this.actions['Special attack 3'] || this.actions['Special attack 2'] || this.actions['Whip']) ? (this.actions['Special attack 3'] ? 'Special attack 3' : (this.actions['Special attack 2'] ? 'Special attack 2' : 'Whip')) : 'none';
             } else if (this.gameState.combat.isWhipAttacking) {
@@ -1010,7 +998,7 @@ export class Character {
             } else if (this.gameState.combat.isChargedAttacking || this.gameState.combat.isCharging) {
                 targetAnimation = this.actions['Charged attack'] ? 'Charged attack' : 'Idle';
             } else if (this.gameState.combat.isDrinkingPotion) {
-                targetAnimation = (this.actions['Drink'] || this.actions['Special attack 2']) ? (this.actions['Drink'] ? 'Drink' : 'Special attack 2') : 'Idle';
+                targetAnimation = this.gameState.movement.isMoving ? ((this.gameState.movement.isRunning && this.actions['Run']) ? 'Run' : (this.actions['Walk'] ? 'Walk' : 'Idle')) : 'Idle';
             } else if (this.gameState.combat.isLifeDraining) {
                 targetAnimation = (this.actions['Special attack 3'] || this.actions['Special attack 2'] || this.actions['Whip']) ? (this.actions['Special attack 3'] ? 'Special attack 3' : (this.actions['Special attack 2'] ? 'Special attack 2' : 'Whip')) : 'Idle';
             } else if (this.gameState.combat.isWhipAttacking) {

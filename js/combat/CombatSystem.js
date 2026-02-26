@@ -33,7 +33,7 @@ export class CombatSystem {
         // Charged attack (right click hold then release)
         this.chargeTimer = 0;
         this.chargeDuration = 1.0;
-        this.minChargeToRelease = 0.4;
+        this.minChargeToRelease = this.chargeDuration;
         this.chargedAttackTimer = 0;
         this.chargedAttackDuration = 0.55;
         
@@ -274,9 +274,12 @@ export class CombatSystem {
             this.bloodNovaCooldown = this.bloodNovaCooldownDuration;
             this.gameState.addBloodCharge(1);
             if (this.particleSystem) {
-                this.particleSystem.emitBloodNovaBurst(center, this.bloodNovaRadius);
+                this.particleSystem.emitBloodNovaBurst(center, this.bloodNovaRadius * 1.15);
                 this.particleSystem.emitBloodMatterExplosion(center);
                 this.particleSystem.emitUltimateExplosion(center);
+                this.particleSystem.emitUltimateEndExplosion(center);
+                this.particleSystem.emitSparks(center, 45);
+                this.particleSystem.emitEmbers(center, 35);
             }
             if (this.onProjectileHit) this.onProjectileHit({ bloodNova: true, hits: hitCount, novaRadius: this.bloodNovaRadius });
             return true;
@@ -414,6 +417,7 @@ export class CombatSystem {
                 this.gameState.combat.chargeTimer = 0;
             } else if (input.chargedAttack && !this.gameState.combat.isAttacking) {
                 this.gameState.combat.isCharging = true;
+                this.gameState.combat.minChargeToRelease = this.minChargeToRelease;
                 this.chargeTimer = Math.min(this.chargeDuration, this.chargeTimer + deltaTime);
                 this.gameState.combat.chargeTimer = this.chargeTimer;
             } else {
