@@ -56,7 +56,7 @@ export class Boss extends Enemy {
 
         if (template) {
             const model = SkeletonUtils.clone(template);
-            model.scale.setScalar(9.0);
+            model.scale.setScalar(4.5);
             model.visible = true;
             model.traverse((child) => {
                 if (child.isMesh && child.material) {
@@ -64,6 +64,9 @@ export class Boss extends Enemy {
                     child.castShadow = true;
                     child.receiveShadow = true;
                     child.material = child.material.clone();
+                    child.material.transparent = false;
+                    child.material.opacity = 1.0;
+                    if ('alphaTest' in child.material) child.material.alphaTest = 0;
                     if (child.material.color) child.material.color.setHex(BOSS_COLOR);
                     child.material.metalness = 0.35;
                     child.material.roughness = 0.7;

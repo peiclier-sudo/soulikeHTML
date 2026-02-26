@@ -297,6 +297,38 @@ export class Character {
                 action.setEffectiveWeight(1);
             });
 
+            // Fill missing combat/utility animations from loader fallbacks when a reduced clip set is used.
+            const map = animationData.map || {};
+            const bindAlias = (alias) => {
+                const mapped = map[alias];
+                if (!mapped) return;
+                const action = this.actions[mapped.name] || this.mixer.clipAction(mapped);
+                this.actions[alias] = action;
+                if (alias === 'Basic attack' || alias === 'Charged attack' || alias === 'Ultimate' ||
+                    alias === 'Special attack 1' || alias === 'Special attack 2' || alias === 'Special attack 3' ||
+                    alias === 'Whip' || alias === 'Drink') {
+                    action.setLoop(THREE.LoopOnce);
+                    action.clampWhenFinished = true;
+                }
+            };
+            [
+                'Idle',
+                'Walk',
+                'Run',
+                'Fast running',
+                'Run left',
+                'Run right',
+                'Jump',
+                'Basic attack',
+                'Charged attack',
+                'Special attack 1',
+                'Special attack 2',
+                'Special attack 3',
+                'Whip',
+                'Drink',
+                'Ultimate'
+            ].forEach(bindAlias);
+
             // Dissociation: mask offensive animations only when using two-layer system
             if (this.useDissociation) {
                 this.applyDissociationMasking();

@@ -82,10 +82,10 @@ export class AssetLoader {
     }
 
     /**
-     * Load the integrated character model (character.glb) with embedded animations
+     * Load the integrated character model (character_3k_mage.glb) with embedded animations
      */
     async loadCharacterModel() {
-        const characterUrl = './models/character.glb';
+        const characterUrl = './models/character_3k_mage.glb';
 
         try {
             const characterGltf = await this.loadGLTF(characterUrl);
@@ -124,8 +124,29 @@ export class AssetLoader {
                     if (lower.includes('idle')) animMap['Idle'] = clip;
                     if (lower.includes('walk')) animMap['Walk'] = clip;
                     if (lower.includes('running') || lower.includes('run')) animMap['Run'] = clip;
+                    if (lower.includes('fast') && lower.includes('run')) animMap['Fast running'] = clip;
+                    if (lower.includes('run') && lower.includes('left')) animMap['Run left'] = clip;
+                    if (lower.includes('run') && lower.includes('right')) animMap['Run right'] = clip;
+                    if (lower.includes('jump')) animMap['Jump'] = clip;
+                    if (lower.includes('basic') && lower.includes('attack')) animMap['Basic attack'] = clip;
+                    if (lower.includes('charged') && lower.includes('attack')) animMap['Charged attack'] = clip;
+                    if (lower.includes('special') && lower.includes('attack') && lower.includes('1')) animMap['Special attack 1'] = clip;
+                    if (lower.includes('special') && lower.includes('attack') && lower.includes('2')) animMap['Special attack 2'] = clip;
+                    if (lower.includes('special') && lower.includes('attack') && lower.includes('3')) animMap['Special attack 3'] = clip;
+                    if (lower.includes('ultimate')) animMap['Ultimate'] = clip;
+                    if (lower.includes('drink') || lower.includes('potion') || (lower.includes('use') && lower.includes('item')) || lower.includes('consume')) animMap['Drink'] = clip;
+                    if (lower.includes('whip')) animMap['Whip'] = clip;
                     if (lower.includes('roll') || lower.includes('dodge')) animMap['Roll dodge'] = clip;
                 });
+
+                // Spell fallback chain for reduced animation sets:
+                // keep gameplay functional even when dedicated clips are missing.
+                animMap['Whip'] = animMap['Whip'] || animMap['Special attack 2'] || animMap['Basic attack'] || animMap['Charged attack'];
+                animMap['Special attack 3'] = animMap['Special attack 3'] || animMap['Special attack 2'] || animMap['Charged attack'];
+                animMap['Drink'] = animMap['Drink'] || animMap['Special attack 2'] || animMap['Idle'];
+                animMap['Run'] = animMap['Run'] || animMap['Walk'] || animMap['Fast running'] || animMap['Idle'];
+                animMap['Walk'] = animMap['Walk'] || animMap['Run'] || animMap['Idle'];
+                animMap['Idle'] = animMap['Idle'] || clips[0];
 
                 this.assets.animations.character = {
                     clips,
