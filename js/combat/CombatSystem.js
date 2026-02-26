@@ -260,7 +260,7 @@ export class CombatSystem {
             const modelRadius = enemy.hitRadius ?? (enemy.isBoss ? 2.5 : 0.8);
             if (dist > this.bloodNovaRadius + modelRadius) continue;
             enemy.takeDamage(this.bloodNovaDamage);
-            enemy.staggerTimer = Math.max(enemy.staggerTimer, this.bloodNovaFreezeDuration);
+            enemy.staggerTimer = Math.max(enemy.staggerTimer, this.bloodNovaFreezeDuration + (enemy.isBoss ? 0.8 : 0.0));
             enemy.state = 'stagger';
             hitCount++;
             this.gameState.emit('damageNumber', {
@@ -274,10 +274,11 @@ export class CombatSystem {
             this.bloodNovaCooldown = this.bloodNovaCooldownDuration;
             this.gameState.addBloodCharge(1);
             if (this.particleSystem) {
+                this.particleSystem.emitBloodNovaBurst(center, this.bloodNovaRadius);
                 this.particleSystem.emitBloodMatterExplosion(center);
                 this.particleSystem.emitUltimateExplosion(center);
             }
-            if (this.onProjectileHit) this.onProjectileHit({ bloodNova: true, hits: hitCount });
+            if (this.onProjectileHit) this.onProjectileHit({ bloodNova: true, hits: hitCount, novaRadius: this.bloodNovaRadius });
             return true;
         }
         return false;
@@ -617,16 +618,17 @@ export class CombatSystem {
             if (enemy) {
                 this.whipHitOnce = true;
                 enemy.takeDamage(this.whipDamage);
-                enemy.staggerTimer = Math.max(enemy.staggerTimer, 0.55);
+                enemy.staggerTimer = Math.max(enemy.staggerTimer, 0.72);
                 enemy.state = 'stagger';
                 this.gameState.addUltimateCharge('charged');
                 if (this.particleSystem) {
                     hit.object.getWorldPosition(this._enemyPos);
                     this.particleSystem.emitPunchBurst(this._enemyPos.clone());
-                    this.particleSystem.emitSparks(this._enemyPos.clone(), 28);
-                    this.particleSystem.emitEmbers(this._enemyPos.clone(), 22);
+                    this.particleSystem.emitBloodMatterExplosion(this._enemyPos.clone());
+                    this.particleSystem.emitSparks(this._enemyPos.clone(), 36);
+                    this.particleSystem.emitEmbers(this._enemyPos.clone(), 28);
                 }
-                if (this.onProjectileHit) this.onProjectileHit({ whipHit: true });
+                if (this.onProjectileHit) this.onProjectileHit({ whipHit: true, punchFinish: true });
             }
         }
     }
@@ -645,17 +647,18 @@ export class CombatSystem {
             const enemy = this._getEnemyFromHitObject(hit.object);
             if (enemy) {
                 enemy.takeDamage(finalDamage);
-                enemy.staggerTimer = Math.max(enemy.staggerTimer, 0.55);
+                enemy.staggerTimer = Math.max(enemy.staggerTimer, 0.72);
                 enemy.state = 'stagger';
                 this.gameState.addUltimateCharge('charged');
                 hit.object.getWorldPosition(this._enemyPos);
                 if (this.particleSystem) {
                     this.particleSystem.emitPunchBurst(this._enemyPos.clone());
-                    this.particleSystem.emitSparks(this._enemyPos.clone(), 28 + chargesUsed * 4);
-                    this.particleSystem.emitEmbers(this._enemyPos.clone(), 22 + chargesUsed * 3);
+                    this.particleSystem.emitBloodMatterExplosion(this._enemyPos.clone());
+                    this.particleSystem.emitSparks(this._enemyPos.clone(), 34 + chargesUsed * 6);
+                    this.particleSystem.emitEmbers(this._enemyPos.clone(), 26 + chargesUsed * 5);
                 }
                 this.gameState.emit('damageNumber', { position: this._enemyPos.clone(), damage: finalDamage, isCritical: chargesUsed >= 4, anchorId: this._getDamageAnchorId(enemy) });
-                if (this.onProjectileHit) this.onProjectileHit({ whipHit: true, bloodflailCharges: chargesUsed });
+                if (this.onProjectileHit) this.onProjectileHit({ whipHit: true, bloodflailCharges: chargesUsed, punchFinish: true });
             }
         }
         this.gameState.combat.isWhipAttacking = true;
@@ -1029,7 +1032,11 @@ export class CombatSystem {
         if (!center || this.crimsonEruptionCooldown > 0) return;
         this.crimsonEruptionCooldown = this.crimsonEruptionCooldownDuration;
         const r = this.crimsonEruptionRadius;
-        if (this.particleSystem) this.particleSystem.emitCrimsonEruptionRing(center, r);
+        if (this.particleSystem) {
+            this.particleSystem.emitCrimsonEruptionRing(center, r);
+            this.particleSystem.emitBloodMatterExplosion(center);
+            this.particleSystem.emitUltimateEndExplosion(center);
+        }
         this._spawnCrimsonEruptionVfx(center, r);
         this._centerFlat.set(center.x, 0, center.z);
         let crimsonHitCount = 0;

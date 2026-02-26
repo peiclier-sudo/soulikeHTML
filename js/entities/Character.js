@@ -653,8 +653,9 @@ export class Character {
         // E = Bloodflail is started by Game → CombatSystem.executeBloodflail(), not from input here
         const drinkAction = this.actions['Drink'] || this.actions['Special attack 2'];
         if (this.gameState.combat.isDrinkingPotion && drinkAction) {
+            const drinkLoco = this.gameState.movement.isMoving ? ((this.gameState.movement.isRunning && this.actions['Run']) ? 'Run' : (this.actions['Walk'] ? 'Walk' : 'Idle')) : 'Idle';
+            this.playLoco(drinkLoco, 0.12);
             if (this.currentUpperState !== 'Drink') {
-                this.playLoco('Idle', 0.15);
                 const drinkAnimName = this.actions['Drink'] ? 'Drink' : 'Special attack 2';
                 const anim = this.actions[drinkAnimName];
                 if (anim) {
@@ -670,7 +671,8 @@ export class Character {
         }
         if (this.gameState.combat.isLifeDraining && drainAction) {
             if (this.currentUpperState !== 'LifeDrain') {
-                this.playLoco('Idle', 0.15);
+                const drinkLoco = this.gameState.movement.isMoving ? ((this.gameState.movement.isRunning && this.actions['Run']) ? 'Run' : (this.actions['Walk'] ? 'Walk' : 'Idle')) : 'Idle';
+                this.playLoco(drinkLoco, 0.12);
                 const drainAnimName = this.actions['Special attack 3'] ? 'Special attack 3' : (this.actions['Special attack 2'] ? 'Special attack 2' : 'Whip');
                 this.playUpper(drainAnimName, 0.1, 0.15);
                 const drainAnim = this.actions[drainAnimName];

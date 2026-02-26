@@ -520,7 +520,7 @@ export class Game {
     }
     
     onProjectileHit(payload = {}) {
-        const { charged, isBoss, isUltimate, whipHit, whipWindup, bloodflailCharges } = payload;
+        const { charged, isBoss, isUltimate, whipHit, whipWindup, bloodflailCharges, punchFinish, bloodNova } = payload;
         if (isUltimate) {
             this.shakeIntensity = 0.1;
             this.shakeDuration = 0.35;
@@ -536,10 +536,23 @@ export class Game {
             this.ultimateBloomDuration = isFiveCharge ? 0.6 : 0.4;
             this.ultimateFovTime = isFiveCharge ? 0.25 : 0.2;
             this.lastPunchOffset.copy(this.character.getForwardDirection()).multiplyScalar(isFiveCharge ? 0.28 : 0.22);
+            if (punchFinish) {
+                this.shakeIntensity *= 1.28;
+                this.shakeDuration += 0.06;
+                this.ultimateBloomTime = Math.max(this.ultimateBloomTime, 0.48);
+                this.ultimateBloomDuration = Math.max(this.ultimateBloomDuration, 0.48);
+                this.lastPunchOffset.multiplyScalar(1.26);
+            }
         } else if (whipWindup) {
             this.shakeIntensity = 0.016;
             this.shakeDuration = 0.07;
             this.shakeTime = this.shakeDuration;
+        } else if (bloodNova) {
+            this.shakeIntensity = 0.085;
+            this.shakeDuration = 0.28;
+            this.ultimateBloomTime = 0.42;
+            this.ultimateBloomDuration = 0.42;
+            this.lastPunchOffset.copy(this.character.getForwardDirection()).multiplyScalar(0.16);
         } else {
             // Projectile hit: slight shake for basic, slightly more for charged
             const base = 0.022;
