@@ -8,7 +8,7 @@ import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { Enemy } from './Enemy.js';
 
 const BOSS_NAMES = ['Gorrath the Unbroken', 'Malkhor Ironhide', 'Thurnax Bloodhorn', 'Varok the Trampler', 'Grommash Skullsplitter'];
-const BOSS_COLOR = 0x3a2818; // procedural fallback only; GLB boss uses same treatment as character (0.32 multiply)
+const BOSS_COLOR = 0x3a2818; // procedural fallback only; loaded GLB boss material pass is handled in AssetLoader
 
 const ATK = { PUNCH: 0, REVERSE: 1, CHARGED: 2 };
 const ATK_COUNT = 3;
