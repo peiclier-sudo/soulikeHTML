@@ -250,7 +250,7 @@ export class AssetLoader {
                             // Match player baseline color pass; keep emissive but tone it down
                             // so the boss doesn't blow out to white.
                             if (mat.color) mat.color.multiplyScalar(0.32);
-                            if ('emissiveIntensity' in mat) mat.emissiveIntensity = 0.25;
+                            if ('emissiveIntensity' in mat) mat.emissiveIntensity = 0.30;
                             if (mat.map) {
                                 mat.map.premultiplyAlpha = false;
                                 mat.map.needsUpdate = true;
