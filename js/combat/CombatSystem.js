@@ -711,7 +711,7 @@ export class CombatSystem {
                     enemyMesh.userData.enemy.takeDamage(p.damage);
                     hit = true;
                     this.gameState.addUltimateCharge(p.isCharged ? 'charged' : 'basic');
-                    if (!p.isCharged) this.gameState.addBloodCharge(1);
+                    this.gameState.addBloodCharge(p.isCharged ? 2 : 1);
                     this.gameState.emit('damageNumber', { position: this._enemyPos.clone(), damage: p.damage, isCritical: false });
                     if (this.particleSystem) {
                         this.particleSystem.emitHitEffect(fireballPos);
@@ -907,17 +907,17 @@ export class CombatSystem {
                 float noise = n(vPosition * 8.0 + time) * 0.08;
                 r += noise;
                 r = clamp(r, 0.0, 1.0);
-                vec3 darkCore = vec3(0.02, 0.0, 0.01);
-                vec3 darkMid = vec3(0.07, 0.01, 0.02);
-                vec3 bloodMid = vec3(0.25, 0.02, 0.03);
-                vec3 bloodOuter = vec3(0.55, 0.04, 0.04);
-                vec3 redSurface = vec3(0.75, 0.06, 0.05);
+                vec3 darkCore = vec3(0.03, 0.0, 0.005);
+                vec3 darkMid = vec3(0.12, 0.0, 0.01);
+                vec3 bloodMid = vec3(0.38, 0.01, 0.02);
+                vec3 bloodOuter = vec3(0.72, 0.02, 0.03);
+                vec3 redSurface = vec3(0.95, 0.04, 0.05);
                 float fresnel = pow(1.0 - max(dot(normalize(vNormal), vec3(0, 0, 1)), 0.0), 1.8);
                 vec3 col = mix(darkCore, darkMid, smoothstep(0.0, 0.35, r));
                 col = mix(col, bloodMid, smoothstep(0.35, 0.6, r));
                 col = mix(col, bloodOuter, smoothstep(0.6, 0.82, r));
                 col = mix(col, redSurface, smoothstep(0.82, 1.0, r));
-                col += vec3(0.12, 0.01, 0.01) * fresnel;
+                col += vec3(0.2, 0.02, 0.02) * fresnel;
                 gl_FragColor = vec4(col, alpha);
             }
         `;
@@ -1006,8 +1006,8 @@ export class CombatSystem {
         mesh.castShadow = false;
         const group = new THREE.Group();
         group.frustumCulled = false;
-        const orbLight = new THREE.PointLight(0xaa0a0a, 0, 55, 2.5);
-        const outerGlow = new THREE.PointLight(0x880808, 0, 35, 1.2);
+        const orbLight = new THREE.PointLight(0xc1081a, 0, 55, 2.5);
+        const outerGlow = new THREE.PointLight(0x7a0010, 0, 35, 1.2);
         group.add(mesh); group.add(orbLight); group.add(outerGlow);
         return { group, orbMat, sphereGeo, orbLight, outerGlow, velocity: new THREE.Vector3() };
     }
