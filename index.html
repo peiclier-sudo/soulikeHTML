@@ -33,7 +33,7 @@
             <div class="controls-hint">
                 <p>AZERTY: Z - Avancer | Q - Gauche | D - Droite | Souris - Regarder</p>
                 <p>Espace - Saut | R - Dash | Clic gauche - Attaque | Clic droit - Attaque chargée</p>
-                <p>Q - Crimson Eruption | E - Bloodflail (finisher, 1–5 charges) | X - Drain de vie | C - Bouclier sang | & - Potion de vie | F - Ultimate</p>
+                <p>Q - Crimson Eruption | E - Bloodflail (finisher, 1–5 charges) | X - Blood Nova (root boss) | C - Bouclier sang | & - Potion de vie | F - Ultimate</p>
             </div>
         </div>
     </div>
@@ -57,17 +57,6 @@
         <div class="stat-bar health-bar">
             <div class="bar-fill" id="health-fill"></div>
             <span class="bar-text" id="health-text">100/100</span>
-        </div>
-        <!-- Blood Essence orbs (0–5), E = Bloodflail finisher -->
-        <div id="blood-essence" class="blood-essence" aria-label="Blood Essence charges">
-            <span class="blood-essence-label">E</span>
-            <div class="blood-essence-orbs">
-                <span class="blood-orb" id="blood-orb-0"></span>
-                <span class="blood-orb" id="blood-orb-1"></span>
-                <span class="blood-orb" id="blood-orb-2"></span>
-                <span class="blood-orb" id="blood-orb-3"></span>
-                <span class="blood-orb" id="blood-orb-4"></span>
-            </div>
         </div>
         <!-- No Blood Essence feedback (shown when E pressed with 0 charges) -->
         <div id="no-blood-essence" class="no-blood-essence" style="display: none;">No Blood Essence</div>
@@ -95,10 +84,28 @@
             <span class="charge-bar-label" id="charge-label">CHARGE</span>
         </div>
         
-        <!-- Weapon Display -->
-        <div id="weapon-display">
-            <div class="weapon-icon" id="weapon-icon"></div>
-            <span class="weapon-name" id="weapon-name">Claymore</span>
+        <!-- Ability Cooldowns -->
+        <div id="ability-hud" aria-label="Ability cooldowns">
+            <div class="ability-box" id="ability-eruption" data-ready="true">
+                <div class="ability-key">Q</div>
+                <div class="ability-name">Eruption</div>
+                <div class="ability-timer" id="ability-eruption-timer">Ready</div>
+            </div>
+            <div class="ability-box" id="ability-nova" data-ready="true">
+                <div class="ability-key">X</div>
+                <div class="ability-name">Nova</div>
+                <div class="ability-timer" id="ability-nova-timer">Ready</div>
+            </div>
+            <div class="ability-box" id="ability-shield" data-ready="true">
+                <div class="ability-key">C</div>
+                <div class="ability-name">Shield</div>
+                <div class="ability-timer" id="ability-shield-timer">Ready</div>
+            </div>
+            <div class="ability-box" id="ability-potion" data-ready="true">
+                <div class="ability-key">&</div>
+                <div class="ability-name">Potion</div>
+                <div class="ability-timer" id="ability-potion-timer">Ready</div>
+            </div>
         </div>
         
         <!-- Damage Numbers Container -->
