@@ -182,9 +182,9 @@ export class GameState {
         return true;
     }
 
-    // Blood Essence: 0–5 charges; add on LMB hit (+1), Crimson Eruption hit (+2), life drain (+1 per full second)
+    // Blood Essence: 0–8 stacks; add on LMB hit (+1), Crimson Eruption hit (+2), life drain (+1 per full second)
     addBloodCharge(amount) {
-        const newCharges = Math.min(5, this.bloodCharges + amount);
+        const newCharges = Math.min(8, this.bloodCharges + amount);
         this.bloodCharges = newCharges;
         this.bloodLastChargeTime = Date.now();
         this.emit('bloodChargesChanged', this.bloodCharges);
@@ -203,8 +203,8 @@ export class GameState {
     tryBloodflail() {
         const charges = this.bloodCharges;
         if (charges < 1) return { success: false, multiplier: 1, chargesUsed: 0 };
-        const multipliers = [0, 1.8, 2.5, 3.3, 4.2, 5.0];
-        const multiplier = multipliers[charges];
+        const multipliers = [0, 1.55, 2.0, 2.5, 3.05, 3.7, 4.35, 5.05, 5.8];
+        const multiplier = multipliers[charges] ?? multipliers[multipliers.length - 1];
         this.bloodCharges = 0;
         this.emit('bloodChargesChanged', 0);
         return { success: true, multiplier, chargesUsed: charges };

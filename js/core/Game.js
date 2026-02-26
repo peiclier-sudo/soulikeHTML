@@ -571,14 +571,14 @@ export class Game {
             this.ultimateBloomDuration = 0.6;
             this.triggerHitStop(0.08);
         } else if (whipHit) {
-            const isFiveCharge = bloodflailCharges === 5;
-            this.shakeIntensity = isFiveCharge ? 0.1 : 0.045;
-            this.shakeDuration = isFiveCharge ? 0.32 : 0.2;
+            const isMaxCharge = bloodflailCharges >= 8;
+            this.shakeIntensity = isMaxCharge ? 0.11 : 0.045;
+            this.shakeDuration = isMaxCharge ? 0.34 : 0.2;
             this.shakeTime = this.shakeDuration;
-            this.ultimateBloomTime = isFiveCharge ? 0.6 : 0.4;
-            this.ultimateBloomDuration = isFiveCharge ? 0.6 : 0.4;
-            this.ultimateFovTime = isFiveCharge ? 0.32 : 0.24;
-            this.lastPunchOffset.copy(this.character.getForwardDirection()).multiplyScalar(isFiveCharge ? 0.36 : 0.28);
+            this.ultimateBloomTime = isMaxCharge ? 0.65 : 0.4;
+            this.ultimateBloomDuration = isMaxCharge ? 0.65 : 0.4;
+            this.ultimateFovTime = isMaxCharge ? 0.36 : 0.24;
+            this.lastPunchOffset.copy(this.character.getForwardDirection()).multiplyScalar(isMaxCharge ? 0.42 : 0.28);
             this.triggerHitStop(punchFinish ? 0.09 : 0.05);
             if (punchFinish) {
                 this.shakeIntensity *= 1.18;
