@@ -5,10 +5,12 @@
 import * as THREE from 'three';
 
 export class UIManager {
-    constructor(gameState, camera = null) {
+    constructor(gameState, camera = null, combatSystem = null) {
         this.gameState = gameState;
         this.camera = camera;
+        this.combatSystem = combatSystem;
         this._projectedPos = new THREE.Vector3();
+        this._damageAnchorScreenCache = new Map();
         this._canvas = document.getElementById('game-canvas');
         
         // Cache DOM elements
@@ -20,7 +22,6 @@ export class UIManager {
             chargeBar: document.getElementById('charge-bar'),
             chargeFill: document.getElementById('charge-fill'),
             chargeReady: document.getElementById('charge-ready'),
-            weaponName: document.getElementById('weapon-name'),
             damageNumbers: document.getElementById('damage-numbers'),
             bossHealth: document.getElementById('boss-health'),
             bossHealthFill: document.getElementById('boss-health-fill'),
@@ -28,8 +29,6 @@ export class UIManager {
             deathScreen: document.getElementById('death-screen'),
             ultimateBar: document.getElementById('ultimate-bar'),
             ultimateFill: document.getElementById('ultimate-fill'),
-            bloodEssenceLabel: document.querySelector('.blood-essence-label'),
-            bloodOrbs: [0, 1, 2, 3, 4].map(i => document.getElementById(`blood-orb-${i}`)),
             noBloodEssence: document.getElementById('no-blood-essence'),
             reticule: document.getElementById('reticule')
         };
@@ -37,14 +36,12 @@ export class UIManager {
         // Subscribe to game events
         this.setupEventListeners();
         
-        // Initialize weapon display
-        this.updateWeaponDisplay();
     }
     
     setupEventListeners() {
         // Damage number events
         this.gameState.on('damageNumber', (data) => {
-            this.showDamageNumber(data.position, data.damage, data.isCritical);
+            this.showDamageNumber(data.position, data.damage, data.isCritical, data.anchorId);
         });
         
         // Health change events
@@ -78,21 +75,33 @@ export class UIManager {
         this.updateStaminaBar(this.gameState.player.stamina);
         this.updateUltimateBar(this.gameState.player.ultimateCharge);
         this.updateChargeBar();
-        this.updateBloodOrbs();
+        this.updateAbilityCooldowns();
     }
 
-    updateBloodOrbs() {
-        const charges = this.gameState.bloodCharges;
-        const label = this.elements.bloodEssenceLabel;
-        const orbs = this.elements.bloodOrbs;
-        if (label) {
-            label.classList.toggle('grayed', charges === 0);
-        }
-        if (orbs && orbs.length === 5) {
-            orbs.forEach((orb, i) => {
-                if (orb) orb.classList.toggle('filled', i < charges);
-            });
-        }
+    updateAbilityCooldowns() {
+        const fmt = (v) => `${Math.max(0, v).toFixed(1)}s`;
+        const setBox = (id, ready, text) => {
+            const box = document.getElementById(id);
+            const timer = document.getElementById(`${id}-timer`);
+            if (!box || !timer) return;
+            box.dataset.ready = ready ? 'true' : 'false';
+            timer.textContent = text;
+        };
+
+        const eruptionCd = this.combatSystem?.crimsonEruptionCooldown ?? 0;
+        setBox('ability-eruption', eruptionCd <= 0, eruptionCd <= 0 ? 'Ready' : fmt(eruptionCd));
+
+        const novaCd = this.combatSystem?.bloodNovaCooldown ?? 0;
+        setBox('ability-nova', novaCd <= 0, novaCd <= 0 ? 'Ready' : fmt(novaCd));
+
+        const shieldActive = this.gameState.combat.shieldActive;
+        const shieldTime = this.gameState.combat.shieldTimeRemaining ?? 0;
+        setBox('ability-shield', !shieldActive, shieldActive ? fmt(shieldTime) : 'Ready');
+
+        const potionCd = this.gameState.player.drinkPotionCooldown ?? 0;
+        const potionCount = this.gameState.player.healthPotions ?? 0;
+        if (potionCount <= 0) setBox('ability-potion', false, 'Empty');
+        else setBox('ability-potion', potionCd <= 0, potionCd <= 0 ? `Ready x${potionCount}` : `${fmt(potionCd)} x${potionCount}`);
     }
 
     showNoBloodEssenceFeedback() {
@@ -207,17 +216,12 @@ export class UIManager {
         }
     }
 
-    updateWeaponDisplay() {
-        if (this.elements.weaponName) {
-            this.elements.weaponName.textContent = this.gameState.equipment.weapon.name;
-        }
-    }
-    
     setCamera(camera) {
         this.camera = camera;
+        this.combatSystem = combatSystem;
     }
 
-    showDamageNumber(worldPosition, damage, isCritical) {
+    showDamageNumber(worldPosition, damage, isCritical, anchorId = null) {
         if (!this.elements.damageNumbers) return;
 
         const damageEl = document.createElement('div');
@@ -225,20 +229,23 @@ export class UIManager {
         damageEl.textContent = damage.toString();
 
         let x, y;
-        if (this.camera && worldPosition && typeof worldPosition.x === 'number') {
+        const cached = anchorId ? this._damageAnchorScreenCache.get(anchorId) : null;
+        if (cached && performance.now() - cached.time < 140) {
+            x = cached.x;
+            y = cached.y;
+        } else if (this.camera && worldPosition && typeof worldPosition.x === 'number') {
             this._projectedPos.copy(worldPosition).project(this.camera);
             const w = this._canvas?.clientWidth ?? window.innerWidth;
             const h = this._canvas?.clientHeight ?? window.innerHeight;
             x = (this._projectedPos.x * 0.5 + 0.5) * w;
             y = (-this._projectedPos.y * 0.5 + 0.5) * h;
-            damageEl.style.left = `${x}px`;
-            damageEl.style.top = `${y}px`;
+            if (anchorId) this._damageAnchorScreenCache.set(anchorId, { x, y, time: performance.now() });
         } else {
-            x = window.innerWidth / 2 + (Math.random() - 0.5) * 120;
-            y = window.innerHeight / 2 + (Math.random() - 0.5) * 80;
-            damageEl.style.left = `${x}px`;
-            damageEl.style.top = `${y}px`;
+            x = window.innerWidth * 0.5;
+            y = window.innerHeight * 0.45;
         }
+        damageEl.style.left = `${x}px`;
+        damageEl.style.top = `${y}px`;
 
         this.elements.damageNumbers.appendChild(damageEl);
 

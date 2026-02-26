@@ -51,49 +51,6 @@
     height: 18px;
 }
 
-/* Blood Essence orbs (0–5), E = Bloodflail */
-.blood-essence {
-    position: absolute;
-    top: 88px;
-    left: 30px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    pointer-events: none;
-}
-
-.blood-essence-label {
-    font-size: 0.85rem;
-    color: rgba(201, 162, 39, 0.9);
-    font-weight: bold;
-    min-width: 14px;
-}
-
-.blood-essence-label.grayed {
-    color: rgba(80, 60, 50, 0.8);
-    opacity: 0.7;
-}
-
-.blood-essence-orbs {
-    display: flex;
-    gap: 4px;
-}
-
-.blood-orb {
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    background: rgba(40, 25, 25, 0.95);
-    border: 1px solid rgba(80, 40, 40, 0.6);
-    transition: background 0.2s ease, box-shadow 0.2s ease;
-}
-
-.blood-orb.filled {
-    background: radial-gradient(circle at 30% 30%, #c03030, #801818 50%, #500808);
-    border-color: rgba(180, 60, 60, 0.8);
-    box-shadow: 0 0 8px rgba(180, 40, 40, 0.6);
-}
-
 /* No Blood Essence popup */
 .no-blood-essence {
     position: absolute;
@@ -324,39 +281,60 @@
     height: 2px;
 }
 
-/* Weapon Display */
-#weapon-display {
+/* Ability cooldown HUD */
+#ability-hud {
     position: absolute;
-    bottom: 30px;
-    right: 30px;
-    display: flex;
-    align-items: center;
-    gap: 15px;
-    padding: 15px;
-    background: rgba(0, 0, 0, 0.6);
-    border: 1px solid rgba(201, 162, 39, 0.4);
+    bottom: 26px;
+    right: 26px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(130px, 1fr));
+    gap: 10px;
+    width: 292px;
 }
 
-.weapon-icon {
-    width: 60px;
-    height: 60px;
-    background: linear-gradient(135deg, #3a3a4a 0%, #1a1a2a 100%);
-    border: 1px solid rgba(201, 162, 39, 0.6);
+.ability-box {
+    background: rgba(0, 0, 0, 0.62);
+    border: 1px solid rgba(201, 162, 39, 0.35);
+    padding: 8px 10px;
+    min-height: 62px;
+    display: grid;
+    grid-template-columns: 28px 1fr;
+    grid-template-rows: auto auto;
+    column-gap: 8px;
+    align-items: center;
+}
+
+.ability-key {
+    grid-row: 1 / span 2;
+    width: 26px;
+    height: 26px;
+    border: 1px solid rgba(201, 162, 39, 0.65);
+    color: #e0c88a;
     display: flex;
+    align-items: center;
     justify-content: center;
-    align-items: center;
+    font-size: 0.85rem;
+    font-weight: 700;
 }
 
-.weapon-icon::before {
-    content: '⚔';
-    font-size: 2rem;
-    color: var(--primary-color);
+.ability-name {
+    color: #ddd;
+    font-size: 0.84rem;
+    letter-spacing: 0.04rem;
 }
 
-.weapon-name {
-    font-size: 1rem;
-    color: var(--text-color);
-    letter-spacing: 0.1rem;
+.ability-timer {
+    color: #79d690;
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+.ability-box[data-ready="false"] .ability-timer {
+    color: #e07a7a;
+}
+
+.ability-box[data-ready="false"] {
+    border-color: rgba(160, 80, 80, 0.5);
 }
 
 /* Damage Numbers */
@@ -541,8 +519,8 @@
     .game-title { font-size: 2.5rem; }
     .stat-bar { width: 200px; }
     .loading-bar-container { width: 280px; }
-    #weapon-display { padding: 10px; }
-    .weapon-icon { width: 40px; height: 40px; }
+    #ability-hud { width: 240px; grid-template-columns: 1fr 1fr; }
+    .ability-box { min-height: 56px; padding: 7px 8px; }
     #boss-health { width: 90%; }
 }
 
