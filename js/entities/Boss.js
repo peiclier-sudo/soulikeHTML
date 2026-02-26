@@ -1,5 +1,5 @@
 /**
- * Boss - Minotaur humanoid with Punch, Leap Slam, and Spin Attack.
+ * Boss - Minotaur humanoid with Punch, Reverse Punch, and Charged Smash.
  * Uses pre-allocated VFX pool for zero-allocation particle effects.
  */
 
@@ -10,7 +10,7 @@ import { Enemy } from './Enemy.js';
 const BOSS_NAMES = ['Gorrath the Unbroken', 'Malkhor Ironhide', 'Thurnax Bloodhorn', 'Varok the Trampler', 'Grommash Skullsplitter'];
 const BOSS_COLOR = 0x5a3a2a;
 
-const ATK = { PUNCH: 0, LEAPSLAM: 1, SPIN: 2 };
+const ATK = { PUNCH: 0, REVERSE: 1, CHARGED: 2 };
 const ATK_COUNT = 3;
 
 const POOL_SIZE = 60;
@@ -40,10 +40,6 @@ export class Boss extends Enemy {
         this._playerRef = null;
         this._gameState = null;
         this._skipMeshSync = false;
-
-        this._leapStart = new THREE.Vector3();
-        this._leapTarget = new THREE.Vector3();
-        this._leapPeakY = 0;
 
         this._idleTimer = 0;
         this._strafeDir = 1;
@@ -113,15 +109,15 @@ export class Boss extends Enemy {
                     this.actions['Attack'].setLoop(THREE.LoopOnce);
                     this.actions['Attack'].clampWhenFinished = true;
                 }
-                if (map['Jumpattack']) {
-                    this.actions['Jumpattack'] = this.mixer.clipAction(map['Jumpattack']);
-                    this.actions['Jumpattack'].setLoop(THREE.LoopOnce);
-                    this.actions['Jumpattack'].clampWhenFinished = true;
+                if (map['ReversePunch']) {
+                    this.actions['ReversePunch'] = this.mixer.clipAction(map['ReversePunch']);
+                    this.actions['ReversePunch'].setLoop(THREE.LoopOnce);
+                    this.actions['ReversePunch'].clampWhenFinished = true;
                 }
-                if (map['Turnattack']) {
-                    this.actions['Turnattack'] = this.mixer.clipAction(map['Turnattack']);
-                    this.actions['Turnattack'].setLoop(THREE.LoopOnce);
-                    this.actions['Turnattack'].clampWhenFinished = true;
+                if (map['Charged']) {
+                    this.actions['Charged'] = this.mixer.clipAction(map['Charged']);
+                    this.actions['Charged'].setLoop(THREE.LoopOnce);
+                    this.actions['Charged'].clampWhenFinished = true;
                 }
 
                 if (animData.clips.length === 1) {
@@ -149,9 +145,8 @@ export class Boss extends Enemy {
             this.hitRadius = Math.max(sizeX, sizeZ) * 0.5 + 0.5;
 
             this._punchRange = this.hitRadius + 5;
-            this._spinRange = this.hitRadius + 7;
-            this._leapMinRange = this.hitRadius + 2;
-            this._leapMaxRange = 25;
+            this._reverseRange = this.hitRadius + 6;
+            this._chargedRange = this.hitRadius + 10;
             this._chaseStopDist = this.hitRadius + 1;
 
             console.log(`Boss created: hitRadius=${this.hitRadius.toFixed(1)}, height=${this._bossHeight.toFixed(1)}, floorOffset=${this._bossFloorOffset.toFixed(1)}`);
@@ -165,9 +160,8 @@ export class Boss extends Enemy {
         }
         this._createProceduralBoss(config);
         this._punchRange = this.hitRadius + 5;
-        this._spinRange = this.hitRadius + 7;
-        this._leapMinRange = this.hitRadius + 2;
-        this._leapMaxRange = 25;
+        this._reverseRange = this.hitRadius + 6;
+        this._chargedRange = this.hitRadius + 10;
         this._chaseStopDist = this.hitRadius + 1;
         this._initPool();
     }
@@ -380,21 +374,21 @@ export class Boss extends Enemy {
         if (this._atkCooldowns[ATK.PUNCH] <= 0 && dist < this._punchRange) {
             avail.push({ t: ATK.PUNCH, w: dist < this.hitRadius + 3 ? 6 : 3 });
         }
-        if (this._atkCooldowns[ATK.LEAPSLAM] <= 0 && dist >= this._leapMinRange && dist < this._leapMaxRange) {
-            avail.push({ t: ATK.LEAPSLAM, w: 5 });
+        if (this._atkCooldowns[ATK.REVERSE] <= 0 && dist < this._reverseRange) {
+            avail.push({ t: ATK.REVERSE, w: dist < this.hitRadius + 4 ? 5 : 2 });
         }
-        if (this._atkCooldowns[ATK.SPIN] <= 0 && dist < this._spinRange) {
-            avail.push({ t: ATK.SPIN, w: dist < this.hitRadius + 4 ? 5 : 2 });
+        if (this._atkCooldowns[ATK.CHARGED] <= 0 && dist < this._chargedRange) {
+            avail.push({ t: ATK.CHARGED, w: dist > this.hitRadius + 3 ? 5 : 3 });
         }
 
-        if (avail.length === 0 && this._atkCooldowns[ATK.LEAPSLAM] <= 0 && dist < this._leapMaxRange) {
-            avail.push({ t: ATK.LEAPSLAM, w: 5 });
+        if (avail.length === 0 && this._atkCooldowns[ATK.CHARGED] <= 0 && dist < this._chargedRange + 4) {
+            avail.push({ t: ATK.CHARGED, w: 5 });
         }
-        if (avail.length === 0 && this._atkCooldowns[ATK.PUNCH] <= 0 && dist < this._spinRange) {
+        if (avail.length === 0 && this._atkCooldowns[ATK.PUNCH] <= 0 && dist < this._reverseRange) {
             avail.push({ t: ATK.PUNCH, w: 4 });
         }
-        if (avail.length === 0 && this._atkCooldowns[ATK.SPIN] <= 0 && dist < this._leapMaxRange) {
-            avail.push({ t: ATK.SPIN, w: 3 });
+        if (avail.length === 0 && this._atkCooldowns[ATK.REVERSE] <= 0 && dist < this._chargedRange) {
+            avail.push({ t: ATK.REVERSE, w: 3 });
         }
 
         if (avail.length === 0) { this.attackCooldown = 0.3; return; }
@@ -412,20 +406,16 @@ export class Boss extends Enemy {
 
         switch (chosen) {
             case ATK.PUNCH:
-                this._attackDuration = 2.2;
-                this._atkCooldowns[chosen] = 2.0;
+                this._attackDuration = 1.9;
+                this._atkCooldowns[chosen] = 1.6;
                 break;
-            case ATK.LEAPSLAM:
-                this._attackDuration = 2.7;
-                this._atkCooldowns[chosen] = 4.5;
-                this._leapStart.copy(this.position);
-                this._leapTarget.copy(this._playerRef || this.position);
-                const leapDist = this._leapStart.distanceTo(this._leapTarget);
-                this._leapPeakY = Math.min(10, leapDist * 0.4);
+            case ATK.REVERSE:
+                this._attackDuration = 2.1;
+                this._atkCooldowns[chosen] = 2.4;
                 break;
-            case ATK.SPIN:
-                this._attackDuration = 2.5;
-                this._atkCooldowns[chosen] = 3.5;
+            case ATK.CHARGED:
+                this._attackDuration = 3.1;
+                this._atkCooldowns[chosen] = 4.2;
                 break;
         }
         this.globalAttackCooldown = this._attackDuration + 0.3;
@@ -435,12 +425,12 @@ export class Boss extends Enemy {
         this.activeAttackTimer += dt;
         const t = this.activeAttackTimer;
 
-        if (this.activeAttack !== ATK.LEAPSLAM || t < 0.3) this._faceTarget(playerPos);
+        if (this.activeAttack !== ATK.CHARGED || t < 1.0) this._faceTarget(playerPos);
 
         switch (this.activeAttack) {
             case ATK.PUNCH: this._tickPunch(dt, t, playerPos); break;
-            case ATK.LEAPSLAM: this._tickLeapSlam(dt, t, playerPos); break;
-            case ATK.SPIN: this._tickSpin(dt, t, playerPos); break;
+            case ATK.REVERSE: this._tickReversePunch(dt, t, playerPos); break;
+            case ATK.CHARGED: this._tickChargedSmash(dt, t, playerPos); break;
         }
 
         if (t >= this._attackDuration) this._endAttack();
@@ -508,135 +498,115 @@ export class Boss extends Enemy {
         }
     }
 
-    // ===================== LEAP SLAM =====================
+    // ===================== REVERSE PUNCH =====================
 
-    _tickLeapSlam(dt, t, playerPos) {
-        const windEnd = 0.5;
-        const airStart = 0.5;
-        const landAt = 1.8;
+    _tickReversePunch(dt, t, playerPos) {
+        const hitStart = 0.95;
+        const hitEnd = 1.45;
 
-        if (t < windEnd) {
-            this._faceTarget(playerPos);
-            const wt = t / windEnd;
-            this.mesh.position.copy(this.position);
-            this.mesh.position.y = (this._bossFloorOffset ?? 0) - wt * 0.5;
-            this._skipMeshSync = true;
-        } else if (t < landAt) {
-            const ct = (t - airStart) / (landAt - airStart);
-            const e = ct * ct * (3 - 2 * ct);
-            this.position.lerpVectors(this._leapStart, this._leapTarget, e);
-            this._clampArena();
-
-            const arc = Math.sin(ct * Math.PI) * this._leapPeakY;
-            this.mesh.position.copy(this.position);
-            this.mesh.position.y = (this._bossFloorOffset ?? 0) + arc;
-            this._skipMeshSync = true;
-
-            if (Math.random() < 0.4) {
-                const s = this.hitRadius * 0.5;
-                this._spawnParticle(
-                    this.position.x + (Math.random() - 0.5) * s, 0.5 + Math.random(), this.position.z + (Math.random() - 0.5) * s,
-                    (Math.random() - 0.5) * 3, 2 + Math.random() * 2, (Math.random() - 0.5) * 3,
-                    0.08 + Math.random() * 0.06, 0.3 + Math.random() * 0.2, 0x886644
-                );
-            }
-        } else {
-            this._skipMeshSync = false;
-
-            if (!this._attackHitDealt) {
-                this._attackHitDealt = true;
-
-                this._ringMesh.visible = true;
-                this._ringMesh.position.set(this.position.x, 0.1, this.position.z);
-                this._ringMesh.scale.setScalar(0.2);
-                this._ringMat.opacity = 0.9;
-                this._ringMat.color.setHex(0xcc6633);
-
-                this._light.position.set(this.position.x, 2, this.position.z);
-                this._light.intensity = 60;
-                this._light.color.setHex(0xcc4400);
-
-                const aoeRadius = this.hitRadius + 6;
-                for (let i = 0; i < 24; i++) {
-                    const a = (i / 24) * Math.PI * 2;
-                    const r = 1 + Math.random() * aoeRadius * 0.6;
-                    this._spawnParticle(
-                        this.position.x + Math.cos(a) * r, 0.3, this.position.z + Math.sin(a) * r,
-                        Math.cos(a) * (5 + Math.random() * 5), 4 + Math.random() * 5, Math.sin(a) * (5 + Math.random() * 5),
-                        0.1 + Math.random() * 0.08, 0.5 + Math.random() * 0.4, 0x886644
-                    );
-                }
-
-                if (playerPos) {
-                    const d = this.position.distanceTo(playerPos);
-                    if (d < aoeRadius) this._dealDamage(Math.floor(45 * Math.max(0.2, 1 - d / aoeRadius)));
-                }
-            }
-
-            const st = (t - landAt) / (this._attackDuration - landAt);
-            const ringScale = this.hitRadius + 6;
-            this._ringMesh.scale.setScalar(0.2 + Math.min(1, st * 2) * ringScale * 0.4);
-            this._ringMat.opacity = 0.9 * (1 - st);
-            this._light.intensity = 60 * (1 - st);
-            if (st >= 1) { this._ringMesh.visible = false; this._light.intensity = 0; }
-        }
-    }
-
-    // ===================== SPIN ATTACK =====================
-
-    _tickSpin(dt, t, playerPos) {
-        const hitStart = 0.8, hitEnd = 1.5;
-
-        if (t < hitStart * 0.5 && playerPos) {
+        if (t < hitStart * 0.45 && playerPos) {
             this._tmpVec.subVectors(playerPos, this.position).normalize();
             this._tmpVec.y = 0;
-            this.position.addScaledVector(this._tmpVec, this.speed * 0.3 * dt);
+            this.position.addScaledVector(this._tmpVec, this.speed * 0.28 * dt);
             this._clampArena();
         }
 
         if (t >= hitStart && t <= hitEnd) {
-            const spinProgress = (t - hitStart) / (hitEnd - hitStart);
-            const spinAngle = spinProgress * Math.PI * 2;
-            this.mesh.rotation.y += dt * 14;
+            this._getFistPos(this._tmpVec);
+            this._light.position.copy(this._tmpVec);
+            this._light.intensity = 24 + 10 * Math.sin(t * 22);
+            this._light.color.setHex(0xbb55cc);
 
-            if (!this._ringMesh.visible) {
-                this._ringMesh.visible = true;
-                this._ringMesh.position.set(this.position.x, 0.3, this.position.z);
-                this._ringMesh.scale.setScalar(0.5);
-            }
-            this._ringMat.opacity = 0.6 * (1 - spinProgress);
-            this._ringMat.color.setHex(0xcc6633);
-            const ringScale = this.hitRadius * 0.8;
-            this._ringMesh.scale.setScalar(0.5 + spinProgress * ringScale);
-
-            this._light.position.set(this.position.x, 2, this.position.z);
-            this._light.intensity = 25 + 12 * Math.sin(t * 15);
-            this._light.color.setHex(0xcc6633);
-
-            if (Math.random() < 0.6) {
-                const pAngle = spinAngle + (Math.random() - 0.5);
-                const r = this.hitRadius * 0.6 + Math.random() * 2;
+            if (Math.random() < 0.65) {
+                const s = this.hitRadius * 0.36;
                 this._spawnParticle(
-                    this.position.x + Math.cos(pAngle) * r,
-                    0.5 + Math.random() * 2,
-                    this.position.z + Math.sin(pAngle) * r,
-                    Math.cos(pAngle) * 6, 2 + Math.random() * 3, Math.sin(pAngle) * 6,
-                    0.08 + Math.random() * 0.06, 0.3 + Math.random() * 0.2, 0xddaa44
+                    this._tmpVec.x + (Math.random() - 0.5) * s,
+                    this._tmpVec.y + (Math.random() - 0.5) * s * 0.5,
+                    this._tmpVec.z + (Math.random() - 0.5) * s,
+                    (Math.random() - 0.5) * 4.6, 2 + Math.random() * 3.2, (Math.random() - 0.5) * 4.6,
+                    0.1 + Math.random() * 0.1, 0.3 + Math.random() * 0.24, 0xcc66dd
                 );
             }
 
             if (!this._attackHitDealt && playerPos) {
                 const dist = this.position.distanceTo(playerPos);
-                if (dist < this._spinRange) {
-                    this._dealDamage(35);
+                if (dist < this._reverseRange) {
+                    this._dealDamage(34);
                     this._attackHitDealt = true;
                 }
             }
         }
 
+        if (t > hitEnd) this._light.intensity = Math.max(0, this._light.intensity - dt * 45);
+    }
+
+    // ===================== CHARGED SMASH =====================
+
+    _tickChargedSmash(dt, t, playerPos) {
+        const windStart = 0.0;
+        const windEnd = 1.6;
+        const hitStart = 1.75;
+        const hitEnd = 2.05;
+
+        if (t >= windStart && t < windEnd) {
+            // Charged pressure: walk the boss forward slowly while building VFX.
+            if (playerPos) {
+                this._tmpVec.subVectors(playerPos, this.position).normalize();
+                this._tmpVec.y = 0;
+                this.position.addScaledVector(this._tmpVec, this.speed * 0.18 * dt);
+                this._clampArena();
+            }
+
+            const p = (t - windStart) / (windEnd - windStart);
+            const pulse = 0.5 + 0.5 * Math.sin(t * 24);
+            this._light.position.set(this.position.x, (this._bossHeight ?? 2.5) * 0.65, this.position.z);
+            this._light.intensity = 8 + p * 40 + pulse * 8;
+            this._light.color.setHex(0xaa2211);
+
+            this._ringMesh.visible = true;
+            this._ringMesh.position.set(this.position.x, 0.15, this.position.z);
+            this._ringMesh.scale.setScalar(0.45 + p * (this.hitRadius * 0.42));
+            this._ringMat.opacity = 0.45 + p * 0.35;
+            this._ringMat.color.setHex(0xcc3300);
+
+            if (Math.random() < 0.55) {
+                const a = Math.random() * Math.PI * 2;
+                const r = this.hitRadius * (0.35 + Math.random() * 0.5);
+                this._spawnParticle(
+                    this.position.x + Math.cos(a) * r,
+                    0.25 + Math.random() * 1.4,
+                    this.position.z + Math.sin(a) * r,
+                    Math.cos(a) * (2 + Math.random() * 2), 2 + Math.random() * 3, Math.sin(a) * (2 + Math.random() * 2),
+                    0.1 + Math.random() * 0.08, 0.35 + Math.random() * 0.25, 0xcc5511
+                );
+            }
+        }
+
+        if (t >= hitStart && t <= hitEnd) {
+            if (!this._attackHitDealt && playerPos) {
+                const aoeRadius = this.hitRadius + 7.5;
+                const d = this.position.distanceTo(playerPos);
+                if (d < aoeRadius) {
+                    const scaled = Math.floor(65 * Math.max(0.28, 1 - d / aoeRadius));
+                    this._dealDamage(scaled);
+                }
+                this._attackHitDealt = true;
+            }
+
+            this._ringMesh.visible = true;
+            this._ringMesh.position.set(this.position.x, 0.16, this.position.z);
+            this._ringMesh.scale.setScalar((this.hitRadius + 7.5) * 0.55);
+            this._ringMat.opacity = 0.95;
+            this._ringMat.color.setHex(0xff6633);
+            this._light.intensity = 72;
+        }
+
         if (t > hitEnd) {
-            this._ringMesh.visible = false;
-            this._light.intensity = Math.max(0, this._light.intensity - dt * 50);
+            const ft = Math.min(1, (t - hitEnd) / Math.max(0.2, this._attackDuration - hitEnd));
+            this._light.intensity = 72 * (1 - ft);
+            this._ringMat.opacity = 0.95 * (1 - ft);
+            this._ringMesh.scale.multiplyScalar(1 + dt * 1.3);
+            if (ft >= 1) this._ringMesh.visible = false;
         }
     }
 
@@ -652,13 +622,18 @@ export class Boss extends Enemy {
                     targetAnim = 'Attack';
                     timeScale = 1.0;
                     break;
-                case ATK.LEAPSLAM:
-                    targetAnim = 'Jumpattack';
+                case ATK.REVERSE:
+                    targetAnim = this.actions['ReversePunch'] ? 'ReversePunch' : 'Attack';
                     timeScale = 1.0;
                     break;
-                case ATK.SPIN:
-                    targetAnim = 'Turnattack';
-                    timeScale = 1.0;
+                case ATK.CHARGED:
+                    targetAnim = this.actions['Charged']
+                        ? 'Charged'
+                        : (this.actions['ReversePunch'] ? 'ReversePunch' : 'Attack');
+                    // Slow windup then violent release.
+                    if (this.activeAttackTimer < 1.5) timeScale = 0.55;
+                    else if (this.activeAttackTimer < 2.1) timeScale = 1.9;
+                    else timeScale = 1.0;
                     break;
             }
         } else if (this.state === 'chase') {

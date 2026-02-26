@@ -48,7 +48,7 @@ export class AssetLoader {
             await this.loadCharacterModel();
             updateProgress('Warrior ready');
 
-            // Step 3: Load boss model (bossminot1.glb)
+            // Step 3: Load boss model (Boss1_3k.glb)
             this.onProgress(currentStep / totalSteps, 'Loading boss...');
             await this.loadBossModel();
             updateProgress('Boss ready');
@@ -146,13 +146,13 @@ export class AssetLoader {
     }
 
     /**
-     * Load boss model (bossminot1.glb) from models/
+     * Load boss model (Boss1_3k.glb) from models/
      */
     async loadBossModel() {
         const base = (typeof window !== 'undefined' && window.location)
             ? window.location.href.replace(/[#?].*$/, '').replace(/[^/]*$/, '')
             : '';
-        const bossUrl = base ? (base + 'models/bossminot1.glb') : './models/bossminot1.glb';
+        const bossUrl = base ? (base + 'models/Boss1_3k.glb') : './models/Boss1_3k.glb';
         console.log('Loading boss from:', bossUrl);
         try {
             const gltf = await this.loadGLTF(bossUrl);
@@ -173,20 +173,22 @@ export class AssetLoader {
             clips.forEach(clip => {
                 map[clip.name] = clip;
                 const name = clip.name;
-                if (name === 'Runfast' || name === 'Runfast.001') map['Idle'] = map['Idle'] || clip;
-                if (name === 'RunFast') map['Run'] = clip;
-                if (name === 'Running.001') map['Walk'] = clip;
-                if (name === 'RighPunch') map['Attack'] = clip;
-                if (name === 'Jumpattack') map['Jumpattack'] = clip;
-                if (name === 'Turnattack') map['Turnattack'] = clip;
+                const lower = name.toLowerCase();
+                if (name === 'Idle' || lower.includes('idle')) map['Idle'] = clip;
+                if (name === 'RunFast.001' || name === 'RunFast' || lower.includes('runfast')) map['Run'] = clip;
+                if (name === 'Running.001' || name === 'Walk' || lower.includes('walk') || lower.includes('running')) map['Walk'] = clip;
+                if (name === 'Punch' || lower.includes('punch')) map['Attack'] = map['Attack'] || clip;
+                if (name === 'Reverse punch' || lower.includes('reverse')) map['ReversePunch'] = clip;
             });
+            // Charged attack can reuse Reverse Punch (preferred) or Punch if no dedicated clip.
+            map['Charged'] = map['ReversePunch'] || map['Attack'] || map['Run'] || map['Walk'];
             if (!map['Idle'] && clips.length > 0) map['Idle'] = clips[0];
             if (!map['Run'] && map['Walk']) map['Run'] = map['Walk'];
             this.assets.animations.boss = { clips, map };
             console.log('Boss clips:', clips.map(c => `${c.name} (${c.duration.toFixed(2)}s)`).join(', '));
             return model;
         } catch (err) {
-            console.warn('Boss model not found (place bossminot1.glb in ./models/):', err.message);
+            console.warn('Boss model not found (place Boss1_3k.glb in ./models/):', err.message);
             this.assets.models.boss = null;
             this.assets.animations.boss = { clips: [], map: {} };
             return null;
