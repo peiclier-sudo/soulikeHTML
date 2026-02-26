@@ -56,6 +56,9 @@ export class CombatSystem {
         this.ultimateSlash = null;
         this._ultimateHitSet = new Set(); // enemies already hit by current slash
 
+        // E spell: Blood Crescend discharge, scales with bleed stacks
+        this.bloodCrescend = null;
+
         // Crimson Eruption (A): ground target circle, blood fire ring
         this.crimsonEruptionPreview = null;
         this.crimsonEruptionRadius = 3.5;
@@ -504,6 +507,7 @@ export class CombatSystem {
         this.updateChargeOrb(deltaTime);
         this.updateProjectiles(deltaTime);
         this.updateUltimateSlash(deltaTime);
+        this.updateBloodCrescend(deltaTime);
     }
 
     updateChargeOrb(deltaTime) {
@@ -645,7 +649,8 @@ export class CombatSystem {
             const hitRadius = enemy.hitRadius ?? (enemy.isBoss ? 2.5 : 0.8);
             if (dist > range + hitRadius) continue;
             this._meleeToEnemy.normalize();
-            if (this._meleeToEnemy.dot(playerForward) < 0.3) continue;
+            // Slightly wider lateral hit cone to reduce near-miss frustration at close range.
+            if (this._meleeToEnemy.dot(playerForward) < 0.22) continue;
             this._meleeHitThisSwing = true;
             this.onHit({ object: enemyMesh, point: this._enemyPos.clone(), distance: dist });
             return;
@@ -710,34 +715,22 @@ export class CombatSystem {
         }
     }
 
-    /** E = Bloodflail: consume all blood charges, instant melee hit with scaled damage and VFX. */
+    /** E = Blood Crescend: consume bleed stacks and discharge a massive crescent toward the enemy. */
     executeBloodflail(chargesUsed, multiplier) {
-        const baseWhipDamage = 45;
-        const finalDamage = Math.floor(baseWhipDamage * multiplier * this._consumeNextAttackMultiplier());
+        this.executeBloodCrescend(chargesUsed, multiplier);
+    }
+
+    executeBloodCrescend(chargesUsed, multiplier) {
+        if (this.bloodCrescend) return;
         const weaponPos = this.character.getWeaponPosition();
-        const playerForward = this.character.getForwardDirection().clone().normalize();
-        this.raycaster.set(weaponPos, playerForward);
-        this.raycaster.far = this.whipRange;
-        const intersects = this.raycaster.intersectObjects(this.enemies, true);
-        if (intersects.length > 0) {
-            const hit = intersects[0];
-            const enemy = this._getEnemyFromHitObject(hit.object);
-            if (enemy) {
-                enemy.takeDamage(finalDamage);
-                enemy.staggerTimer = Math.max(enemy.staggerTimer, 0.72);
-                enemy.state = 'stagger';
-                this.gameState.addUltimateCharge('charged');
-                hit.object.getWorldPosition(this._enemyPos);
-                if (this.particleSystem) {
-                    this.particleSystem.emitPunchBurst(this._enemyPos.clone());
-                    this.particleSystem.emitBloodMatterExplosion(this._enemyPos.clone());
-                    this.particleSystem.emitSparks(this._enemyPos.clone(), 34 + chargesUsed * 6);
-                    this.particleSystem.emitEmbers(this._enemyPos.clone(), 26 + chargesUsed * 5);
-                }
-                this.gameState.emit('damageNumber', { position: this._enemyPos.clone(), damage: finalDamage, isCritical: chargesUsed >= 4, kind: 'heavy', anchorId: this._getDamageAnchorId(enemy) });
-                if (this.onProjectileHit) this.onProjectileHit({ whipHit: true, bloodflailCharges: chargesUsed, punchFinish: true });
-            }
-        }
+
+        // Always launch horizontally in the current camera angle (yaw), blade-like.
+        const dir = this.character.getForwardDirection().clone();
+        dir.y = 0;
+        if (dir.lengthSq() < 0.0001) dir.set(0, 0, -1);
+        dir.normalize();
+
+        this.spawnBloodCrescend(weaponPos.clone().addScaledVector(dir, 0.8), dir, chargesUsed, multiplier);
         this.gameState.combat.isWhipAttacking = true;
         this.whipTimer = this.whipDuration;
         this.whipHitOnce = true;
@@ -1254,6 +1247,154 @@ export class CombatSystem {
         }
     }
 
+
+    spawnBloodCrescend(position, direction, chargesUsed, multiplier) {
+        if (this.bloodCrescend) return;
+
+        const stackRatio = Math.min(1, Math.max(0, chargesUsed / 8));
+        const stackScale = 1 + 1.1 * Math.pow(stackRatio, 1.35);
+        const bladeLen = (2.2 + chargesUsed * 0.5) * stackScale;
+        const bladeWidth = (0.74 + chargesUsed * 0.16) * (0.92 + 0.45 * stackScale);
+        const makeCrescentShape = (length, width, insetMul = 0.48) => {
+            const tipX = length * 0.5;
+            const tailX = -length * 0.5;
+            const bellyX = length * 0.16;
+            const shape = new THREE.Shape();
+            shape.moveTo(tailX, width * 0.48);
+            shape.quadraticCurveTo(-length * 0.05, width * 0.72, tipX, 0);
+            shape.quadraticCurveTo(-length * 0.08, -width * 0.9, tailX * 0.1, -width * 0.38);
+            shape.quadraticCurveTo(bellyX, -width * insetMul, tailX, width * 0.12);
+            shape.closePath();
+            return shape;
+        };
+
+        const geoOuter = new THREE.ShapeGeometry(makeCrescentShape(bladeLen, bladeWidth, 0.44), 42);
+        const matOuter = createBloodFireMaterial({
+            coreBrightness: 1.55 + chargesUsed * 0.18 + stackScale * 0.18,
+            plasmaSpeed: 7.0 + stackScale * 0.6,
+            isCharged: 1.0,
+            layerScale: 1.36,
+            rimPower: 1.5,
+            alpha: Math.min(1.0, 0.96 + stackScale * 0.04),
+            redTint: 0.95
+        });
+        const meshOuter = new THREE.Mesh(geoOuter, matOuter);
+
+        const geoInner = new THREE.ShapeGeometry(makeCrescentShape(bladeLen * 0.86, bladeWidth * 0.74, 0.5), 34);
+        const matInner = new THREE.MeshBasicMaterial({
+            color: 0xff4a4a, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false
+        });
+        const meshInner = new THREE.Mesh(geoInner, matInner);
+
+        const geoCore = new THREE.ShapeGeometry(makeCrescentShape(bladeLen * 0.68, bladeWidth * 0.5, 0.54), 28);
+        const matCore = new THREE.MeshBasicMaterial({
+            color: 0xffc0a0, transparent: true, opacity: 0.32, side: THREE.DoubleSide, depthWrite: false
+        });
+        const meshCore = new THREE.Mesh(geoCore, matCore);
+
+        // Put blade in horizontal plane (XZ), then yaw it to the camera-facing direction.
+        meshOuter.rotation.x = -Math.PI * 0.5;
+        meshInner.rotation.x = -Math.PI * 0.5;
+        meshCore.rotation.x = -Math.PI * 0.5;
+
+        const group = new THREE.Group();
+        group.add(meshOuter);
+        group.add(meshInner);
+        group.add(meshCore);
+        group.position.copy(position);
+
+        const dirNorm = direction.clone();
+        dirNorm.y = 0;
+        if (dirNorm.lengthSq() < 0.0001) dirNorm.set(0, 0, -1);
+        dirNorm.normalize();
+        group.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), dirNorm);
+        this.scene.add(group);
+
+        const speed = 25 + chargesUsed * 1.45;
+        const baseDamage = 85 + chargesUsed * 36;
+        const totalDamage = Math.floor(baseDamage * (multiplier ?? 1) * this._consumeNextAttackMultiplier());
+
+        this.bloodCrescend = {
+            mesh: group,
+            velocity: dirNorm.clone().multiplyScalar(speed),
+            lifetime: 0,
+            maxLifetime: 1.2 + chargesUsed * 0.07 + stackScale * 0.08,
+            hitRadius: 2.05 + chargesUsed * 0.34 + stackScale * 0.5,
+            damage: totalDamage,
+            chargesUsed,
+            materials: [matOuter, matInner, matCore],
+            geometries: [geoOuter, geoInner, geoCore],
+            hitSet: new Set(),
+            stackScale
+        };
+
+        if (this.particleSystem) {
+            this.particleSystem.emitUltimateLaunch(position);
+            this.particleSystem.emitSparks(position, 42 + chargesUsed * 12);
+            this.particleSystem.emitEmbers(position, 36 + chargesUsed * 10);
+            this.particleSystem.emitSlashTrail(position, dirNorm, 22 + chargesUsed * 3);
+        }
+    }
+
+    updateBloodCrescend(deltaTime) {
+        const c = this.bloodCrescend;
+        if (!c) return;
+        c.lifetime += deltaTime;
+        c.mesh.position.addScaledVector(c.velocity, deltaTime);
+        const lifePct = 1 - c.lifetime / c.maxLifetime;
+        const scaleBoost = c.stackScale ?? 1;
+        const pulse = 1 + (0.22 + 0.08 * (scaleBoost - 1)) * Math.sin(c.lifetime * 24);
+        c.mesh.scale.set((1 + 0.2 * Math.sin(c.lifetime * 16)) * scaleBoost, pulse * scaleBoost, scaleBoost);
+
+        const fireMat = c.materials[0];
+        if (fireMat?.uniforms) updateBloodFireMaterial(fireMat, c.lifetime * 10, Math.max(0, 0.98 * lifePct));
+        if (c.materials[1]) c.materials[1].opacity = Math.max(0, 0.5 * lifePct);
+        if (c.materials[2]) c.materials[2].opacity = Math.max(0, 0.3 * lifePct);
+
+        if (this.particleSystem) {
+            c._trailTick = (c._trailTick || 0) + 1;
+            if (c._trailTick % 2 === 0) {
+                const trailDir = c.velocity.clone().normalize();
+                this.particleSystem.emitSlashTrail(c.mesh.position, trailDir, 12 + c.chargesUsed * 2);
+                this.particleSystem.emitOrbTrail(c.mesh.position, trailDir, 10 + c.chargesUsed * 2);
+            }
+        }
+
+        for (const enemyMesh of this.enemies) {
+            const enemy = enemyMesh.userData?.enemy;
+            if (!enemy || enemy.health <= 0 || c.hitSet.has(enemy)) continue;
+            enemyMesh.getWorldPosition(this._enemyPos);
+            const hitRadius = (enemy.hitRadius ?? (enemy.isBoss ? 2.5 : 0.8)) + c.hitRadius;
+            if (c.mesh.position.distanceTo(this._enemyPos) <= hitRadius) {
+                c.hitSet.add(enemy);
+                enemy.takeDamage(c.damage);
+                enemy.staggerTimer = Math.max(enemy.staggerTimer, 0.95);
+                enemy.state = 'stagger';
+                this.gameState.addUltimateCharge('charged');
+                this.gameState.emit('damageNumber', {
+                    position: this._enemyPos.clone(),
+                    damage: c.damage,
+                    isCritical: c.chargesUsed >= 6,
+                    kind: 'heavy',
+                    anchorId: this._getDamageAnchorId(enemy)
+                });
+                if (this.particleSystem) {
+                    this.particleSystem.emitPunchBurst(this._enemyPos.clone());
+                    this.particleSystem.emitBloodMatterExplosion(this._enemyPos.clone());
+                    this.particleSystem.emitUltimateEndExplosion(this._enemyPos.clone());
+                }
+                if (this.onProjectileHit) this.onProjectileHit({ charged: true, isBoss: !!enemy.isBoss, whipHit: true, bloodflailCharges: c.chargesUsed, punchFinish: true });
+            }
+        }
+
+        if (c.lifetime >= c.maxLifetime) {
+            this.scene.remove(c.mesh);
+            c.geometries.forEach(g => g.dispose());
+            c.materials.forEach(m => m.dispose());
+            this.bloodCrescend = null;
+        }
+    }
+
     disposeProjectile(p) {
         const pool = p.isCharged ? this.poolCharged : this.poolBasic;
         if (pool.length < this.maxPoolSize && p.vfx && p.vfx.reset) {
@@ -1415,4 +1556,3 @@ export class CombatSystem {
         }
     }
 }
-

@@ -89,7 +89,7 @@ export class Character {
         const innerRadius = 0.052;
         const outerRadius = 0.075;
         const circleRadius = 1.35;
-        const arcSpan = (80 * Math.PI) / 180;
+        const arcSpan = (120 * Math.PI) / 180;
         const startAngle = -arcSpan / 2;
         const innerGeom = new THREE.SphereGeometry(innerRadius, 6, 6);
         const outerGeom = new THREE.SphereGeometry(outerRadius, 6, 6);
@@ -108,8 +108,9 @@ export class Character {
             opacity: 0.78,
             depthWrite: false
         });
-        for (let i = 0; i < 5; i++) {
-            const angle = startAngle + (i / 4) * arcSpan;
+        const maxBloodStacks = 8;
+        for (let i = 0; i < maxBloodStacks; i++) {
+            const angle = startAngle + (i / (maxBloodStacks - 1)) * arcSpan;
             const orbGroup = new THREE.Group();
             orbGroup.position.set(circleRadius * Math.cos(angle), 0, circleRadius * Math.sin(angle));
             const inner = new THREE.Mesh(innerGeom, sharedInnerMat);
@@ -145,12 +146,12 @@ export class Character {
         const t = this.animationTime;
         const pulse = 1 + 0.07 * Math.sin(t * 4.5);
         const circleRadius = 1.35;
-        const arcSpan = (80 * Math.PI) / 180;
+        const arcSpan = (120 * Math.PI) / 180;
         const startAngle = -arcSpan / 2;
         this.bloodChargeIndicator.children.forEach((orbGroup, i) => {
             const visible = i < n;
             orbGroup.visible = visible;
-            const angle = startAngle + (i / 4) * arcSpan;
+            const angle = startAngle + (i / Math.max(1, this.bloodChargeIndicator.children.length - 1)) * arcSpan;
             orbGroup.position.set(circleRadius * Math.cos(angle), 0.008 * Math.sin(t * 2.8 + i * 1.2), circleRadius * Math.sin(angle));
             if (visible) {
                 orbGroup.scale.setScalar(pulse);
