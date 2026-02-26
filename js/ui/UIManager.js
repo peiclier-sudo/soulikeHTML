@@ -2,9 +2,14 @@
  * UI Manager - Handles HUD updates and damage numbers
  */
 
+import * as THREE from 'three';
+
 export class UIManager {
-    constructor(gameState) {
+    constructor(gameState, camera = null) {
         this.gameState = gameState;
+        this.camera = camera;
+        this._projectedPos = new THREE.Vector3();
+        this._canvas = document.getElementById('game-canvas');
         
         // Cache DOM elements
         this.elements = {
@@ -12,12 +17,21 @@ export class UIManager {
             healthText: document.getElementById('health-text'),
             staminaFill: document.getElementById('stamina-fill'),
             staminaText: document.getElementById('stamina-text'),
+            chargeBar: document.getElementById('charge-bar'),
+            chargeFill: document.getElementById('charge-fill'),
+            chargeReady: document.getElementById('charge-ready'),
             weaponName: document.getElementById('weapon-name'),
             damageNumbers: document.getElementById('damage-numbers'),
             bossHealth: document.getElementById('boss-health'),
             bossHealthFill: document.getElementById('boss-health-fill'),
             bossName: document.getElementById('boss-name'),
-            deathScreen: document.getElementById('death-screen')
+            deathScreen: document.getElementById('death-screen'),
+            ultimateBar: document.getElementById('ultimate-bar'),
+            ultimateFill: document.getElementById('ultimate-fill'),
+            bloodEssenceLabel: document.querySelector('.blood-essence-label'),
+            bloodOrbs: [0, 1, 2, 3, 4].map(i => document.getElementById(`blood-orb-${i}`)),
+            noBloodEssence: document.getElementById('no-blood-essence'),
+            reticule: document.getElementById('reticule')
         };
         
         // Subscribe to game events
@@ -43,6 +57,11 @@ export class UIManager {
             this.updateStaminaBar(stamina);
         });
         
+        // Ultimate charge events
+        this.gameState.on('ultimateChanged', (charge) => {
+            this.updateUltimateBar(charge);
+        });
+        
         // Player death
         this.gameState.on('playerDeath', () => {
             this.showDeathScreen();
@@ -50,11 +69,42 @@ export class UIManager {
     }
     
     update() {
-        // Update health bar
         this.updateHealthBar(this.gameState.player.health);
-        
-        // Update stamina bar
         this.updateStaminaBar(this.gameState.player.stamina);
+        this.updateUltimateBar(this.gameState.player.ultimateCharge);
+        this.updateChargeBar();
+        this.updateBloodOrbs();
+    }
+
+    updateBloodOrbs() {
+        const charges = this.gameState.bloodCharges;
+        const label = this.elements.bloodEssenceLabel;
+        const orbs = this.elements.bloodOrbs;
+        if (label) {
+            label.classList.toggle('grayed', charges === 0);
+        }
+        if (orbs && orbs.length === 5) {
+            orbs.forEach((orb, i) => {
+                if (orb) orb.classList.toggle('filled', i < charges);
+            });
+        }
+    }
+
+    showNoBloodEssenceFeedback() {
+        const popup = this.elements.noBloodEssence;
+        const reticule = this.elements.reticule;
+        if (popup) {
+            popup.style.display = 'block';
+            setTimeout(() => {
+                popup.style.display = 'none';
+            }, 800);
+        }
+        if (reticule) {
+            reticule.classList.add('reticule-flash-red');
+            setTimeout(() => {
+                reticule.classList.remove('reticule-flash-red');
+            }, 250);
+        }
     }
     
     updateHealthBar(health) {
@@ -97,34 +147,70 @@ export class UIManager {
         }
     }
     
+    updateUltimateBar(charge) {
+        if (this.elements.ultimateFill) {
+            const pct = Math.min(100, Math.max(0, charge));
+            this.elements.ultimateFill.style.width = `${pct}%`;
+        }
+        if (this.elements.ultimateBar) {
+            this.elements.ultimateBar.classList.toggle('ready', charge >= 100);
+        }
+    }
+    
+    updateChargeBar() {
+        const combat = this.gameState.combat;
+        const chargeBar = this.elements.chargeBar;
+        const chargeFill = this.elements.chargeFill;
+
+        if (!chargeBar || !chargeFill) return;
+
+        if (combat.isCharging || combat.isChargedAttacking) {
+            chargeBar.style.display = 'block';
+            const chargeVal = combat.isChargedAttacking ? combat.releasedCharge : combat.chargeTimer;
+            const pct = (chargeVal / combat.chargeDuration) * 100;
+            chargeFill.style.width = `${pct}%`;
+            chargeBar.classList.toggle('ready', chargeVal >= combat.minChargeToRelease);
+        } else {
+            chargeBar.style.display = 'none';
+        }
+    }
+
     updateWeaponDisplay() {
         if (this.elements.weaponName) {
             this.elements.weaponName.textContent = this.gameState.equipment.weapon.name;
         }
     }
     
+    setCamera(camera) {
+        this.camera = camera;
+    }
+
     showDamageNumber(worldPosition, damage, isCritical) {
         if (!this.elements.damageNumbers) return;
-        
-        // Create damage number element
+
         const damageEl = document.createElement('div');
         damageEl.className = `damage-number ${isCritical ? 'critical' : ''}`;
         damageEl.textContent = damage.toString();
-        
-        // Position (convert 3D to 2D screen coordinates would require camera)
-        // For now, use random position near center
-        const x = window.innerWidth / 2 + (Math.random() - 0.5) * 200;
-        const y = window.innerHeight / 2 + (Math.random() - 0.5) * 100;
-        
-        damageEl.style.left = `${x}px`;
-        damageEl.style.top = `${y}px`;
-        
+
+        let x, y;
+        if (this.camera && worldPosition && typeof worldPosition.x === 'number') {
+            this._projectedPos.copy(worldPosition).project(this.camera);
+            const w = this._canvas?.clientWidth ?? window.innerWidth;
+            const h = this._canvas?.clientHeight ?? window.innerHeight;
+            x = (this._projectedPos.x * 0.5 + 0.5) * w;
+            y = (-this._projectedPos.y * 0.5 + 0.5) * h;
+            damageEl.style.left = `${x}px`;
+            damageEl.style.top = `${y}px`;
+        } else {
+            x = window.innerWidth / 2 + (Math.random() - 0.5) * 120;
+            y = window.innerHeight / 2 + (Math.random() - 0.5) * 80;
+            damageEl.style.left = `${x}px`;
+            damageEl.style.top = `${y}px`;
+        }
+
         this.elements.damageNumbers.appendChild(damageEl);
-        
-        // Remove after animation
-        setTimeout(() => {
-            damageEl.remove();
-        }, 1000);
+
+        setTimeout(() => damageEl.remove(), 1000);
     }
     
     showBossHealth(bossName, health, maxHealth) {

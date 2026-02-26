@@ -31,6 +31,80 @@
     height: 18px;
 }
 
+/* Blood Essence orbs (0–5), E = Bloodflail */
+.blood-essence {
+    position: absolute;
+    top: 88px;
+    left: 30px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    pointer-events: none;
+}
+
+.blood-essence-label {
+    font-size: 0.85rem;
+    color: rgba(201, 162, 39, 0.9);
+    font-weight: bold;
+    min-width: 14px;
+}
+
+.blood-essence-label.grayed {
+    color: rgba(80, 60, 50, 0.8);
+    opacity: 0.7;
+}
+
+.blood-essence-orbs {
+    display: flex;
+    gap: 4px;
+}
+
+.blood-orb {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: rgba(40, 25, 25, 0.95);
+    border: 1px solid rgba(80, 40, 40, 0.6);
+    transition: background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.blood-orb.filled {
+    background: radial-gradient(circle at 30% 30%, #c03030, #801818 50%, #500808);
+    border-color: rgba(180, 60, 60, 0.8);
+    box-shadow: 0 0 8px rgba(180, 40, 40, 0.6);
+}
+
+/* No Blood Essence popup */
+.no-blood-essence {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 1rem;
+    color: rgba(255, 80, 80, 0.95);
+    text-shadow: 0 0 8px rgba(139, 0, 0, 0.8);
+    pointer-events: none;
+    animation: noBloodFade 0.8s ease-out forwards;
+}
+
+@keyframes noBloodFade {
+    0% { opacity: 0; transform: translate(-50%, -50%) scale(0.9); }
+    20% { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
+    100% { opacity: 0; transform: translate(-50%, -50%) scale(1); }
+}
+
+/* Reticule flash when E with 0 charges */
+.reticule.reticule-flash-red .reticule-dot,
+.reticule.reticule-flash-red .reticule-line {
+    animation: reticuleFlashRed 0.25s ease-out forwards;
+}
+
+@keyframes reticuleFlashRed {
+    0% { filter: none; }
+    50% { background: rgba(255, 60, 60, 0.95); box-shadow: 0 0 12px rgba(255, 40, 40, 0.9); }
+    100% { filter: none; }
+}
+
 .bar-fill {
     height: 100%;
     transition: width 0.3s ease;
@@ -46,6 +120,119 @@
     box-shadow: 0 0 10px rgba(45, 90, 39, 0.5);
 }
 
+/* Charge Bar – smaller, closer to character (bottom-left), slick, red blood */
+.charge-bar {
+    position: absolute;
+    bottom: 100px;
+    left: 30px;
+    width: 160px;
+    z-index: 10;
+}
+
+.charge-bar-bg {
+    position: relative;
+    width: 100%;
+    height: 10px;
+    background: rgba(20, 10, 10, 0.9);
+    border: 1px solid rgba(80, 20, 20, 0.6);
+    border-radius: 5px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+.charge-bar-fill {
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 100%;
+    width: 0%;
+    border-radius: 4px;
+    background: linear-gradient(180deg, #b02020 0%, #6b1010 50%, #4a0808 100%);
+    box-shadow: inset 0 1px 0 rgba(200, 80, 80, 0.25);
+    transition: none; /* Frame-perfect: fill matches charge duration exactly */
+}
+
+.charge-bar-ready {
+    position: absolute;
+    left: 40%;
+    top: 0;
+    width: 2px;
+    height: 100%;
+    background: rgba(220, 80, 80, 0.9);
+    box-shadow: 0 0 6px rgba(180, 40, 40, 0.8);
+    pointer-events: none;
+}
+
+.charge-bar .charge-bar-ready {
+    opacity: 0.35;
+}
+
+.charge-bar.ready .charge-bar-ready {
+    opacity: 1;
+    animation: chargePulse 0.4s ease-in-out infinite;
+}
+
+.charge-bar-label {
+    display: block;
+    text-align: center;
+    font-size: 0.58rem;
+    color: rgba(200, 120, 120, 0.9);
+    letter-spacing: 0.15rem;
+    margin-top: 3px;
+    text-shadow: 0 0 2px rgba(80, 0, 0, 0.6);
+}
+
+@keyframes chargePulse {
+    0%, 100% { opacity: 1; box-shadow: 0 0 6px rgba(200, 60, 60, 0.9); }
+    50% { opacity: 0.7; box-shadow: 0 0 12px rgba(180, 40, 40, 0.8); }
+}
+
+/* Ultimate Bar – under life and stamina; fills when you hit opponent (6 charged / 12 basic), F to use */
+.ultimate-bar {
+    position: absolute;
+    top: 95px;
+    left: 30px;
+    width: 300px;
+    z-index: 10;
+}
+
+.ultimate-bar-bg {
+    position: relative;
+    width: 100%;
+    height: 12px;
+    background: rgba(20, 10, 10, 0.9);
+    border: 1px solid rgba(100, 40, 40, 0.7);
+    border-radius: 5px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+.ultimate-bar-fill {
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 100%;
+    width: 0%;
+    border-radius: 4px;
+    background: linear-gradient(180deg, #c03030 0%, #801818 50%, #500808 100%);
+    box-shadow: inset 0 1px 0 rgba(240, 100, 100, 0.3);
+    transition: width 0.25s ease-out;
+}
+
+.ultimate-bar.ready .ultimate-bar-fill {
+    box-shadow: inset 0 1px 0 rgba(255, 180, 180, 0.4), 0 0 12px rgba(200, 60, 60, 0.5);
+}
+
+.ultimate-bar-label {
+    display: block;
+    text-align: center;
+    font-size: 0.55rem;
+    color: rgba(220, 140, 140, 0.95);
+    letter-spacing: 0.12rem;
+    margin-top: 3px;
+    text-shadow: 0 0 2px rgba(80, 0, 0, 0.6);
+}
+
 .bar-text {
     position: absolute;
     top: 50%;
@@ -56,20 +243,65 @@
     text-shadow: 1px 1px 2px black;
 }
 
-/* Crosshair */
-#crosshair {
+/* Reticule (crosshair) – center screen, subtle */
+.reticule {
     position: absolute;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
+    width: 24px;
+    height: 24px;
+    pointer-events: none;
 }
 
-.crosshair-dot {
-    width: 6px;
-    height: 6px;
-    background: rgba(255, 255, 255, 0.8);
+.reticule-dot {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 4px;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.85);
     border-radius: 50%;
+    box-shadow: 0 0 6px rgba(0, 0, 0, 0.6), 0 0 4px rgba(201, 162, 39, 0.25);
+}
+
+.reticule-line {
+    position: absolute;
+    background: rgba(255, 255, 255, 0.7);
     box-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
+}
+
+.reticule-line.reticule-n {
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 2px;
+    height: 6px;
+}
+
+.reticule-line.reticule-s {
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 2px;
+    height: 6px;
+}
+
+.reticule-line.reticule-e {
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 6px;
+    height: 2px;
+}
+
+.reticule-line.reticule-w {
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 6px;
+    height: 2px;
 }
 
 /* Weapon Display */
@@ -125,6 +357,7 @@
     text-shadow: 2px 2px 4px black, 0 0 10px rgba(255, 0, 0, 0.5);
     animation: damageFloat 1s ease-out forwards;
     pointer-events: none;
+    transform: translate(-50%, -50%);
 }
 
 .damage-number.critical {
@@ -136,15 +369,15 @@
 @keyframes damageFloat {
     0% {
         opacity: 1;
-        transform: translateY(0) scale(1);
+        transform: translate(-50%, -50%) translateY(0) scale(1);
     }
     50% {
         opacity: 1;
-        transform: translateY(-30px) scale(1.2);
+        transform: translate(-50%, -50%) translateY(-30px) scale(1.2);
     }
     100% {
         opacity: 0;
-        transform: translateY(-60px) scale(0.8);
+        transform: translate(-50%, -50%) translateY(-60px) scale(0.8);
     }
 }
 

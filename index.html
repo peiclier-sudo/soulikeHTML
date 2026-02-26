@@ -31,8 +31,9 @@
             <p class="subtitle">A Dark Souls Tribute</p>
             <button id="start-button" class="game-button">ENTER THE ABYSS</button>
             <div class="controls-hint">
-                <p>WASD - Move | Mouse - Look | Left Click - Attack</p>
-                <p>Shift - Run | Space - Dodge Roll | E - Interact</p>
+                <p>AZERTY: Z - Avancer | Q - Gauche | D - Droite | Souris - Regarder</p>
+                <p>Espace - Saut | R - Dash | Clic gauche - Attaque | Clic droit - Attaque chargée</p>
+                <p>Q - Crimson Eruption | E - Bloodflail (finisher, 1–5 charges) | X - Drain de vie | C - Bouclier sang | & - Potion de vie | F - Ultimate</p>
             </div>
         </div>
     </div>
@@ -44,11 +45,32 @@
 
     <!-- HUD Overlay -->
     <div id="hud" style="display: none;">
+        <!-- Reticule (crosshair) -->
+        <div id="reticule" class="reticule" aria-hidden="true">
+            <span class="reticule-dot"></span>
+            <span class="reticule-line reticule-n"></span>
+            <span class="reticule-line reticule-s"></span>
+            <span class="reticule-line reticule-e"></span>
+            <span class="reticule-line reticule-w"></span>
+        </div>
         <!-- Health Bar -->
         <div class="stat-bar health-bar">
             <div class="bar-fill" id="health-fill"></div>
             <span class="bar-text" id="health-text">100/100</span>
         </div>
+        <!-- Blood Essence orbs (0–5), E = Bloodflail finisher -->
+        <div id="blood-essence" class="blood-essence" aria-label="Blood Essence charges">
+            <span class="blood-essence-label">E</span>
+            <div class="blood-essence-orbs">
+                <span class="blood-orb" id="blood-orb-0"></span>
+                <span class="blood-orb" id="blood-orb-1"></span>
+                <span class="blood-orb" id="blood-orb-2"></span>
+                <span class="blood-orb" id="blood-orb-3"></span>
+                <span class="blood-orb" id="blood-orb-4"></span>
+            </div>
+        </div>
+        <!-- No Blood Essence feedback (shown when E pressed with 0 charges) -->
+        <div id="no-blood-essence" class="no-blood-essence" style="display: none;">No Blood Essence</div>
         
         <!-- Stamina Bar -->
         <div class="stat-bar stamina-bar">
@@ -56,7 +78,22 @@
             <span class="bar-text" id="stamina-text">100/100</span>
         </div>
         
-
+        <!-- Ultimate Bar (F when full) -->
+        <div id="ultimate-bar" class="ultimate-bar">
+            <div class="ultimate-bar-bg">
+                <div class="ultimate-bar-fill" id="ultimate-fill"></div>
+            </div>
+            <span class="ultimate-bar-label">ULTIMATE (F)</span>
+        </div>
+        
+        <!-- Charge Bar (visible when charging) -->
+        <div id="charge-bar" class="charge-bar" style="display: none;">
+            <div class="charge-bar-bg">
+                <div class="charge-bar-fill" id="charge-fill"></div>
+                <div class="charge-bar-ready" id="charge-ready"></div>
+            </div>
+            <span class="charge-bar-label" id="charge-label">CHARGE</span>
+        </div>
         
         <!-- Weapon Display -->
         <div id="weapon-display">
@@ -96,22 +133,22 @@
             <div class="setting-row">
                 <label>Shadow Quality</label>
                 <select id="shadow-quality">
-                    <option value="low">Low</option>
-                    <option value="medium" selected>Medium</option>
+                    <option value="low" selected>Low</option>
+                    <option value="medium">Medium</option>
                     <option value="high">High</option>
                 </select>
             </div>
             <div class="setting-row">
                 <label>Particle Count</label>
                 <select id="particle-quality">
-                    <option value="low">Low</option>
-                    <option value="medium" selected>Medium</option>
+                    <option value="low" selected>Low</option>
+                    <option value="medium">Medium</option>
                     <option value="high">High</option>
                 </select>
             </div>
             <div class="setting-row">
-                <label>Post Processing</label>
-                <input type="checkbox" id="post-processing" checked>
+                <label>Post Processing (Bloom)</label>
+                <input type="checkbox" id="post-processing">
             </div>
             <div class="setting-row">
                 <label>Mouse Sensitivity</label>

@@ -42,9 +42,7 @@ async function init() {
             startScreen.style.display = 'none';
             document.getElementById('hud').style.display = 'block';
             game.start();
-            
-            // Request pointer lock for mouse controls
-            canvas.requestPointerLock();
+            requestAnimationFrame(() => canvas.requestPointerLock());
         });
 
         // Setup pause menu buttons

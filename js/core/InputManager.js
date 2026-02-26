@@ -6,8 +6,12 @@ export class InputManager {
     constructor(canvas) {
         this.canvas = canvas;
         
-        // Current input state
+        // Current input state (code = physical key, keyChars = character for layout-independent keys)
         this.keys = {};
+        this.prevKeys = {};
+        this.keyChars = {};
+        this.prevKeyChars = {};
+        this._inputReady = false;
         this.mouse = {
             x: 0,
             y: 0,
@@ -16,7 +20,8 @@ export class InputManager {
             leftClick: false,
             rightClick: false,
             leftClickDown: false,
-            rightClickDown: false
+            rightClickDown: false,
+            rightClickReleased: false
         };
         
         // Bind event handlers
@@ -38,16 +43,21 @@ export class InputManager {
     
     onKeyDown(event) {
         this.keys[event.code] = true;
+        const k = event.key?.toLowerCase();
+        if (k && k.length === 1) this.keyChars[k] = true;
     }
     
     onKeyUp(event) {
         this.keys[event.code] = false;
+        const k = event.key?.toLowerCase();
+        if (k && k.length === 1) this.keyChars[k] = false;
     }
     
     onMouseMove(event) {
         if (document.pointerLockElement) {
-            this.mouse.deltaX += event.movementX;
-            this.mouse.deltaY += event.movementY;
+            const maxDelta = 100;
+            this.mouse.deltaX += Math.max(-maxDelta, Math.min(maxDelta, event.movementX));
+            this.mouse.deltaY += Math.max(-maxDelta, Math.min(maxDelta, event.movementY));
         }
         this.mouse.x = event.clientX;
         this.mouse.y = event.clientY;
@@ -67,6 +77,7 @@ export class InputManager {
         if (event.button === 0) {
             this.mouse.leftClick = false;
         } else if (event.button === 2) {
+            this.mouse.rightClickReleased = this.mouse.rightClick;
             this.mouse.rightClick = false;
         }
     }
@@ -76,27 +87,44 @@ export class InputManager {
     }
     
     getInput() {
+        if (!this._inputReady) {
+            this.prevKeys = { ...this.keys };
+            this.prevKeyChars = { ...this.keyChars };
+            this._inputReady = true;
+        }
+        const lifeDrainKey = (this.keys['KeyX'] || this.keyChars['x']) && !(this.prevKeys['KeyX'] || this.prevKeyChars['x']);
+        const shieldKey = (this.keys['KeyC'] || this.keyChars['c']) && !(this.prevKeys['KeyC'] || this.prevKeyChars['c']);
+        const healthPotionKey = (this.keys['KeyDigit1'] || this.keyChars['&']) && !(this.prevKeys['KeyDigit1'] || this.prevKeyChars['&']);
         return {
-            // Movement
+            // Movement - French AZERTY: Z=KeyW, Q=KeyA, D=KeyD
             forward: this.keys['KeyW'] || this.keys['ArrowUp'],
             backward: this.keys['KeyS'] || this.keys['ArrowDown'],
-            left: this.keys['KeyA'] || this.keys['ArrowLeft'],
-            right: this.keys['KeyD'] || this.keys['ArrowRight'],
+            left: this.keys['KeyA'] || this.keys['ArrowLeft'],   // Q on AZERTY
+            right: this.keys['KeyD'] || this.keys['ArrowRight'], // D on AZERTY
             
-            // Actions
-            run: this.keys['ShiftLeft'] || this.keys['ShiftRight'],
+            // Actions - Z on AZERTY = KeyW, default fast run when moving
+            run: this.keys['KeyW'],  // Z on French keyboard (KeyW position)
             jump: this.keys['Space'],
-            dodge: this.keys['Space'], // Same as jump, context-dependent
+            dash: this.keys['KeyR'],   // R = dash forward
+            ultimate: this.keys['KeyF'], // F = Ultimate when bar full
+            crimsonEruption: this.keys['KeyQ'] && !this.prevKeys['KeyQ'], // A on AZERTY (KeyQ) = Crimson Eruption
+            whipAttack: this.keys['KeyE'] && !this.prevKeys['KeyE'],     // E (AZERTY) = Whip attack
+            lifeDrain: lifeDrainKey,  // X = Life drain (KeyX or key that types 'x' for AZERTY)
+            shield: shieldKey,       // C = Blood shield (6 s), AZERTY KeyC or key that types 'c'
+            healthPotion: healthPotionKey, // & = Health potion (AZERTY: KeyDigit1 or key that types '&')
             interact: this.keys['KeyE'],
             
-            // Combat
+            // Combat (left=Basic attack, right=Charged attack hold/release)
             attack: this.mouse.leftClickDown,
-            block: this.mouse.rightClick,
-            heavyAttack: this.keys['KeyR'],
+            chargedAttack: this.mouse.rightClick,
+            chargedAttackRelease: this.mouse.rightClickReleased,
+            rightClickDown: this.mouse.rightClickDown,
             
             // Camera
             mouseDeltaX: this.mouse.deltaX,
             mouseDeltaY: this.mouse.deltaY,
+            mouseScreenX: this.mouse.x,
+            mouseScreenY: this.mouse.y,
             
             // UI
             inventory: this.keys['KeyI'],
@@ -105,11 +133,13 @@ export class InputManager {
     }
     
     resetFrameInput() {
-        // Reset per-frame values
+        this.prevKeys = { ...this.keys };
+        this.prevKeyChars = { ...this.keyChars };
         this.mouse.deltaX = 0;
         this.mouse.deltaY = 0;
         this.mouse.leftClickDown = false;
         this.mouse.rightClickDown = false;
+        this.mouse.rightClickReleased = false;
     }
     
     isKeyPressed(code) {

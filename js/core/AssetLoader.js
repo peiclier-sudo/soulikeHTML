@@ -29,7 +29,7 @@ export class AssetLoader {
     }
     
     async loadAll() {
-        const totalSteps = 6;
+        const totalSteps = 7;
         let currentStep = 0;
 
         const updateProgress = (message) => {
@@ -48,22 +48,27 @@ export class AssetLoader {
             await this.loadCharacterModel();
             updateProgress('Warrior ready');
 
-            // Step 3: Create environment geometry
+            // Step 3: Load boss model (bossminot1.glb)
+            this.onProgress(currentStep / totalSteps, 'Loading boss...');
+            await this.loadBossModel();
+            updateProgress('Boss ready');
+
+            // Step 4: Create environment geometry
             this.onProgress(currentStep / totalSteps, 'Building environment...');
             await this.createEnvironmentAssets();
             updateProgress('Environment ready');
 
-            // Step 4: Create weapon models
+            // Step 5: Create weapon models
             this.onProgress(currentStep / totalSteps, 'Forging weapons...');
             await this.createWeaponAssets();
             updateProgress('Weapons ready');
 
-            // Step 5: Generate particle textures
+            // Step 6: Generate particle textures
             this.onProgress(currentStep / totalSteps, 'Preparing effects...');
             await this.generateParticleTextures();
             updateProgress('Effects ready');
 
-            // Step 6: Finalize
+            // Step 7: Finalize
             this.onProgress(currentStep / totalSteps, 'Entering the dark world...');
             await new Promise(resolve => setTimeout(resolve, 500));
             updateProgress('Ready');
@@ -77,75 +82,114 @@ export class AssetLoader {
     }
 
     /**
-     * Load the KayKit Knight character model and animations
+     * Load the integrated character model (character.glb) with embedded animations
      */
     async loadCharacterModel() {
-        // KayKit Adventurers - Knight model (local path)
-        const knightUrl = './models/Characters/gltf/Knight.glb';
-        const animationsUrl = './models/Animations/gltf/Rig_Medium/Rig_Medium_MovementBasic.glb';
+        const characterUrl = './models/character.glb';
 
         try {
-            // Load the character model
-            const characterGltf = await this.loadGLTF(knightUrl);
+            const characterGltf = await this.loadGLTF(characterUrl);
             const model = characterGltf.scene;
 
-            // Scale the model appropriately (KayKit models need scaling down)
-            model.scale.setScalar(0.3);
+            // Scale to match game scale (adjust if character appears too big/small)
+            model.scale.setScalar(1.0);
 
             // Enable shadows on all meshes
             model.traverse((child) => {
                 if (child.isMesh) {
                     child.castShadow = true;
                     child.receiveShadow = true;
-
-                    // Slightly darken for Dark Souls aesthetic
                     if (child.material) {
                         child.material = child.material.clone();
                         child.material.metalness = 0.4;
                         child.material.roughness = 0.6;
+                        if (child.material.color) {
+                            child.material.color.multiplyScalar(0.55);
+                        }
                     }
                 }
             });
 
-            // Store the model
             this.assets.models.character = model;
 
-            // Load animations separately
-            const animGltf = await this.loadGLTF(animationsUrl);
+            // Use animations embedded in the character GLB
+            const clips = characterGltf.animations || [];
+            if (clips.length > 0) {
+                console.log('Character animations:', clips.map(a => a.name));
 
-            // Store animations
-            if (animGltf.animations && animGltf.animations.length > 0) {
-                console.log('Loaded animations:', animGltf.animations.map(a => a.name));
-
-                // Build animation map from KayKit animation names
                 const animMap = {};
-                animGltf.animations.forEach(clip => {
+                clips.forEach(clip => {
                     animMap[clip.name] = clip;
-                    // Map common names
-                    if (clip.name.toLowerCase().includes('idle')) animMap['Idle'] = clip;
-                    if (clip.name.toLowerCase().includes('walk')) animMap['Walk'] = clip;
-                    if (clip.name.toLowerCase().includes('run')) animMap['Run'] = clip;
+                    const lower = clip.name.toLowerCase();
+                    if (lower.includes('idle')) animMap['Idle'] = clip;
+                    if (lower.includes('walk')) animMap['Walk'] = clip;
+                    if (lower.includes('running') || lower.includes('run')) animMap['Run'] = clip;
+                    if (lower.includes('roll') || lower.includes('dodge')) animMap['Roll dodge'] = clip;
                 });
 
                 this.assets.animations.character = {
-                    clips: animGltf.animations,
+                    clips,
                     map: animMap
                 };
             } else {
-                // Use character's own animations if any
-                this.assets.animations.character = {
-                    clips: characterGltf.animations || [],
-                    map: {}
-                };
+                this.assets.animations.character = { clips: [], map: {} };
             }
 
-            console.log('Knight character loaded successfully');
+            console.log('Character loaded successfully');
             return model;
 
         } catch (error) {
-            console.error('Failed to load Knight model:', error);
+            console.error('Failed to load character model:', error);
             console.log('Falling back to procedural character...');
             await this.createProceduralCharacter();
+        }
+    }
+
+    /**
+     * Load boss model (bossminot1.glb) from models/
+     */
+    async loadBossModel() {
+        const base = (typeof window !== 'undefined' && window.location)
+            ? window.location.href.replace(/[#?].*$/, '').replace(/[^/]*$/, '')
+            : '';
+        const bossUrl = base ? (base + 'models/bossminot1.glb') : './models/bossminot1.glb';
+        console.log('Loading boss from:', bossUrl);
+        try {
+            const gltf = await this.loadGLTF(bossUrl);
+            const model = gltf.scene;
+            model.scale.setScalar(1.0);
+            model.traverse((child) => {
+                if (child.isMesh) {
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                    if (child.material) {
+                        child.material = child.material.clone();
+                    }
+                }
+            });
+            this.assets.models.boss = model;
+            const clips = gltf.animations || [];
+            const map = {};
+            clips.forEach(clip => {
+                map[clip.name] = clip;
+                const name = clip.name;
+                if (name === 'Runfast' || name === 'Runfast.001') map['Idle'] = map['Idle'] || clip;
+                if (name === 'RunFast') map['Run'] = clip;
+                if (name === 'Running.001') map['Walk'] = clip;
+                if (name === 'RighPunch') map['Attack'] = clip;
+                if (name === 'Jumpattack') map['Jumpattack'] = clip;
+                if (name === 'Turnattack') map['Turnattack'] = clip;
+            });
+            if (!map['Idle'] && clips.length > 0) map['Idle'] = clips[0];
+            if (!map['Run'] && map['Walk']) map['Run'] = map['Walk'];
+            this.assets.animations.boss = { clips, map };
+            console.log('Boss clips:', clips.map(c => `${c.name} (${c.duration.toFixed(2)}s)`).join(', '));
+            return model;
+        } catch (err) {
+            console.warn('Boss model not found (place bossminot1.glb in ./models/):', err.message);
+            this.assets.models.boss = null;
+            this.assets.animations.boss = { clips: [], map: {} };
+            return null;
         }
     }
 
@@ -289,20 +333,20 @@ export class AssetLoader {
         canvas.height = height;
         const ctx = canvas.getContext('2d');
 
-        // Base dark red
-        ctx.fillStyle = '#4a0000';
+        // Grey/whitish base to fit character design
+        ctx.fillStyle = '#5a5a5a';
         ctx.fillRect(0, 0, width, height);
 
-        // Add glowing spots
+        // Soft lighter spots (ash/mist feel)
         for (let i = 0; i < 30; i++) {
             const x = Math.random() * width;
             const y = Math.random() * height;
             const radius = Math.random() * 30 + 10;
 
             const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
-            gradient.addColorStop(0, 'rgba(255, 200, 50, 0.8)');
-            gradient.addColorStop(0.5, 'rgba(255, 100, 0, 0.5)');
-            gradient.addColorStop(1, 'rgba(200, 50, 0, 0)');
+            gradient.addColorStop(0, 'rgba(240, 240, 245, 0.6)');
+            gradient.addColorStop(0.5, 'rgba(200, 200, 210, 0.3)');
+            gradient.addColorStop(1, 'rgba(120, 120, 130, 0)');
 
             ctx.fillStyle = gradient;
             ctx.fillRect(0, 0, width, height);
@@ -356,7 +400,7 @@ export class AssetLoader {
         // Body/torso
         const bodyGeom = new THREE.CylinderGeometry(0.3, 0.35, 0.8, 8);
         const armorMat = new THREE.MeshStandardMaterial({
-            color: 0x4a4a5a,
+            color: 0x2e2e38,
             metalness: 0.8,
             roughness: 0.3
         });
@@ -574,28 +618,8 @@ export class AssetLoader {
     }
 
     async createWeaponAssets() {
-        // Try to load the KayKit 2-handed sword
-        const swordUrl = './models/Assets/gltf/sword_2handed.gltf';
-
-        try {
-            const gltf = await this.loadGLTF(swordUrl);
-            const sword = gltf.scene;
-
-            // Enable shadows
-            sword.traverse((child) => {
-                if (child.isMesh) {
-                    child.castShadow = true;
-                    child.receiveShadow = true;
-                }
-            });
-
-            sword.name = 'claymore';
-            this.assets.models.claymore = sword;
-            console.log('2-handed sword loaded successfully');
-        } catch (error) {
-            console.warn('Failed to load sword model, using procedural:', error);
-            this.assets.models.claymore = this.createClaymoreModel();
-        }
+        // Use procedural claymore (no external sword model required)
+        this.assets.models.claymore = this.createClaymoreModel();
     }
 
     createClaymoreModel() {

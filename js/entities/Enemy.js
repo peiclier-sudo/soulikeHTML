@@ -146,9 +146,8 @@ export class Enemy {
     attack() {
         this.state = 'attack';
         this.attackCooldown = 1.5;
-        
-        // Attack animation
-        // In a real implementation, this would trigger animation and damage
+        // For ultimate bar: 6 charged or 12 basic hits to fill
+        this.attackType = Math.random() < 0.35 ? 'charged' : 'basic';
         return this.damage;
     }
     
@@ -156,18 +155,31 @@ export class Enemy {
         this.health -= amount;
         this.staggerTimer = 0.3;
         this.state = 'stagger';
-        
-        // Flash red
-        this.mesh.traverse(child => {
-            if (child.isMesh && child.material) {
-                const originalColor = child.material.color.clone();
-                child.material.color.set(0xff0000);
-                setTimeout(() => {
-                    child.material.color.copy(originalColor);
-                }, 100);
+
+        if (!this._hitFlashMeshes) {
+            this._hitFlashMeshes = [];
+            this._hitFlashOriginals = [];
+            this.mesh.traverse(child => {
+                if (child.isMesh && child.material && child.material.color) {
+                    this._hitFlashMeshes.push(child);
+                    this._hitFlashOriginals.push(child.material.color.clone());
+                }
+            });
+        }
+        const flashColor = this.isBoss ? 0xf8f8ff : 0xff0000;
+        const meshes = this._hitFlashMeshes;
+        const originals = this._hitFlashOriginals;
+        for (let i = 0; i < meshes.length; i++) {
+            meshes[i].material.color.setHex(flashColor);
+        }
+        if (this._hitFlashTimer) clearTimeout(this._hitFlashTimer);
+        this._hitFlashTimer = setTimeout(() => {
+            for (let i = 0; i < meshes.length; i++) {
+                meshes[i].material.color.copy(originals[i]);
             }
-        });
-        
+            this._hitFlashTimer = null;
+        }, 100);
+
         if (this.health <= 0) {
             this.die();
         }
