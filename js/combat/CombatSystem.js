@@ -1251,37 +1251,62 @@ export class CombatSystem {
 
     spawnBloodCrescend(position, direction, chargesUsed, multiplier) {
         if (this.bloodCrescend) return;
-        const outerR = 1.15 + chargesUsed * 0.24;
-        const innerR = Math.max(0.28, outerR * 0.48);
-        const thetaLen = Math.PI * 1.24;
-        const geoOuter = new THREE.RingGeometry(innerR, outerR, 96, 1, -thetaLen * 0.5, thetaLen);
+
+        const bladeLen = 2.1 + chargesUsed * 0.34;
+        const bladeWidth = 0.72 + chargesUsed * 0.11;
+        const makeCrescentShape = (length, width, insetMul = 0.48) => {
+            const tipX = length * 0.5;
+            const tailX = -length * 0.5;
+            const bellyX = length * 0.16;
+            const shape = new THREE.Shape();
+            shape.moveTo(tailX, width * 0.48);
+            shape.quadraticCurveTo(-length * 0.05, width * 0.72, tipX, 0);
+            shape.quadraticCurveTo(-length * 0.08, -width * 0.9, tailX * 0.1, -width * 0.38);
+            shape.quadraticCurveTo(bellyX, -width * insetMul, tailX, width * 0.12);
+            shape.closePath();
+            return shape;
+        };
+
+        const geoOuter = new THREE.ShapeGeometry(makeCrescentShape(bladeLen, bladeWidth, 0.44), 42);
         const matOuter = createBloodFireMaterial({
-            coreBrightness: 1.45 + chargesUsed * 0.14,
-            plasmaSpeed: 6.4,
+            coreBrightness: 1.5 + chargesUsed * 0.14,
+            plasmaSpeed: 6.8,
             isCharged: 1.0,
-            layerScale: 1.35,
-            rimPower: 1.55,
+            layerScale: 1.36,
+            rimPower: 1.5,
             alpha: 0.98,
-            redTint: 0.94
+            redTint: 0.95
         });
         const meshOuter = new THREE.Mesh(geoOuter, matOuter);
 
-        const geoInner = new THREE.RingGeometry(innerR * 0.58, outerR * 0.8, 84, 1, -thetaLen * 0.5, thetaLen);
-        const matInner = new THREE.MeshBasicMaterial({ color: 0xff4a4a, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false });
+        const geoInner = new THREE.ShapeGeometry(makeCrescentShape(bladeLen * 0.86, bladeWidth * 0.74, 0.5), 34);
+        const matInner = new THREE.MeshBasicMaterial({
+            color: 0xff4a4a, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false
+        });
         const meshInner = new THREE.Mesh(geoInner, matInner);
 
-        const geoCore = new THREE.RingGeometry(innerR * 0.35, outerR * 0.55, 72, 1, -thetaLen * 0.5, thetaLen);
-        const matCore = new THREE.MeshBasicMaterial({ color: 0xffc0a0, transparent: true, opacity: 0.28, side: THREE.DoubleSide, depthWrite: false });
+        const geoCore = new THREE.ShapeGeometry(makeCrescentShape(bladeLen * 0.68, bladeWidth * 0.5, 0.54), 28);
+        const matCore = new THREE.MeshBasicMaterial({
+            color: 0xffc0a0, transparent: true, opacity: 0.32, side: THREE.DoubleSide, depthWrite: false
+        });
         const meshCore = new THREE.Mesh(geoCore, matCore);
+
+        // Put blade in horizontal plane (XZ), then yaw it to the camera-facing direction.
+        meshOuter.rotation.x = -Math.PI * 0.5;
+        meshInner.rotation.x = -Math.PI * 0.5;
+        meshCore.rotation.x = -Math.PI * 0.5;
 
         const group = new THREE.Group();
         group.add(meshOuter);
         group.add(meshInner);
         group.add(meshCore);
         group.position.copy(position);
-        const dirNorm = direction.clone().normalize();
-        group.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), dirNorm);
-        group.rotateY(Math.PI); // concave opening points forward to the target direction
+
+        const dirNorm = direction.clone();
+        dirNorm.y = 0;
+        if (dirNorm.lengthSq() < 0.0001) dirNorm.set(0, 0, -1);
+        dirNorm.normalize();
+        group.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), dirNorm);
         this.scene.add(group);
 
         const speed = 25 + chargesUsed * 1.45;
@@ -1290,7 +1315,7 @@ export class CombatSystem {
 
         this.bloodCrescend = {
             mesh: group,
-            velocity: direction.clone().multiplyScalar(speed),
+            velocity: dirNorm.clone().multiplyScalar(speed),
             lifetime: 0,
             maxLifetime: 1.2 + chargesUsed * 0.07,
             hitRadius: 2.05 + chargesUsed * 0.28,
@@ -1317,7 +1342,6 @@ export class CombatSystem {
         const lifePct = 1 - c.lifetime / c.maxLifetime;
         const pulse = 1 + 0.24 * Math.sin(c.lifetime * 24);
         c.mesh.scale.set(1 + 0.16 * Math.sin(c.lifetime * 16), pulse, 1);
-        c.mesh.rotateZ(deltaTime * 2.8);
 
         const fireMat = c.materials[0];
         if (fireMat?.uniforms) updateBloodFireMaterial(fireMat, c.lifetime * 10, Math.max(0, 0.98 * lifePct));
