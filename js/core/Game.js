@@ -149,7 +149,7 @@ export class Game {
         );
         
         // UI Manager (camera for project damage numbers at hit position)
-        this.uiManager = new UIManager(this.gameState, this.camera);
+        this.uiManager = new UIManager(this.gameState, this.camera, this.combatSystem);
 
         // Spawn one random boss in the arena
         this.boss = null;
