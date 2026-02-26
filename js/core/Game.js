@@ -18,9 +18,10 @@ import { UIManager } from '../ui/UIManager.js';
 import { Boss } from '../entities/Boss.js';
 
 export class Game {
-    constructor(canvas, assetLoader) {
+    constructor(canvas, assetLoader, kitId = 'blood_mage') {
         this.canvas = canvas;
         this.assetLoader = assetLoader;
+        this.kitId = kitId;
         this.isRunning = false;
         this.isPaused = false;
         this.clock = new THREE.Clock();
@@ -126,8 +127,10 @@ export class Game {
     }
     
     initSystems() {
-        // Game state management
+        // Game state management (set kit before reset so stats are kit-driven)
         this.gameState = new GameState();
+        this.gameState.setKit(this.kitId);
+        this.gameState.reset();
         
         // Input handling
         this.inputManager = new InputManager(this.canvas);
@@ -155,6 +158,7 @@ export class Game {
         
         // UI Manager (camera for project damage numbers at hit position)
         this.uiManager = new UIManager(this.gameState, this.camera, this.combatSystem, this.character);
+        this.uiManager.applyKitToHud();
 
         // Spawn one random boss in the arena
         this.boss = null;
@@ -375,7 +379,7 @@ export class Game {
 
         // Blood shield (C): activate and timer
         if (input.shield && !this.gameState.combat.shieldActive) {
-            this.gameState.activateShield(6);
+            this.gameState.activateShield(this.combatSystem.shieldDuration);
         }
         if (this.gameState.combat.shieldActive) {
             this.gameState.combat.shieldTimeRemaining -= this.deltaTime;

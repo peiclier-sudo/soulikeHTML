@@ -13,30 +13,51 @@ export class CombatSystem {
         this.gameState = gameState;
         this.particleSystem = particleSystem;
         this.onProjectileHit = onProjectileHit;
-        
+
+        // Read kit combat config (falls back to Blood Mage defaults if no kit set)
+        const kit = gameState.selectedKit;
+        const kc = kit?.combat || {};
+        const basic = kc.basicAttack || {};
+        const charged = kc.chargedAttack || {};
+        const abilQ = kc.abilityQ || {};
+        const abilE = kc.abilityE || {};
+        const abilX = kc.abilityX || {};
+        const abilC = kc.abilityC || {};
+        const abilF = kc.abilityF || {};
+
         // Raycaster for hit detection
         this.raycaster = new THREE.Raycaster();
-        
+
         // Attack properties (2x faster - Basic attack animation only)
         this.attackDuration = 0.25;
         this.attackTimer = 0;
         this.comboWindow = 0.15;
         this.comboTimer = 0;
         this.maxCombo = 3;
-        
+
         // Projectiles (fireballs)
         this.projectiles = [];
+
+        // Kit-driven basic/charged projectile params
+        this.basicDamage = basic.damage ?? 20;
+        this.basicSpeed = basic.speed ?? 20;
+        this.basicRadius = basic.radius ?? 0.25;
+        this.basicLifetime = basic.lifetime ?? 1.5;
+        this.chargedDamage = charged.damage ?? 55;
+        this.chargedSpeed = charged.speed ?? 20;
+        this.chargedRadius = charged.radius ?? 0.72;
+        this.chargedLifetime = charged.lifetime ?? 2.4;
 
         // Charge orb (grows at hand while charging)
         this.chargeOrb = null;
 
         // Charged attack (right click hold then release)
         this.chargeTimer = 0;
-        this.chargeDuration = 1.0;
+        this.chargeDuration = charged.chargeDuration ?? 1.0;
         this.minChargeToRelease = this.chargeDuration;
         this.chargedAttackTimer = 0;
         this.chargedAttackDuration = 0.55;
-        
+
         // Enemies in scene (for hit detection)
         this.enemies = [];
         // Reused in updateProjectiles to avoid per-frame allocations
@@ -55,23 +76,24 @@ export class CombatSystem {
         // Ultimate: Zangetsu-style blood crescent slash (piercing, high damage)
         this.ultimateSlash = null;
         this._ultimateHitSet = new Set(); // enemies already hit by current slash
+        this.ultimateDamage = abilF.damage ?? 120;
 
         // E spell: Blood Crescend discharge, scales with bleed stacks
         this.bloodCrescend = null;
 
-        // Crimson Eruption (A): ground target circle, blood fire ring
+        // Crimson Eruption / Q ability: ground target circle
         this.crimsonEruptionPreview = null;
-        this.crimsonEruptionRadius = 3.5;
+        this.crimsonEruptionRadius = abilQ.radius ?? 3.5;
         this.crimsonEruptionCooldown = 0;
-        this.crimsonEruptionCooldownDuration = 8;
-        this.crimsonEruptionDamage = 50;
+        this.crimsonEruptionCooldownDuration = abilQ.cooldown ?? 8;
+        this.crimsonEruptionDamage = abilQ.damage ?? 50;
         this.crimsonEruptionVfx = null;
 
-        // Whip attack (E): CAC blood-fire slash, impactful
+        // Whip/finisher (E ability): CAC blood-fire slash, impactful
         this.whipTimer = null;
         this.whipDuration = 0.48;
-        this.whipRange = 3.8;
-        this.whipDamage = 45;
+        this.whipRange = abilE.range ?? 3.8;
+        this.whipDamage = abilE.baseDamage ?? 45;
         this.whipHitOnce = false;
 
         // Life drain (X): channel 2.5s, damage target and heal self (WoW-style)
@@ -99,16 +121,19 @@ export class CombatSystem {
         this._drainPath = Array.from({ length: 140 }, () => new THREE.Vector3());
         this._lastDrainBloodSecond = 0; // +1 blood charge per full second of life drain
 
-        // Blood Nova (X): short blood burst that roots/freezes enemies, especially bosses.
+        // Blood Nova / X ability: short blood burst that roots/freezes enemies
         this.bloodNovaCooldown = 0;
-        this.bloodNovaCooldownDuration = 10;
-        this.bloodNovaRadius = 12;
-        this.bloodNovaDamage = 35;
-        this.bloodNovaFreezeDuration = 2.4;
+        this.bloodNovaCooldownDuration = abilX.cooldown ?? 10;
+        this.bloodNovaRadius = abilX.radius ?? 12;
+        this.bloodNovaDamage = abilX.damage ?? 35;
+        this.bloodNovaFreezeDuration = abilX.freezeDuration ?? 2.4;
         this.bloodNovaWindup = 0;
         this.bloodNovaWindupDuration = 0.12;
         this._bloodNovaPendingCenter = new THREE.Vector3();
         this._bloodNovaPreview = null;
+
+        // Shield duration from kit
+        this.shieldDuration = abilC.duration ?? 6;
     }
 
     /** Crescent / croissant shape for ultimate slash (arc shape) */
@@ -169,8 +194,8 @@ export class CombatSystem {
     }
 
     _createProjectile(isCharged, startPos, dir) {
-        const radius = isCharged ? 0.72 : 0.25;
-        const speed = 20;
+        const radius = isCharged ? this.chargedRadius : this.basicRadius;
+        const speed = isCharged ? this.chargedSpeed : this.basicSpeed;
         const seg = isCharged ? 12 : 8;
         const group = new THREE.Group();
         group.position.copy(startPos);
@@ -210,8 +235,8 @@ export class CombatSystem {
         const velocity = new THREE.Vector3().copy(dir).normalize().multiplyScalar(speed);
         return {
             mesh: group, velocity, lifetime: 0,
-            maxLifetime: isCharged ? 2.4 : 1.5,
-            damage: isCharged ? 55 : 20,
+            maxLifetime: isCharged ? this.chargedLifetime : this.basicLifetime,
+            damage: isCharged ? this.chargedDamage : this.basicDamage,
             releaseBurst: isCharged ? 0.15 : 0,
             isCharged: !!isCharged,
             materials, geometries, vfx
