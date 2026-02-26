@@ -8,7 +8,7 @@ import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { Enemy } from './Enemy.js';
 
 const BOSS_NAMES = ['Gorrath the Unbroken', 'Malkhor Ironhide', 'Thurnax Bloodhorn', 'Varok the Trampler', 'Grommash Skullsplitter'];
-const BOSS_COLOR = 0x3a2818; // procedural fallback only; GLB boss uses same treatment as character (0.32 multiply)
+const BOSS_COLOR = 0x3a2818; // procedural fallback only; loaded GLB boss material pass is handled in AssetLoader
 
 const ATK = { PUNCH: 0, REVERSE: 1, CHARGED: 2 };
 const ATK_COUNT = 3;
@@ -87,10 +87,11 @@ export class Boss extends Enemy {
                         if ('envMap' in mat) mat.envMap = null;
                         if ('envMapIntensity' in mat) mat.envMapIntensity = 0.0;
                         if ('metalness' in mat) mat.metalness = 0.02;
-                        if ('roughness' in mat) mat.roughness = 0.98;
-                        if ('specularIntensity' in mat) mat.specularIntensity = 0.02;
+                        if ('roughness' in mat) mat.roughness = 0.97;
+                        if ('specularIntensity' in mat) mat.specularIntensity = 0.05;
                         if ('clearcoat' in mat) mat.clearcoat = 0.0;
                         if ('sheen' in mat) mat.sheen = 0.0;
+                        if ('emissiveIntensity' in mat) mat.emissiveIntensity = 0.33;
                         if (mat.map) {
                             mat.map.premultiplyAlpha = false;
                             mat.map.needsUpdate = true;
