@@ -1252,8 +1252,10 @@ export class CombatSystem {
     spawnBloodCrescend(position, direction, chargesUsed, multiplier) {
         if (this.bloodCrescend) return;
 
-        const bladeLen = 2.1 + chargesUsed * 0.34;
-        const bladeWidth = 0.72 + chargesUsed * 0.11;
+        const stackRatio = Math.min(1, Math.max(0, chargesUsed / 8));
+        const stackScale = 1 + 1.1 * Math.pow(stackRatio, 1.35);
+        const bladeLen = (2.2 + chargesUsed * 0.5) * stackScale;
+        const bladeWidth = (0.74 + chargesUsed * 0.16) * (0.92 + 0.45 * stackScale);
         const makeCrescentShape = (length, width, insetMul = 0.48) => {
             const tipX = length * 0.5;
             const tailX = -length * 0.5;
@@ -1269,12 +1271,12 @@ export class CombatSystem {
 
         const geoOuter = new THREE.ShapeGeometry(makeCrescentShape(bladeLen, bladeWidth, 0.44), 42);
         const matOuter = createBloodFireMaterial({
-            coreBrightness: 1.5 + chargesUsed * 0.14,
-            plasmaSpeed: 6.8,
+            coreBrightness: 1.55 + chargesUsed * 0.18 + stackScale * 0.18,
+            plasmaSpeed: 7.0 + stackScale * 0.6,
             isCharged: 1.0,
             layerScale: 1.36,
             rimPower: 1.5,
-            alpha: 0.98,
+            alpha: Math.min(1.0, 0.96 + stackScale * 0.04),
             redTint: 0.95
         });
         const meshOuter = new THREE.Mesh(geoOuter, matOuter);
@@ -1317,20 +1319,21 @@ export class CombatSystem {
             mesh: group,
             velocity: dirNorm.clone().multiplyScalar(speed),
             lifetime: 0,
-            maxLifetime: 1.2 + chargesUsed * 0.07,
-            hitRadius: 2.05 + chargesUsed * 0.28,
+            maxLifetime: 1.2 + chargesUsed * 0.07 + stackScale * 0.08,
+            hitRadius: 2.05 + chargesUsed * 0.34 + stackScale * 0.5,
             damage: totalDamage,
             chargesUsed,
             materials: [matOuter, matInner, matCore],
             geometries: [geoOuter, geoInner, geoCore],
-            hitSet: new Set()
+            hitSet: new Set(),
+            stackScale
         };
 
         if (this.particleSystem) {
             this.particleSystem.emitUltimateLaunch(position);
-            this.particleSystem.emitSparks(position, 36 + chargesUsed * 9);
-            this.particleSystem.emitEmbers(position, 30 + chargesUsed * 8);
-            this.particleSystem.emitSlashTrail(position, dirNorm, 18 + chargesUsed * 2);
+            this.particleSystem.emitSparks(position, 42 + chargesUsed * 12);
+            this.particleSystem.emitEmbers(position, 36 + chargesUsed * 10);
+            this.particleSystem.emitSlashTrail(position, dirNorm, 22 + chargesUsed * 3);
         }
     }
 
@@ -1340,8 +1343,9 @@ export class CombatSystem {
         c.lifetime += deltaTime;
         c.mesh.position.addScaledVector(c.velocity, deltaTime);
         const lifePct = 1 - c.lifetime / c.maxLifetime;
-        const pulse = 1 + 0.24 * Math.sin(c.lifetime * 24);
-        c.mesh.scale.set(1 + 0.16 * Math.sin(c.lifetime * 16), pulse, 1);
+        const scaleBoost = c.stackScale ?? 1;
+        const pulse = 1 + (0.22 + 0.08 * (scaleBoost - 1)) * Math.sin(c.lifetime * 24);
+        c.mesh.scale.set((1 + 0.2 * Math.sin(c.lifetime * 16)) * scaleBoost, pulse * scaleBoost, scaleBoost);
 
         const fireMat = c.materials[0];
         if (fireMat?.uniforms) updateBloodFireMaterial(fireMat, c.lifetime * 10, Math.max(0, 0.98 * lifePct));
@@ -1352,8 +1356,8 @@ export class CombatSystem {
             c._trailTick = (c._trailTick || 0) + 1;
             if (c._trailTick % 2 === 0) {
                 const trailDir = c.velocity.clone().normalize();
-                this.particleSystem.emitSlashTrail(c.mesh.position, trailDir, 10 + c.chargesUsed);
-                this.particleSystem.emitOrbTrail(c.mesh.position, trailDir, 8 + c.chargesUsed);
+                this.particleSystem.emitSlashTrail(c.mesh.position, trailDir, 12 + c.chargesUsed * 2);
+                this.particleSystem.emitOrbTrail(c.mesh.position, trailDir, 10 + c.chargesUsed * 2);
             }
         }
 
