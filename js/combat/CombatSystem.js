@@ -1267,37 +1267,41 @@ export class CombatSystem {
 
     spawnBloodCrescend(position, direction, chargesUsed, multiplier) {
         if (this.bloodCrescend) return;
-        const outerR = 0.95 + chargesUsed * 0.2;
-        const innerR = Math.max(0.2, outerR * 0.52);
-        const thetaLen = Math.PI * 1.1;
-        const geoOuter = new THREE.RingGeometry(innerR, outerR, 72, 1, -thetaLen * 0.5, thetaLen);
+        const outerR = 1.15 + chargesUsed * 0.24;
+        const innerR = Math.max(0.28, outerR * 0.48);
+        const thetaLen = Math.PI * 1.24;
+        const geoOuter = new THREE.RingGeometry(innerR, outerR, 96, 1, -thetaLen * 0.5, thetaLen);
         const matOuter = createBloodFireMaterial({
-            coreBrightness: 1.3 + chargesUsed * 0.1,
-            plasmaSpeed: 5.2,
+            coreBrightness: 1.45 + chargesUsed * 0.14,
+            plasmaSpeed: 6.4,
             isCharged: 1.0,
-            layerScale: 1.22,
-            rimPower: 1.75,
-            alpha: 0.95,
+            layerScale: 1.35,
+            rimPower: 1.55,
+            alpha: 0.98,
             redTint: 0.94
         });
         const meshOuter = new THREE.Mesh(geoOuter, matOuter);
-        meshOuter.rotation.x = Math.PI * 0.5;
 
-        const geoInner = new THREE.RingGeometry(innerR * 0.62, outerR * 0.78, 60, 1, -thetaLen * 0.5, thetaLen);
-        const matInner = new THREE.MeshBasicMaterial({ color: 0xff4a4a, transparent: true, opacity: 0.42, side: THREE.DoubleSide, depthWrite: false });
+        const geoInner = new THREE.RingGeometry(innerR * 0.58, outerR * 0.8, 84, 1, -thetaLen * 0.5, thetaLen);
+        const matInner = new THREE.MeshBasicMaterial({ color: 0xff4a4a, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false });
         const meshInner = new THREE.Mesh(geoInner, matInner);
-        meshInner.rotation.x = Math.PI * 0.5;
+
+        const geoCore = new THREE.RingGeometry(innerR * 0.35, outerR * 0.55, 72, 1, -thetaLen * 0.5, thetaLen);
+        const matCore = new THREE.MeshBasicMaterial({ color: 0xffc0a0, transparent: true, opacity: 0.28, side: THREE.DoubleSide, depthWrite: false });
+        const meshCore = new THREE.Mesh(geoCore, matCore);
 
         const group = new THREE.Group();
         group.add(meshOuter);
         group.add(meshInner);
+        group.add(meshCore);
         group.position.copy(position);
-        group.lookAt(position.clone().add(direction));
-        group.rotateY(Math.PI); // keep the concave crescent side facing the enemy direction
+        const dirNorm = direction.clone().normalize();
+        group.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), dirNorm);
+        group.rotateY(Math.PI); // concave opening points forward to the target direction
         this.scene.add(group);
 
-        const speed = 23 + chargesUsed * 1.25;
-        const baseDamage = 70 + chargesUsed * 30;
+        const speed = 25 + chargesUsed * 1.45;
+        const baseDamage = 85 + chargesUsed * 36;
         const totalDamage = Math.floor(baseDamage * (multiplier ?? 1) * this._consumeNextAttackMultiplier());
 
         this.bloodCrescend = {
@@ -1305,18 +1309,19 @@ export class CombatSystem {
             velocity: direction.clone().multiplyScalar(speed),
             lifetime: 0,
             maxLifetime: 1.2 + chargesUsed * 0.07,
-            hitRadius: 1.8 + chargesUsed * 0.24,
+            hitRadius: 2.05 + chargesUsed * 0.28,
             damage: totalDamage,
             chargesUsed,
-            materials: [matOuter, matInner],
-            geometries: [geoOuter, geoInner],
+            materials: [matOuter, matInner, matCore],
+            geometries: [geoOuter, geoInner, geoCore],
             hitSet: new Set()
         };
 
         if (this.particleSystem) {
             this.particleSystem.emitUltimateLaunch(position);
-            this.particleSystem.emitSparks(position, 24 + chargesUsed * 7);
-            this.particleSystem.emitEmbers(position, 20 + chargesUsed * 6);
+            this.particleSystem.emitSparks(position, 36 + chargesUsed * 9);
+            this.particleSystem.emitEmbers(position, 30 + chargesUsed * 8);
+            this.particleSystem.emitSlashTrail(position, dirNorm, 18 + chargesUsed * 2);
         }
     }
 
@@ -1326,12 +1331,23 @@ export class CombatSystem {
         c.lifetime += deltaTime;
         c.mesh.position.addScaledVector(c.velocity, deltaTime);
         const lifePct = 1 - c.lifetime / c.maxLifetime;
-        const pulse = 1 + 0.18 * Math.sin(c.lifetime * 22);
-        c.mesh.scale.setScalar(pulse);
+        const pulse = 1 + 0.24 * Math.sin(c.lifetime * 24);
+        c.mesh.scale.set(1 + 0.16 * Math.sin(c.lifetime * 16), pulse, 1);
+        c.mesh.rotateZ(deltaTime * 2.8);
 
         const fireMat = c.materials[0];
-        if (fireMat?.uniforms) updateBloodFireMaterial(fireMat, c.lifetime * 8, Math.max(0, 0.9 * lifePct));
-        if (c.materials[1]) c.materials[1].opacity = Math.max(0, 0.42 * lifePct);
+        if (fireMat?.uniforms) updateBloodFireMaterial(fireMat, c.lifetime * 10, Math.max(0, 0.98 * lifePct));
+        if (c.materials[1]) c.materials[1].opacity = Math.max(0, 0.5 * lifePct);
+        if (c.materials[2]) c.materials[2].opacity = Math.max(0, 0.3 * lifePct);
+
+        if (this.particleSystem) {
+            c._trailTick = (c._trailTick || 0) + 1;
+            if (c._trailTick % 2 === 0) {
+                const trailDir = c.velocity.clone().normalize();
+                this.particleSystem.emitSlashTrail(c.mesh.position, trailDir, 10 + c.chargesUsed);
+                this.particleSystem.emitOrbTrail(c.mesh.position, trailDir, 8 + c.chargesUsed);
+            }
+        }
 
         for (const enemyMesh of this.enemies) {
             const enemy = enemyMesh.userData?.enemy;
