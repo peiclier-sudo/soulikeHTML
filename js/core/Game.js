@@ -727,7 +727,7 @@ export class Game {
         this.hitStopTime = Math.max(this.hitStopTime, duration);
     }
     onProjectileHit(payload = {}) {
-        const { charged, isBoss, isUltimate, whipHit, whipWindup, bloodflailCharges, punchFinish, bloodNova, crimsonEruption, daggerSlashImpact, vanishActivated, shadowStepLand, bowRecoilShot, bowDamageZone, bowMultiShot, bowJudgmentArrow, bloodCrescendLaunch } = payload;
+        const { charged, isBoss, isUltimate, whipHit, whipWindup, bloodflailCharges, punchFinish, bloodNova, crimsonEruption, daggerSlashImpact, vanishActivated, shadowStepLand, bowRecoilShot, bowDamageZone, bowMultiShot, bowJudgmentArrow, bloodCrescendLaunch, isBowArrow } = payload;
         // Blood crescent launch: snappy forward push + brief bloom, NO heavy hit-stop
         if (bloodCrescendLaunch) {
             const charges = bloodflailCharges ?? 0;
@@ -837,6 +837,13 @@ export class Game {
             this.ultimateBloomDuration = 0.42;
             this.lastPunchOffset.copy(this.character.getForwardDirection()).multiplyScalar(0.16);
             this.triggerHitStop(0.055);
+        } else if (isBowArrow) {
+            // Bow arrows: very light feedback — no camera push, no hit-stop
+            // so rapid fire feels crisp and aiming isn't disrupted
+            this.shakeIntensity = charged ? 0.012 : 0.006;
+            this.shakeDuration = 0.08;
+            this.ultimateBloomTime = Math.max(this.ultimateBloomTime, 0.06);
+            this.ultimateBloomDuration = Math.max(this.ultimateBloomDuration, 0.06);
         } else {
             // Projectile/melee hit feedback
             const base = isBoss ? 0.01 : 0.028;
