@@ -408,13 +408,16 @@ export class FrostCombat {
             const hitRadius = (enemy.hitRadius ?? (enemy.isBoss ? 2.5 : 0.8)) + 0.8;
             if (orbPos.distanceTo(this._enemyPos) < hitRadius && !orb.hitSet.has(enemy)) {
                 orb.hitSet.add(enemy);
-                enemy.takeDamage(this.frozenOrbDamage * 4);
+                const rawOrbDmg = this.frozenOrbDamage * 4;
+                const { damage: orbDmg, isCritical: orbCrit, isBackstab: orbBack } = this.cs._applyCritBackstab(rawOrbDmg, enemy, enemyMesh);
+                enemy.takeDamage(orbDmg);
                 this.addFrostStack(enemy, 3);
                 this.gameState.addUltimateCharge('charged');
                 this.gameState.emit('damageNumber', {
                     position: this._enemyPos.clone(),
-                    damage: this.frozenOrbDamage * 4,
-                    isCritical: true,
+                    damage: orbDmg,
+                    isCritical: orbCrit,
+                    isBackstab: orbBack,
                     kind: 'ability',
                     anchorId: this.cs._getDamageAnchorId(enemy)
                 });
@@ -556,7 +559,8 @@ export class FrostCombat {
             // Freeze: 0.5s per frost stack consumed on this enemy
             const freezeDuration = frostStacks * 0.5;
 
-            enemy.takeDamage(baseDamage);
+            const { damage: beamDmg, isCritical: beamCrit, isBackstab: beamBack } = this.cs._applyCritBackstab(baseDamage, enemy, enemyMesh);
+            enemy.takeDamage(beamDmg);
             if (freezeDuration > 0) {
                 enemy.staggerTimer = Math.max(enemy.staggerTimer ?? 0, freezeDuration + (enemy.isBoss ? 0.5 : 0));
                 enemy.state = 'stagger';
@@ -564,8 +568,9 @@ export class FrostCombat {
             this.gameState.addUltimateCharge('charged');
             this.gameState.emit('damageNumber', {
                 position: this._enemyPos.clone(),
-                damage: baseDamage,
-                isCritical: frostStacks >= 6,
+                damage: beamDmg,
+                isCritical: beamCrit,
+                isBackstab: beamBack,
                 kind: 'heavy',
                 anchorId: this.cs._getDamageAnchorId(enemy)
             });
@@ -821,7 +826,8 @@ export class FrostCombat {
             const modelRadius = enemy.hitRadius ?? (enemy.isBoss ? 2.5 : 0.8);
             if (dist > this.stalactiteRadius + modelRadius) continue;
 
-            enemy.takeDamage(this.stalactiteDamage);
+            const { damage: stalDmg, isCritical: stalCrit, isBackstab: stalBack } = this.cs._applyCritBackstab(this.stalactiteDamage, enemy, enemyMesh);
+            enemy.takeDamage(stalDmg);
             this.addFrostStack(enemy, 3);
             // Freeze on impact
             const freezeDur = this.stalactiteFreezeDuration + (enemy.isBoss ? 0.5 : 0);
@@ -831,8 +837,9 @@ export class FrostCombat {
             this.gameState.addUltimateCharge('charged');
             this.gameState.emit('damageNumber', {
                 position: this._enemyPos.clone(),
-                damage: this.stalactiteDamage,
-                isCritical: true,
+                damage: stalDmg,
+                isCritical: stalCrit,
+                isBackstab: stalBack,
                 kind: 'ability',
                 anchorId: this.cs._getDamageAnchorId(enemy)
             });
@@ -993,13 +1000,15 @@ export class FrostCombat {
                 const modelRadius = enemy.hitRadius ?? (enemy.isBoss ? 2.5 : 0.8);
                 if (dist > this.blizzardRadius + modelRadius) continue;
 
-                enemy.takeDamage(this.blizzardDamagePerTick);
+                const { damage: blizDmg, isCritical: blizCrit, isBackstab: blizBack } = this.cs._applyCritBackstab(this.blizzardDamagePerTick, enemy, enemyMesh);
+                enemy.takeDamage(blizDmg);
                 this.addFrostStack(enemy, 1);
                 b.hitCount++;
                 this.gameState.emit('damageNumber', {
                     position: this._enemyPos.clone(),
-                    damage: this.blizzardDamagePerTick,
-                    isCritical: false,
+                    damage: blizDmg,
+                    isCritical: blizCrit,
+                    isBackstab: blizBack,
                     kind: 'ability',
                     anchorId: this.cs._getDamageAnchorId(enemy)
                 });
