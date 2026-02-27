@@ -135,17 +135,38 @@ export class UIManager {
         };
 
         const isFrost = this.combatSystem?.isFrostKit;
+        const isDagger = this.combatSystem?.isDaggerKit;
+        const isBow = this.combatSystem?.isBowRangerKit;
         const fc = this.combatSystem?.frostCombat;
+        const dc = this.combatSystem?.daggerCombat;
+        const bc = this.combatSystem?.bowRangerCombat;
 
-        const eruptionCd = isFrost ? (fc?.iceClawCooldown ?? 0) : (this.combatSystem?.crimsonEruptionCooldown ?? 0);
+        // Q ability slot
+        const eruptionCd = isDagger ? (dc?.teleportCooldown ?? 0)
+            : isBow ? (bc?.recoilShotCooldown ?? 0)
+            : isFrost ? (fc?.iceClawCooldown ?? 0)
+            : (this.combatSystem?.crimsonEruptionCooldown ?? 0);
         setBox('ability-eruption', eruptionCd <= 0, eruptionCd <= 0 ? 'Ready' : fmt(eruptionCd));
 
-        const novaCd = isFrost ? (fc?.stalactiteCooldown ?? 0) : (this.combatSystem?.bloodNovaCooldown ?? 0);
+        // X ability slot
+        const novaCd = isDagger ? (dc?.toxicFocusCooldown ?? 0)
+            : isBow ? (bc?.multiShotCooldown ?? 0)
+            : isFrost ? (fc?.stalactiteCooldown ?? 0)
+            : (this.combatSystem?.bloodNovaCooldown ?? 0);
         setBox('ability-nova', novaCd <= 0, novaCd <= 0 ? 'Ready' : fmt(novaCd));
 
-        const shieldActive = this.gameState.combat.shieldActive;
-        const shieldTime = this.gameState.combat.shieldTimeRemaining ?? 0;
-        setBox('ability-shield', !shieldActive, shieldActive ? fmt(shieldTime) : 'Ready');
+        // C ability slot
+        if (isDagger) {
+            const vanishCd = dc?.vanishCooldown ?? 0;
+            setBox('ability-shield', vanishCd <= 0, vanishCd <= 0 ? 'Ready' : fmt(vanishCd));
+        } else if (isBow) {
+            const zoneCd = bc?.damageZoneCooldown ?? 0;
+            setBox('ability-shield', zoneCd <= 0, zoneCd <= 0 ? 'Ready' : fmt(zoneCd));
+        } else {
+            const shieldActive = this.gameState.combat.shieldActive;
+            const shieldTime = this.gameState.combat.shieldTimeRemaining ?? 0;
+            setBox('ability-shield', !shieldActive, shieldActive ? fmt(shieldTime) : 'Ready');
+        }
 
         const potionCd = this.gameState.player.drinkPotionCooldown ?? 0;
         const potionCount = this.gameState.player.healthPotions ?? 0;

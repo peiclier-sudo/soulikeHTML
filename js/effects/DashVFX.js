@@ -23,18 +23,23 @@ const POISON_BRIGHT = 0x8bff7a;
 const POISON_MID = 0x2bc95a;
 const POISON_DARK = 0x0b2a12;
 
+const BOW_BRIGHT = 0xcc88ff;
+const BOW_MID = 0x8844ff;
+const BOW_DARK = 0x1a0a3a;
+
 /**
  * @param {THREE.Scene} scene
- * @param {{ isFrost?: boolean, isPoison?: boolean }} opts
+ * @param {{ isFrost?: boolean, isPoison?: boolean, isBow?: boolean }} opts
  * @returns {{ update: (dt: number, position: THREE.Vector3, direction: THREE.Vector3, progress: number, isDashing: boolean) => boolean, dispose: () => void }}
  * update returns true while VFX is active (keep calling); false when done and disposed.
  */
 export function createDashVFX(scene, opts = {}) {
     const isFrost = !!opts.isFrost;
     const isPoison = !!opts.isPoison;
-    const COL_BRIGHT = isPoison ? POISON_BRIGHT : (isFrost ? ICE_BRIGHT : BLOOD_BRIGHT);
-    const COL_MID = isPoison ? POISON_MID : (isFrost ? ICE_MID : BLOOD_MID);
-    const COL_DARK = isPoison ? POISON_DARK : (isFrost ? ICE_DARK : BLOOD_DARK);
+    const isBow = !!opts.isBow;
+    const COL_BRIGHT = isBow ? BOW_BRIGHT : (isPoison ? POISON_BRIGHT : (isFrost ? ICE_BRIGHT : BLOOD_BRIGHT));
+    const COL_MID = isBow ? BOW_MID : (isPoison ? POISON_MID : (isFrost ? ICE_MID : BLOOD_MID));
+    const COL_DARK = isBow ? BOW_DARK : (isPoison ? POISON_DARK : (isFrost ? ICE_DARK : BLOOD_DARK));
     let fadeOutTimer = -1;
 
     // —— Trail (world-space, blood red)

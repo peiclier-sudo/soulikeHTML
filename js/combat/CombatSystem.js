@@ -676,6 +676,8 @@ export class CombatSystem {
                             })));
                 this.chargeOrb = new THREE.Mesh(geometry, material);
                 this.chargeOrb.castShadow = false;
+                // Hide the sphere mesh for bow and dagger — only show ring particles
+                this.chargeOrb.userData._hideSphere = !!(this.isBowRangerKit || this.isDaggerKit);
                 this.chargeOrb.userData.orbTime = 0;
                 // Tightening ring of embers
                 const ringCount = 36;
@@ -709,7 +711,11 @@ export class CombatSystem {
             }
             // Pulse: brightness and alpha increase with charge
             const pulse = 0.95 + 0.15 * Math.sin(this.chargeOrb.userData.orbTime * 6);
-            if (this.chargeOrb.material.uniforms) {
+            if (this.chargeOrb.userData._hideSphere) {
+                // Bow/dagger: sphere is hidden, only ring particles show
+                this.chargeOrb.material.opacity = 0;
+                this.chargeOrb.material.visible = false;
+            } else if (this.chargeOrb.material.uniforms) {
                 this.chargeOrb.material.uniforms.time.value = this.chargeOrb.userData.orbTime;
                 this.chargeOrb.material.uniforms.alpha.value = 0.75 + 0.25 * t * pulse;
                 this.chargeOrb.material.uniforms.coreBrightness.value = 0.9 + 0.6 * t * pulse;
