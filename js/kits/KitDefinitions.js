@@ -163,27 +163,26 @@ export const KIT_DEFINITIONS = {
                 chargeDuration: 1.1
             },
             abilityQ: {
-                name: 'Frost Ring',
-                type: 'ground_aoe',
-                damage: 45,
-                radius: 3.8,
+                name: 'Frozen Orb',
+                type: 'projectile_aoe',
+                damage: 15,
+                radius: 14,
                 cooldown: 9,
                 bloodChargeGain: 2
             },
             abilityE: {
-                name: 'Ice Lance',
+                name: 'Frost Beam',
                 type: 'melee_finisher',
-                baseDamage: 50,
-                range: 4.2,
+                baseDamage: 42,
+                range: 12,
                 requiresBloodCharges: true
             },
             abilityX: {
-                name: 'Blizzard',
-                type: 'nova_aoe',
-                damage: 30,
-                radius: 14,
-                cooldown: 12,
-                freezeDuration: 3.0
+                name: 'Ice Block',
+                type: 'self_cast',
+                duration: 3.0,
+                cooldown: 18,
+                healPerSec: 8
             },
             abilityC: {
                 name: 'Ice Barrier',
@@ -191,9 +190,11 @@ export const KIT_DEFINITIONS = {
                 duration: 5
             },
             abilityF: {
-                name: 'Glacial Spike',
-                type: 'ultimate_projectile',
-                damage: 130,
+                name: 'Blizzard',
+                type: 'ultimate_aoe',
+                damage: 28,
+                radius: 8,
+                duration: 3.5,
                 chargeNeeded: 100
             }
         },

@@ -574,6 +574,84 @@ export class ParticleSystem {
 
     emitTorchFire(position) { this.emitEmbers(position, 1); }
 
+    // ── ICE / FROST particle emitters ──
+
+    /** Burst of ice crystal sparks (cyan-white) */
+    emitIceBurst(position, count = 20) {
+        const iceColors = [0x88ccff, 0x44aaff, 0xaaddff, 0x66bbff, 0xccf0ff, 0xffffff];
+        const n = Math.max(4, Math.floor(count * this.qualityMultiplier));
+        for (let i = 0; i < n; i++) {
+            const p = this.getFromPool('spark');
+            if (!p) break;
+            p.position.copy(position);
+            const theta = Math.random() * Math.PI * 2;
+            const phi = Math.acos(2 * Math.random() - 1);
+            const speed = 6 + Math.random() * 12;
+            p.userData.velocity.set(
+                Math.sin(phi) * Math.cos(theta) * speed,
+                Math.sin(phi) * Math.sin(theta) * speed * 0.6 + 2,
+                Math.cos(phi) * speed
+            );
+            p.userData.maxLifetime = 0.3 + Math.random() * 0.5;
+            p.material.color.setHex(iceColors[Math.floor(Math.random() * iceColors.length)]);
+            p.material.blending = THREE.AdditiveBlending;
+            p.material.opacity = 0.9;
+            p.scale.setScalar(0.08 + Math.random() * 0.06);
+            this.activeParticles.push(p);
+        }
+        this.addTemporaryLight(position.clone(), 0x66ccff, 35, 0.3);
+    }
+
+    /** Ice shatter: sharp crystal fragments flying outward */
+    emitIceShatter(position, count = 25) {
+        const iceColors = [0x88ccff, 0x44aaff, 0xcceeff, 0xffffff];
+        const n = Math.max(4, Math.floor(count * this.qualityMultiplier));
+        for (let i = 0; i < n; i++) {
+            const p = this.getFromPool('ember');
+            if (!p) break;
+            p.position.copy(position);
+            const theta = Math.random() * Math.PI * 2;
+            const speed = 4 + Math.random() * 10;
+            p.userData.velocity.set(
+                Math.cos(theta) * speed,
+                1 + Math.random() * 6,
+                Math.sin(theta) * speed
+            );
+            p.userData.maxLifetime = 0.5 + Math.random() * 0.8;
+            p.material.color.setHex(iceColors[Math.floor(Math.random() * iceColors.length)]);
+            p.material.blending = THREE.AdditiveBlending;
+            p.material.opacity = 0.85;
+            p.scale.setScalar(0.03 + Math.random() * 0.04);
+            this.activeParticles.push(p);
+        }
+        this.addTemporaryLight(position.clone(), 0x44aaff, 50, 0.4);
+    }
+
+    /** Gentle ice trail (falling frost particles) */
+    emitIceTrail(position, count = 4) {
+        const iceColors = [0x88ccff, 0xaaddff, 0xccf0ff];
+        const n = Math.max(1, Math.floor(count * this.qualityMultiplier));
+        for (let i = 0; i < n; i++) {
+            const p = this.getFromPool('ember');
+            if (!p) break;
+            p.position.copy(position);
+            p.position.x += (Math.random() - 0.5) * 0.5;
+            p.position.y += (Math.random() - 0.5) * 0.3;
+            p.position.z += (Math.random() - 0.5) * 0.5;
+            p.userData.velocity.set(
+                (Math.random() - 0.5) * 0.5,
+                -0.5 - Math.random() * 1.5,
+                (Math.random() - 0.5) * 0.5
+            );
+            p.userData.maxLifetime = 0.6 + Math.random() * 0.6;
+            p.material.color.setHex(iceColors[Math.floor(Math.random() * iceColors.length)]);
+            p.material.blending = THREE.AdditiveBlending;
+            p.material.opacity = 0.6;
+            p.scale.setScalar(0.02 + Math.random() * 0.02);
+            this.activeParticles.push(p);
+        }
+    }
+
     clear() {
         for (const p of this.activeParticles) { p.visible = false; p.userData.active = false; }
         this.activeParticles.length = 0;

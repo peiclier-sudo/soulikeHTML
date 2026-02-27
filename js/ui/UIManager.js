@@ -134,10 +134,13 @@ export class UIManager {
             this._abilityReadyState.set(id, !!ready);
         };
 
-        const eruptionCd = this.combatSystem?.crimsonEruptionCooldown ?? 0;
+        const isFrost = this.combatSystem?.isFrostKit;
+        const fc = this.combatSystem?.frostCombat;
+
+        const eruptionCd = isFrost ? (fc?.frozenOrbCooldown ?? 0) : (this.combatSystem?.crimsonEruptionCooldown ?? 0);
         setBox('ability-eruption', eruptionCd <= 0, eruptionCd <= 0 ? 'Ready' : fmt(eruptionCd));
 
-        const novaCd = this.combatSystem?.bloodNovaCooldown ?? 0;
+        const novaCd = isFrost ? (fc?.iceBlockCooldown ?? 0) : (this.combatSystem?.bloodNovaCooldown ?? 0);
         setBox('ability-nova', novaCd <= 0, novaCd <= 0 ? 'Ready' : fmt(novaCd));
 
         const shieldActive = this.gameState.combat.shieldActive;

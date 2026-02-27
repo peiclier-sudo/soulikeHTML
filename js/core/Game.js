@@ -324,7 +324,11 @@ export class Game {
             if (this.pendingUltimateSlash <= 0) {
                 const dir = this.pendingUltimateDir || this.character.getForwardDirection().clone().normalize();
                 const pos = this.character.getWeaponPosition().clone().add(dir.clone().multiplyScalar(0.5));
-                this.combatSystem.spawnUltimateSlash(pos, dir);
+                if (this.combatSystem.isFrostKit && this.combatSystem.frostCombat) {
+                    this.combatSystem.frostCombat.castBlizzard(this.character.position);
+                } else {
+                    this.combatSystem.spawnUltimateSlash(pos, dir);
+                }
                 this.pendingUltimateSlash = 0;
                 this.pendingUltimateDir = null;
                 this.ultimateBloomTime = 0.06;
@@ -333,7 +337,11 @@ export class Game {
             }
         }
 
-        // Crimson Eruption (A / Q): single targeting mode — circle starts in front of player, then follows virtual cursor
+        // Q ability: Frost Mage → instant Frozen Orb, others → Crimson Eruption targeting
+        if (this.combatSystem && input.crimsonEruption && this.combatSystem.isFrostKit && this.combatSystem.frostCombat) {
+            this.combatSystem.frostCombat.castFrozenOrb();
+            input.crimsonEruption = false;
+        }
         if (this.combatSystem && typeof this.combatSystem.updateCrimsonEruptionPreview === 'function') {
             if (input.crimsonEruption && this.combatSystem.crimsonEruptionCooldown <= 0) {
                 this.crimsonEruptionTargeting = true;
