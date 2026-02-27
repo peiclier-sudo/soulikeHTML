@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { createBloodFireMaterial, updateBloodFireMaterial } from '../shaders/BloodFireShader.js';
 import { createBloodFireVFX } from '../effects/BloodFireVFX.js';
-import { updateIceMaterial } from '../shaders/IceShader.js';
+import { createIceMaterial, updateIceMaterial } from '../shaders/IceShader.js';
 import { FrostCombat } from './FrostCombat.js';
 
 export class CombatSystem {
@@ -376,7 +376,7 @@ export class CombatSystem {
         if (this.bloodNovaCooldown > 0) this.bloodNovaCooldown -= deltaTime;
         if (input.bloodNova) {
             if (this.isFrostKit && this.frostCombat) {
-                this.frostCombat.castIceBlock();
+                this.frostCombat.beginStalactiteTargeting();
             } else {
                 this.castBloodNova();
             }
@@ -553,14 +553,23 @@ export class CombatSystem {
         if (combat.isCharging && combat.chargeTimer > 0) {
             if (!this.chargeOrb) {
                 const geometry = new THREE.SphereGeometry(0.22, 32, 32);
-                const material = createBloodFireMaterial({
-                    coreBrightness: 0.9,
-                    plasmaSpeed: 4.5,
-                    isCharged: 1.0,
-                    layerScale: 1.2,
-                    rimPower: 2.0,
-                    redTint: 0.92
-                });
+                const material = this.isFrostKit
+                    ? createIceMaterial({
+                        coreBrightness: 0.9,
+                        iceSpeed: 4.5,
+                        isCharged: 1.0,
+                        layerScale: 1.2,
+                        rimPower: 2.0,
+                        displaceAmount: 0.3
+                    })
+                    : createBloodFireMaterial({
+                        coreBrightness: 0.9,
+                        plasmaSpeed: 4.5,
+                        isCharged: 1.0,
+                        layerScale: 1.2,
+                        rimPower: 2.0,
+                        redTint: 0.92
+                    });
                 this.chargeOrb = new THREE.Mesh(geometry, material);
                 this.chargeOrb.castShadow = false;
                 this.chargeOrb.userData.orbTime = 0;
@@ -571,7 +580,7 @@ export class CombatSystem {
                 ringGeo.setAttribute('position', new THREE.BufferAttribute(ringPos, 3));
                 const ringMat = new THREE.PointsMaterial({
                     size: 0.04,
-                    color: 0xaa0a0a,
+                    color: this.isFrostKit ? 0x44aaff : 0xaa0a0a,
                     transparent: true,
                     opacity: 0.9,
                     depthWrite: false,

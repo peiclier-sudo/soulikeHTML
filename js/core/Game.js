@@ -314,6 +314,8 @@ export class Game {
 
         // Ultimate slash spawn (after short delay when F is pressed)
         // Direction = camera du joueur au moment où il appuie sur F
+        const fc = this.combatSystem?.frostCombat;
+
         if (this.gameState.requestUltimateSlashSpawn) {
             this.pendingUltimateSlash = 0.05;
             this.pendingUltimateDir = this.character.getForwardDirection().clone().normalize();
@@ -325,7 +327,8 @@ export class Game {
                 const dir = this.pendingUltimateDir || this.character.getForwardDirection().clone().normalize();
                 const pos = this.character.getWeaponPosition().clone().add(dir.clone().multiplyScalar(0.5));
                 if (this.combatSystem.isFrostKit && this.combatSystem.frostCombat) {
-                    this.combatSystem.frostCombat.castBlizzard(this.character.position);
+                    // Frost: enter blizzard targeting mode instead of instant cast
+                    this.combatSystem.frostCombat.beginBlizzardTargeting();
                 } else {
                     this.combatSystem.spawnUltimateSlash(pos, dir);
                 }
@@ -335,6 +338,49 @@ export class Game {
                 this.ultimateBloomDuration = 0.06;
                 this.ultimateFovTime = 0.04;
             }
+        }
+
+        // Blizzard targeting (frost mage F ultimate): move cursor, click to deploy
+        if (fc && fc.blizzardTargeting) {
+            const w = this.canvas?.clientWidth || 1;
+            const h = this.canvas?.clientHeight || 1;
+            if (!this._blizzardMouseX) {
+                this._blizzardMouseX = w / 2;
+                this._blizzardMouseY = h / 2;
+            }
+            this._blizzardMouseX = (this._blizzardMouseX ?? w / 2) + (input.mouseDeltaX ?? 0);
+            this._blizzardMouseY = (this._blizzardMouseY ?? h / 2) + (input.mouseDeltaY ?? 0);
+            this._blizzardMouseX = Math.max(0, Math.min(w, this._blizzardMouseX));
+            this._blizzardMouseY = Math.max(0, Math.min(h, this._blizzardMouseY));
+            let groundPos = this.getMouseGroundPosition(this._blizzardMouseX, this._blizzardMouseY);
+            const minDist = 3;
+            const px = this.character.position.x;
+            const pz = this.character.position.z;
+            const dist = Math.sqrt((groundPos.x - px) ** 2 + (groundPos.z - pz) ** 2) || 1;
+            if (dist < minDist) {
+                groundPos = groundPos.clone();
+                groundPos.x = px + (groundPos.x - px) / dist * minDist;
+                groundPos.z = pz + (groundPos.z - pz) / dist * minDist;
+            }
+            fc.updateBlizzardPreview(groundPos);
+            if (input.attack) {
+                fc.castBlizzard(groundPos);
+                this.shakeIntensity = 0.02;
+                this.shakeDuration = 0.15;
+                this.shakeTime = this.shakeDuration;
+                this._blizzardMouseX = null;
+                input.attack = false;
+            } else if (input.pause || input.rightClickDown === true) {
+                fc.cancelBlizzardTargeting();
+                this._blizzardMouseX = null;
+                // Refund ultimate charge since player cancelled
+                this.gameState.player.ultimateCharge = 100;
+            }
+            input.blizzardTargeting = true;
+        } else {
+            if (fc) fc.hideBlizzardPreview();
+            input.blizzardTargeting = false;
+            this._blizzardMouseX = null;
         }
 
         // Q ability: Frost Mage → instant Frozen Orb, others → Crimson Eruption targeting
@@ -385,6 +431,48 @@ export class Game {
             }
         }
 
+        // Stalactite targeting (frost mage X ability): tap X to enter targeting, click to drop
+        if (fc && fc.stalactiteTargeting) {
+            const w = this.canvas?.clientWidth || 1;
+            const h = this.canvas?.clientHeight || 1;
+            if (!this._stalactiteMouseX) {
+                this._stalactiteMouseX = w / 2;
+                this._stalactiteMouseY = h / 2;
+            }
+            this._stalactiteMouseX = (this._stalactiteMouseX ?? w / 2) + (input.mouseDeltaX ?? 0);
+            this._stalactiteMouseY = (this._stalactiteMouseY ?? h / 2) + (input.mouseDeltaY ?? 0);
+            this._stalactiteMouseX = Math.max(0, Math.min(w, this._stalactiteMouseX));
+            this._stalactiteMouseY = Math.max(0, Math.min(h, this._stalactiteMouseY));
+            let groundPos = this.getMouseGroundPosition(this._stalactiteMouseX, this._stalactiteMouseY);
+            const minDist = 3;
+            const px = this.character.position.x;
+            const pz = this.character.position.z;
+            const dist = Math.sqrt((groundPos.x - px) ** 2 + (groundPos.z - pz) ** 2) || 1;
+            if (dist < minDist) {
+                groundPos = groundPos.clone();
+                groundPos.x = px + (groundPos.x - px) / dist * minDist;
+                groundPos.z = pz + (groundPos.z - pz) / dist * minDist;
+            }
+            fc.updateStalactitePreview(groundPos);
+            if (input.attack) {
+                fc.dropStalactite(groundPos);
+                this.shakeIntensity = 0.025;
+                this.shakeDuration = 0.2;
+                this.shakeTime = this.shakeDuration;
+                this._stalactiteMouseX = null;
+                input.attack = false;
+            } else if (input.pause || input.rightClickDown === true) {
+                fc.cancelStalactiteTargeting();
+                this._stalactiteMouseX = null;
+            }
+            // Lock camera during targeting
+            input.stalactiteTargeting = true;
+        } else {
+            if (fc) fc.hideStalactitePreview();
+            input.stalactiteTargeting = false;
+            this._stalactiteMouseX = null;
+        }
+
         // Blood shield (C): activate and timer
         if (input.shield && !this.gameState.combat.shieldActive) {
             this.gameState.activateShield(this.combatSystem.shieldDuration);
@@ -398,7 +486,7 @@ export class Game {
         }
         this._shieldCenter.copy(this.character.position);
         this._shieldCenter.y += 0.9;
-        this.particleSystem.updateShieldAura(this._shieldCenter, this.deltaTime, this.gameState.combat.shieldActive);
+        this.particleSystem.updateShieldAura(this._shieldCenter, this.deltaTime, this.gameState.combat.shieldActive, this.combatSystem?.isFrostKit);
 
         if (this.gameState.player.drinkPotionCooldown > 0) {
             this.gameState.player.drinkPotionCooldown -= this.deltaTime;

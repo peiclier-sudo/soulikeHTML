@@ -188,7 +188,7 @@ export class ParticleSystem {
         }
     }
 
-    updateShieldAura(center, deltaTime, active) {
+    updateShieldAura(center, deltaTime, active, isFrost = false) {
         if (!active) {
             for (const p of this.activeShieldAuraParticles) { p.visible = false; p.userData.active = false; this.pools.shieldAura.push(p); }
             this.activeShieldAuraParticles = [];
@@ -225,7 +225,17 @@ export class ParticleSystem {
             p.visible = true;
             p.material.opacity = Math.max(0.25, Math.min(0.8, 0.5 + 0.35 * Math.sin(t * 4 + dd.pulsePhase)));
             const blend = Math.sin(t * 2 + dd.phase) * 0.5 + 0.5;
-            p.material.color.setRGB((0x2a + Math.floor(blend * (0x88 - 0x2a))) / 255, 0, 0);
+            if (isFrost) {
+                // Ice barrier: cyan/blue frost particles
+                const r255 = (0x22 + Math.floor(blend * (0x66 - 0x22))) / 255;
+                const g255 = (0x66 + Math.floor(blend * (0xcc - 0x66))) / 255;
+                const b255 = (0xaa + Math.floor(blend * (0xff - 0xaa))) / 255;
+                p.material.color.setRGB(r255, g255, b255);
+                p.material.blending = THREE.AdditiveBlending;
+            } else {
+                p.material.color.setRGB((0x2a + Math.floor(blend * (0x88 - 0x2a))) / 255, 0, 0);
+                p.material.blending = THREE.NormalBlending;
+            }
         }
     }
 
