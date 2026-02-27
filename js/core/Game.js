@@ -302,13 +302,18 @@ export class Game {
         // Blood Essence: decay all charges if 8s without adding
         this.gameState.updateBloodEssence();
 
-        // E = Bloodflail (finisher): only works with 1+ blood charges
+        // E = Finisher ability: Blood Crescend (blood mage) / Frost Beam (frost mage)
         if (input.whipAttack) {
-            const result = this.gameState.tryBloodflail();
-            if (result.success) {
-                this.combatSystem.executeBloodflail(result.chargesUsed, result.multiplier);
+            if (this.combatSystem?.isFrostKit) {
+                // Frost Mage: E always fires, power scales with frost stacks on enemies
+                this.combatSystem.executeBloodflail(0, 1);
             } else {
-                this.uiManager.showNoBloodEssenceFeedback();
+                const result = this.gameState.tryBloodflail();
+                if (result.success) {
+                    this.combatSystem.executeBloodflail(result.chargesUsed, result.multiplier);
+                } else {
+                    this.uiManager.showNoBloodEssenceFeedback();
+                }
             }
         }
 
