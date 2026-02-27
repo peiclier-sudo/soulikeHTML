@@ -207,7 +207,6 @@ export class DaggerCombat {
     }
 
     _applyPoisonDoT(enemy, durationSeconds, damagePerTick) {
-        const ticks = Math.ceil(durationSeconds / POISON_TICK_INTERVAL);
         this._poisonDots.set(enemy, {
             remaining: durationSeconds,
             damagePerTick,

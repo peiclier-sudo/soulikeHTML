@@ -846,10 +846,16 @@ export class CombatSystem {
             enemy.takeDamage(damage);
             this.gameState.addUltimateCharge(isCharged ? 'charged' : 'basic');
             if (this.isDaggerKit) {
-                this.gameState.addPoisonCharge(isCharged ? 2 : 1);
+                const basicCfg = this.gameState.selectedKit?.combat?.basicAttack || {};
+                const chargedCfg = this.gameState.selectedKit?.combat?.chargedAttack || {};
+                const gain = isCharged ? (chargedCfg.poisonChargeGain ?? 2) : (basicCfg.poisonChargeGain ?? 1);
+                this.gameState.addPoisonCharge(gain);
             }
             if (this.isBowRangerKit) {
-                this.gameState.addTrustCharge(isCharged ? 2 : 1);
+                const basicCfg = this.gameState.selectedKit?.combat?.basicAttack || {};
+                const chargedCfg = this.gameState.selectedKit?.combat?.chargedAttack || {};
+                const gain = isCharged ? (chargedCfg.trustChargeGain ?? 2) : (basicCfg.trustChargeGain ?? 1);
+                this.gameState.addTrustCharge(gain);
             }
             const hitPos = hitInfo.point?.clone() ?? hitInfo.object.getWorldPosition?.(new THREE.Vector3()) ?? this.character.position.clone();
             this.gameState.emit('damageNumber', { position: hitPos, damage, isCritical, isBackstab, anchorId: this._getDamageAnchorId(enemy) });
