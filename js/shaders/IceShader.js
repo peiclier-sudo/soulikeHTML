@@ -40,7 +40,7 @@ export const IceShader = {
         }
         float fbm(vec3 p) {
             float v = 0.0, a = 0.5;
-            for (int i = 0; i < 4; i++) { v += a * noise3(p); p *= 2.0; a *= 0.5; }
+            for (int i = 0; i < 3; i++) { v += a * noise3(p); p *= 2.0; a *= 0.5; }
             return v;
         }
 
@@ -92,7 +92,7 @@ export const IceShader = {
         }
         float fbm(vec3 p) {
             float v = 0.0, a = 0.5;
-            for (int i = 0; i < 5; i++) { v += a * noise3(p); p *= 2.1; a *= 0.48; }
+            for (int i = 0; i < 3; i++) { v += a * noise3(p); p *= 2.1; a *= 0.48; }
             return v;
         }
 
@@ -100,18 +100,15 @@ export const IceShader = {
             float t = time * iceSpeed;
             vec3 p = vWorldPosition * layerScale;
 
-            // Crystalline internal structure
+            // Crystalline structure (2 FBM samples, was 3)
             float n1 = fbm(p * 3.0 + vec3(t * 0.3, t * 0.5, 0.0));
-            float n2 = fbm(p * 5.0 + vec3(0.0, t * 0.4, t * 0.6));
-            float n3 = fbm(p * 8.0 + vec3(t * 0.7, 0.0, t * 0.3));
+            float n2 = fbm(p * 6.0 + vec3(0.0, t * 0.4, t * 0.6));
 
-            // Ice crystal patterns - sharp edges
             float crystal = smoothstep(0.35, 0.55, n1) * smoothstep(0.3, 0.5, n2);
-            float facets = smoothstep(0.6, 0.75, n3) * 0.8;
+            float facets = smoothstep(0.55, 0.75, n2) * 0.8;
 
-            // Sparkle: high-frequency bright spots that shift over time
-            float sparkle = smoothstep(0.82, 0.88, noise3(p * 22.0 + t * 3.0)) * 1.5;
-            sparkle += smoothstep(0.85, 0.92, noise3(p * 35.0 - t * 4.0)) * 1.0;
+            // Single sparkle pass (was 2 noise calls)
+            float sparkle = smoothstep(0.8, 0.9, noise3(p * 22.0 + t * 3.0)) * 1.8;
 
             // Color palette: deep blue -> ice blue -> cyan -> white
             vec3 deepBlue = vec3(0.02, 0.04, 0.15);

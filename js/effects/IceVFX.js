@@ -6,8 +6,8 @@
 import * as THREE from 'three';
 import { createIceMaterial, updateIceMaterial } from '../shaders/IceShader.js';
 
-const MAX_TRAIL_POINTS = 16;
-const EMBER_COUNT = 24;
+const MAX_TRAIL_POINTS = 12;
+const EMBER_COUNT = 12;
 const SPIRAL_SPEED = 6.0;
 
 const ICE_COLORS = [
@@ -53,8 +53,8 @@ export function createIceVFX(scene, projectileGroup, opts = {}) {
 
     // ── Point light (cold blue flicker) ──
     const lightColor = 0x66bbff;
-    const lightIntensity = isCharged ? 12 : 6;
-    const lightDist = isCharged ? 16 : 9;
+    const lightIntensity = isCharged ? 6 : 3;
+    const lightDist = isCharged ? 10 : 6;
     const light = new THREE.PointLight(lightColor, lightIntensity, lightDist, 2);
     projectileGroup.add(light);
 

@@ -5,8 +5,8 @@
 
 import * as THREE from 'three';
 
-const MAX_TRAIL_POINTS = 20;
-const EMBER_COUNT = 60;
+const MAX_TRAIL_POINTS = 12;
+const EMBER_COUNT = 24;
 const SPIRAL_SPEED = 7.5;
 
 /**
@@ -46,7 +46,7 @@ export function createBloodFireVFX(scene, projectileGroup, opts = {}) {
     const colorDark = new THREE.Color(0x2a0808);
 
     // —— Flickering PointLight on the projectile (bleed stack color)
-    const light = new THREE.PointLight(0xaa0a0a, 1.2, isCharged ? 14 : 8, 1.5);
+    const light = new THREE.PointLight(0xaa0a0a, isCharged ? 0.8 : 0.5, isCharged ? 8 : 5, 1.5);
     light.position.set(0, 0, 0);
     projectileGroup.add(light);
 

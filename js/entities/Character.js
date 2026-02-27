@@ -296,7 +296,7 @@ export class Character {
         });
     }
 
-    /** Trust charge orbs (bow ranger): blue diamond-shaped orbs orbiting the character. */
+    /** Trust charge orbs (bow ranger): violet diamond-shaped orbs orbiting the character. */
     createTrustChargeIndicator() {
         this.trustChargeIndicator = new THREE.Group();
         this.trustChargeIndicator.name = 'trustChargeIndicator';
@@ -307,14 +307,14 @@ export class Character {
         const innerGeom = new THREE.OctahedronGeometry(innerRadius, 0);
         const outerGeom = new THREE.SphereGeometry(outerRadius, 6, 6);
         const sharedInnerMat = new THREE.MeshBasicMaterial({
-            color: 0x4488ff,
+            color: 0x8844ff,
             transparent: true,
             opacity: 0.95,
             depthWrite: false,
             blending: THREE.AdditiveBlending
         });
         const sharedOuterMat = new THREE.MeshBasicMaterial({
-            color: 0x0a1a3a,
+            color: 0x0a0a2a,
             transparent: true,
             opacity: 0.7,
             depthWrite: false
@@ -376,9 +376,9 @@ export class Character {
             const glowIntensity = 0.7 + 0.3 * Math.sin(t * 4.5 + i * 0.7);
             inner.material.opacity = glowIntensity;
             const stackRatio = n / 8;
-            const r = 0.2 + 0.15 * stackRatio;
-            const g = 0.4 + 0.25 * stackRatio;
-            const b = 0.8 + 0.2 * Math.sin(t * 3 + i);
+            const r = 0.45 + 0.2 * stackRatio;
+            const g = 0.15 + 0.1 * stackRatio;
+            const b = 0.85 + 0.15 * Math.sin(t * 3 + i);
             inner.material.color.setRGB(r, g, b);
 
             // Emit spark trail
