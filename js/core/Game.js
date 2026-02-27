@@ -704,7 +704,30 @@ export class Game {
         this.hitStopTime = Math.max(this.hitStopTime, duration);
     }
     onProjectileHit(payload = {}) {
-        const { charged, isBoss, isUltimate, whipHit, whipWindup, bloodflailCharges, punchFinish, bloodNova, crimsonEruption } = payload;
+        const { charged, isBoss, isUltimate, whipHit, whipWindup, bloodflailCharges, punchFinish, bloodNova, crimsonEruption, daggerSlashImpact, vanishActivated, shadowStepLand } = payload;
+        if (vanishActivated) {
+            this.shakeIntensity = 0.025;
+            this.shakeDuration = 0.15;
+            this.shakeTime = this.shakeDuration;
+            this.ultimateBloomTime = 0.2;
+            this.ultimateBloomDuration = 0.2;
+        }
+        if (shadowStepLand) {
+            this.shakeIntensity = 0.03;
+            this.shakeDuration = 0.18;
+            this.shakeTime = this.shakeDuration;
+            this.lastPunchOffset.copy(this.character.getForwardDirection()).multiplyScalar(0.2);
+            this.triggerHitStop(0.04);
+            this.ultimateBloomTime = 0.25;
+            this.ultimateBloomDuration = 0.25;
+        }
+        if (daggerSlashImpact) {
+            this.shakeIntensity = 0.018;
+            this.shakeDuration = 0.1;
+            this.shakeTime = this.shakeDuration;
+            this.lastPunchOffset.copy(this.character.getForwardDirection()).multiplyScalar(0.12);
+            this.triggerHitStop(0.025);
+        }
         if (isUltimate) {
             this.shakeIntensity = 0.1;
             this.shakeDuration = 0.35;

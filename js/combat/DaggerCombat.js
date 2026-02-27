@@ -1,13 +1,14 @@
 /**
  * DaggerCombat - Shadow Assassin (dagger) kit abilities.
  *
- * Passive: poison charges (max 6), gained on basic/charged hit.
- * Basic: Green Slash (CAC). Charged: Double Slash (CAC).
- * E: Poison Pierce - consume charges, damage + poison DoT proportional to charges.
- * V: Teleport Behind - teleport behind nearest target, +100% damage 3s.
- * C: Vanish - invisible, +60% movement speed.
- * X: Toxic Focus - consume charges, +15% damage per charge for 8s.
- * F: Twin Daggers - summon two huge daggers, release as ranged attack.
+ * Passive: poison charges (max 6), gained on basic/charged hit. Visible as orbiting green orbs.
+ * Basic: Green Slash (CAC) - crescent arc slash, generates +1 poison charge on hit.
+ * Charged: Double Slash (CAC) - generates +2 poison charges on hit.
+ * E: Poison Pierce - consume all charges, damage + poison DoT proportional to charges.
+ * V: Teleport Behind (Shadow Step) - teleport behind nearest target, +100% damage 3s, shadow VFX.
+ * C: Vanish - invisible ghost effect, +60% movement speed, boss loses focus.
+ * X: Toxic Focus - consume charges, +20% damage per charge for 8s.
+ * F: Twin Daggers - ultimate ranged attack, consumes poison charges for +20% damage per charge.
  */
 
 import * as THREE from 'three';
@@ -99,11 +100,15 @@ export class DaggerCombat {
         return best;
     }
 
-    /** Teleport behind nearest enemy and activate +100% damage for 3s. */
+    /** Teleport behind nearest enemy and activate +100% damage for 3s. Cool shadow step VFX. */
     executeTeleportBehind() {
         if (this.teleportCooldown > 0) return false;
         const target = this.getClosestEnemyInFront(TELEPORT_RANGE);
         if (!target) return false;
+
+        // Save origin for departure VFX
+        const originPos = this.character.position.clone();
+        originPos.y += 0.8;
 
         const enemyPos = target.position;
         const forward = this.character.getForwardDirection().clone().normalize();
@@ -113,12 +118,30 @@ export class DaggerCombat {
         this._behindPos.copy(enemyPos).addScaledVector(forward, -TELEPORT_BEHIND_OFFSET);
         this._behindPos.y = this.character.position.y;
 
+        // VFX: departure burst at origin (shadow smoke + poison sparks)
+        if (this.particleSystem) {
+            this.particleSystem.emitVanishSmoke(originPos, 25);
+            this.particleSystem.emitPoisonBurst(originPos, 12);
+        }
+
+        // Teleport
         this.character.position.copy(this._behindPos);
         this.gameState.activateTeleportDamageBuff();
         this.teleportCooldown = this.teleportCooldownDuration;
+
+        // VFX: arrival burst at destination (big shadow step burst + poison)
+        const arrivalPos = this._behindPos.clone();
+        arrivalPos.y += 0.8;
         if (this.particleSystem) {
-            this.particleSystem.emitPoisonBurst(this._behindPos.clone(), 16);
+            this.particleSystem.emitShadowStepBurst(arrivalPos, 32);
+            this.particleSystem.emitPoisonBurst(arrivalPos, 22);
         }
+
+        // Screen feedback
+        if (this.cs.onProjectileHit) {
+            this.cs.onProjectileHit({ shadowStepLand: true });
+        }
+
         return true;
     }
 
@@ -141,7 +164,12 @@ export class DaggerCombat {
         this.poisonPierceTimer = this.poisonPierceDuration;
         this.poisonPierceHit = false;
         this._pendingPoisonPierce = { damage, poisonDuration, poisonDamagePerTick };
-        if (this.cs.onProjectileHit) this.cs.onProjectileHit({ whipHit: true, poisonPierce: true });
+        // VFX: poison lunge particles
+        if (this.particleSystem) {
+            const wp = this.character.getWeaponPosition();
+            this.particleSystem.emitPoisonBurst(wp.clone(), 12 + chargesUsed * 3);
+        }
+        if (this.cs.onProjectileHit) this.cs.onProjectileHit({ whipHit: true, poisonPierce: true, bloodflailCharges: chargesUsed });
     }
 
     _doPoisonPierceHit() {
@@ -211,17 +239,32 @@ export class DaggerCombat {
         }
     }
 
-    /** C: Vanish - invisible + 60% speed. */
+    /** C: Vanish - invisible + 60% speed. Drops boss aggro with shadow smoke VFX. */
     executeVanish() {
         if (this.vanishCooldown > 0) return false;
         const abilC = this.gameState.selectedKit?.combat?.abilityC || {};
         const duration = abilC.duration ?? 5;
+
+        // VFX: big smoke cloud + poison sparks at vanish position
+        const vanishPos = this.character.position.clone();
+        vanishPos.y += 0.8;
+        if (this.particleSystem) {
+            this.particleSystem.emitVanishSmoke(vanishPos, 45);
+            this.particleSystem.emitPoisonBurst(vanishPos, 20);
+        }
+
         this.gameState.activateVanish(duration);
         this.vanishCooldown = this.vanishCooldownDuration;
+
+        // Screen feedback
+        if (this.cs.onProjectileHit) {
+            this.cs.onProjectileHit({ vanishActivated: true });
+        }
+
         return true;
     }
 
-    /** X: Toxic Focus - consume charges for +15% damage per charge, 8s. */
+    /** X: Toxic Focus - consume charges for +20% damage per charge, 8s. */
     executeToxicFocus() {
         if (this.toxicFocusCooldown > 0) return false;
         const consumed = this.gameState.tryActivatePoisonDamageBuff();
@@ -230,21 +273,33 @@ export class DaggerCombat {
         return true;
     }
 
-    /** F: Twin Daggers - ranged ultimate. */
+    /** F: Twin Daggers - ranged ultimate. Consumes all poison charges for +20% damage each. */
     spawnTwinDaggersUltimate() {
         if (this.twinDaggersProjectile) return;
         const pos = this.character.getWeaponPosition().clone();
         const dir = this.character.getForwardDirection().clone().normalize();
-        const damage = this.gameState.selectedKit?.combat?.abilityF?.damage ?? 180;
+        const baseDamage = this.gameState.selectedKit?.combat?.abilityF?.damage ?? 180;
+
+        // Consume all poison charges for +20% damage per charge
+        const { consumed } = this.gameState.tryConsumePoisonCharges(6);
+        const poisonMult = 1 + 0.20 * consumed;
+        const damage = Math.floor(baseDamage * poisonMult);
+
         this.twinDaggersProjectile = {
             position: pos,
             direction: dir.clone(),
             velocity: dir.clone().multiplyScalar(this.twinDaggersSpeed),
             damage,
+            poisonChargesConsumed: consumed,
             lifetime: 0,
             maxLifetime: this.twinDaggersRange / this.twinDaggersSpeed,
             hitSet: new Set()
         };
+
+        // Big VFX burst when consuming charges
+        if (this.particleSystem && consumed > 0) {
+            this.particleSystem.emitPoisonBurst(pos.clone(), 20 + consumed * 6);
+        }
     }
 
     _updateTwinDaggers(dt) {
@@ -252,7 +307,16 @@ export class DaggerCombat {
         const p = this.twinDaggersProjectile;
         p.position.addScaledVector(p.velocity, dt);
         p.lifetime += dt;
+
+        // Emit trailing particles
+        if (this.particleSystem && p.lifetime < p.maxLifetime) {
+            this.particleSystem.emitPoisonTrail(p.position.clone(), 2);
+        }
+
         if (p.lifetime >= p.maxLifetime) {
+            if (this.particleSystem) {
+                this.particleSystem.emitPoisonBurst(p.position.clone(), 20);
+            }
             this.twinDaggersProjectile = null;
             return;
         }
@@ -264,16 +328,18 @@ export class DaggerCombat {
             const radius = enemy.hitRadius ?? 1.0;
             if (dist < radius + 0.8) {
                 p.hitSet.add(enemy);
-                enemy.takeDamage(Math.floor(p.damage * (this.cs._consumeNextAttackMultiplier?.() ?? 1)));
+                const totalDamage = Math.floor(p.damage * (this.cs._consumeNextAttackMultiplier?.() ?? 1));
+                enemy.takeDamage(totalDamage);
                 this.gameState.emit('damageNumber', {
                     position: this._enemyPos.clone(),
-                    damage: Math.floor(p.damage),
+                    damage: totalDamage,
                     isCritical: true,
                     kind: 'ultimate',
                     anchorId: this.cs._getDamageAnchorId(enemy)
                 });
                 if (this.particleSystem) {
-                    this.particleSystem.emitPoisonBurst(this._enemyPos.clone(), 30);
+                    this.particleSystem.emitPoisonBurst(this._enemyPos.clone(), 35);
+                    this.particleSystem.emitShadowStepBurst(this._enemyPos.clone(), 20);
                 }
             }
         }

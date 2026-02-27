@@ -835,29 +835,68 @@ export class CombatSystem {
         const dir = this.character.getForwardDirection().clone().normalize();
         const startPos = wp.addScaledVector(dir, 0.8);
 
-        const geom = new THREE.PlaneGeometry(1.2, 0.9);
+        // Alternate slash direction per combo
+        const comboIdx = this.gameState.combat.comboCount || 1;
+        const slashAngle = comboIdx % 2 === 0 ? -0.4 : 0.4;
+
+        // Crescent slash arc geometry - feels like a blade swing
+        const arcShape = new THREE.Shape();
+        const outerR = 1.4;
+        const innerR = 0.8;
+        arcShape.absarc(0, 0, outerR, -0.6, 0.6, false);
+        arcShape.absarc(0, 0, innerR, 0.6, -0.6, true);
+        const geom = new THREE.ShapeGeometry(arcShape, 12);
+        geom.rotateX(-Math.PI / 2);
+
+        const group = new THREE.Group();
+        group.position.copy(startPos);
+        group.lookAt(startPos.clone().add(dir));
+        group.rotateZ(slashAngle);
+
+        // Main slash mesh - bright toxic green core
         const mat = new THREE.MeshBasicMaterial({
             color: 0x56ff7f,
             transparent: true,
-            opacity: 0.85,
+            opacity: 0.92,
             side: THREE.DoubleSide,
             depthWrite: false,
             blending: THREE.AdditiveBlending
         });
-        const mesh = new THREE.Mesh(geom, mat);
-        mesh.position.copy(startPos);
-        mesh.lookAt(startPos.clone().add(dir));
+        const slashMesh = new THREE.Mesh(geom, mat);
+        group.add(slashMesh);
 
-        this.scene.add(mesh);
+        // Outer glow layer
+        const glowGeom = new THREE.ShapeGeometry(arcShape, 12);
+        glowGeom.rotateX(-Math.PI / 2);
+        const glowMat = new THREE.MeshBasicMaterial({
+            color: 0x2bc95a,
+            transparent: true,
+            opacity: 0.45,
+            side: THREE.DoubleSide,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending
+        });
+        const glowMesh = new THREE.Mesh(glowGeom, glowMat);
+        glowMesh.scale.setScalar(1.35);
+        group.add(glowMesh);
+
+        this.scene.add(group);
+
+        // Spawn particles along the slash
+        if (this.particleSystem) {
+            this.particleSystem.emitPoisonBurst(startPos.clone(), 8);
+        }
+
         this.projectiles.push({
-            mesh,
-            velocity: dir.multiplyScalar(24),
+            mesh: group,
+            velocity: dir.multiplyScalar(28),
             lifetime: 0,
-            maxLifetime: 0.16,
+            maxLifetime: 0.18,
             isDaggerBlade: true,
+            isDaggerSlash: true,
             hitSet: new Set(),
-            materials: [mat],
-            geometries: [geom]
+            materials: [mat, glowMat],
+            geometries: [geom, glowGeom]
         });
     }
 
@@ -877,8 +916,8 @@ export class CombatSystem {
         this.gameState.addUltimateCharge('basic');
         this.gameState.addPoisonCharge(poisonGain);
         this.gameState.emit('damageNumber', { position: hitPos.clone(), damage, isCritical: false, anchorId: this._getDamageAnchorId(enemy) });
-        if (this.particleSystem?.emitPoisonBurst) this.particleSystem.emitPoisonBurst(hitPos.clone(), 14);
-        if (this.onProjectileHit) this.onProjectileHit({ daggerBladeHit: true });
+        if (this.particleSystem?.emitPoisonBurst) this.particleSystem.emitPoisonBurst(hitPos.clone(), 18);
+        if (this.onProjectileHit) this.onProjectileHit({ daggerBladeHit: true, daggerSlashImpact: true });
     }
 
     spawnFireball(isCharged = false) {
@@ -968,7 +1007,15 @@ export class CombatSystem {
             const lifePct = 1.0 - p.lifetime / p.maxLifetime;
             const alpha = 0.92 * lifePct;
             if (p.isDaggerBlade) {
-                if (p.mesh.material) p.mesh.material.opacity = 0.85 * lifePct;
+                // Animate slash: scale outward and fade
+                if (p.isDaggerSlash) {
+                    const expandT = Math.min(1, p.lifetime / (p.maxLifetime * 0.5));
+                    const scale = 0.6 + 0.6 * expandT;
+                    p.mesh.scale.setScalar(scale);
+                    p.materials.forEach(m => { m.opacity = (m === p.materials[0] ? 0.92 : 0.45) * lifePct; });
+                } else if (p.mesh.material) {
+                    p.mesh.material.opacity = 0.85 * lifePct;
+                }
             } else if (p.materials) {
                 p.materials.forEach((mat, idx) => {
                     const layerAlpha = idx === 0 ? alpha * 0.5 : alpha;

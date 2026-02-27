@@ -281,7 +281,7 @@ export const KIT_DEFINITIONS = {
                 name: 'Toxic Focus',
                 type: 'consume_charges_buff',
                 cooldown: 20,
-                damagePercentPerCharge: 15,
+                damagePercentPerCharge: 20,
                 buffDuration: 8
             },
             abilityC: {

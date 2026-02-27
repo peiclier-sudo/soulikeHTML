@@ -85,6 +85,12 @@ export class Character {
 
         // Blood Essence indicator: 3D orbs next to character, follow character, always face camera (fixed perspective)
         this.createBloodChargeIndicator();
+
+        // Poison charge indicator (shadow assassin): green orbs orbiting the character
+        this._isDaggerKit = this.gameState.selectedKit?.id === 'shadow_assassin';
+        if (this._isDaggerKit) {
+            this.createPoisonChargeIndicator();
+        }
     }
 
     /** 3D charge orbs on a circle (axis) around the character. Frost mage uses ice orbs. */
@@ -189,6 +195,97 @@ export class Character {
                     }
                     orbGroup.userData.lastParticleEmit = t;
                 }
+            }
+        });
+    }
+
+    /** Poison charge orbs orbiting the character (shadow assassin), like blood mage orbs but green. */
+    createPoisonChargeIndicator() {
+        this.poisonChargeIndicator = new THREE.Group();
+        this.poisonChargeIndicator.name = 'poisonChargeIndicator';
+        const maxPoisonStacks = 6;
+        const innerRadius = 0.06;
+        const outerRadius = 0.085;
+
+        const innerGeom = new THREE.SphereGeometry(innerRadius, 8, 8);
+        const outerGeom = new THREE.SphereGeometry(outerRadius, 8, 8);
+        const sharedInnerMat = new THREE.MeshBasicMaterial({
+            color: 0x4dff66,
+            transparent: true,
+            opacity: 0.95,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending
+        });
+        const sharedOuterMat = new THREE.MeshBasicMaterial({
+            color: 0x0b2a12,
+            transparent: true,
+            opacity: 0.7,
+            depthWrite: false
+        });
+
+        for (let i = 0; i < maxPoisonStacks; i++) {
+            const orbGroup = new THREE.Group();
+            const inner = new THREE.Mesh(innerGeom, sharedInnerMat.clone());
+            orbGroup.add(inner);
+            const outer = new THREE.Mesh(outerGeom, sharedOuterMat.clone());
+            outer.renderOrder = -1;
+            orbGroup.add(outer);
+            orbGroup.userData.inner = inner;
+            orbGroup.userData.outer = outer;
+            orbGroup.userData.lastParticleEmit = 0;
+            orbGroup.userData.orbitPhase = (i / maxPoisonStacks) * Math.PI * 2;
+            this.poisonChargeIndicator.add(orbGroup);
+        }
+        this._poisonOrbWorldPos = new THREE.Vector3();
+        this.poisonChargeIndicator.visible = false;
+        this.scene.add(this.poisonChargeIndicator);
+    }
+
+    updatePoisonChargeIndicator() {
+        if (!this.poisonChargeIndicator) return;
+        const n = this.gameState.poisonCharges ?? 0;
+        this.poisonChargeIndicator.visible = n >= 1;
+        if (n < 1) return;
+
+        const height = 1.05;
+        this.poisonChargeIndicator.position.set(this.position.x, this.position.y + height, this.position.z);
+        const t = this.animationTime;
+        const orbitRadius = 1.2;
+        const orbitSpeed = 1.8;
+        const bobAmplitude = 0.12;
+        const pulse = 1 + 0.1 * Math.sin(t * 5.5);
+
+        this.poisonChargeIndicator.children.forEach((orbGroup, i) => {
+            const visible = i < n;
+            orbGroup.visible = visible;
+            if (!visible) return;
+
+            const baseAngle = orbGroup.userData.orbitPhase;
+            const angle = baseAngle + t * orbitSpeed;
+            const bob = bobAmplitude * Math.sin(t * 3.2 + i * 1.5);
+            orbGroup.position.set(
+                orbitRadius * Math.cos(angle),
+                bob,
+                orbitRadius * Math.sin(angle)
+            );
+            orbGroup.scale.setScalar(pulse);
+
+            // Pulsing glow
+            const inner = orbGroup.userData.inner;
+            const glowIntensity = 0.7 + 0.3 * Math.sin(t * 4 + i * 0.8);
+            inner.material.opacity = glowIntensity;
+            // Color shift: brighter with more stacks
+            const stackRatio = n / 6;
+            const r = 0.1 + 0.2 * stackRatio;
+            const g = 0.8 + 0.2 * stackRatio;
+            const b = 0.2 + 0.15 * Math.sin(t * 3 + i);
+            inner.material.color.setRGB(r, g, b);
+
+            // Emit poison trail particles
+            if (this.particleSystem && t - (orbGroup.userData.lastParticleEmit ?? 0) > 0.12) {
+                orbGroup.getWorldPosition(this._poisonOrbWorldPos);
+                this.particleSystem.emitPoisonTrail(this._poisonOrbWorldPos, 1);
+                orbGroup.userData.lastParticleEmit = t;
             }
         });
     }
@@ -667,8 +764,51 @@ export class Character {
     }
     
     update(deltaTime, input, mouseSensitivity) {
-        // Vanish (dagger C): invisible while active
-        if (this.mesh) this.mesh.visible = (this.gameState?.combat?.vanishRemaining <= 0);
+        // Vanish (dagger C): ghostly semi-transparent while active
+        if (this.mesh && this._isDaggerKit) {
+            const vanishActive = this.gameState?.combat?.vanishRemaining > 0;
+            const vanishRemaining = this.gameState?.combat?.vanishRemaining ?? 0;
+            if (vanishActive) {
+                this.mesh.visible = true;
+                // Ghost effect: make all meshes semi-transparent with a shimmer
+                if (!this._vanishMaterialsStored) {
+                    this._vanishMaterialsStored = true;
+                    this._vanishOriginalOpacities = [];
+                    this.mesh.traverse(child => {
+                        if (child.isMesh && child.material && !child.userData?.isOutline) {
+                            this._vanishOriginalOpacities.push({
+                                mesh: child,
+                                transparent: child.material.transparent,
+                                opacity: child.material.opacity
+                            });
+                            child.material.transparent = true;
+                        }
+                    });
+                }
+                // Flickering ghost opacity
+                const flickerBase = 0.12;
+                const flicker = flickerBase + 0.08 * Math.sin(this.animationTime * 12) * Math.cos(this.animationTime * 7);
+                // Fade back in during last 0.5s
+                const fadeIn = vanishRemaining < 0.5 ? (1 - vanishRemaining / 0.5) : 0;
+                const targetOpacity = flicker + fadeIn * (1 - flicker);
+                this.mesh.traverse(child => {
+                    if (child.isMesh && child.material && !child.userData?.isOutline) {
+                        child.material.opacity = targetOpacity;
+                    }
+                });
+            } else if (this._vanishMaterialsStored) {
+                // Restore original materials
+                for (const entry of this._vanishOriginalOpacities) {
+                    entry.mesh.material.transparent = entry.transparent;
+                    entry.mesh.material.opacity = entry.opacity;
+                }
+                this._vanishMaterialsStored = false;
+                this._vanishOriginalOpacities = [];
+                this.mesh.visible = true;
+            }
+        } else if (this.mesh) {
+            this.mesh.visible = (this.gameState?.combat?.vanishRemaining <= 0);
+        }
 
         // Ultimate (F): consume full bar and play Special attack 1 animation
         const ultimateAction = this.actions['Special attack 1'] || this.actions['Ultimate'];
@@ -972,6 +1112,7 @@ export class Character {
             }
         }
         this.updateBloodChargeIndicator();
+        if (this._isDaggerKit) this.updatePoisonChargeIndicator();
     }
 
     updateAnimation(deltaTime, input) {
