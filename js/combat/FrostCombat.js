@@ -395,9 +395,12 @@ export class FrostCombat {
             this._emitFrozenOrbShard(orb);
         }
 
-        // Particles
+        // Particles - throttle to every 3rd frame for performance
         if (this.particleSystem && orb.lifetime < orb.maxLifetime - 0.2) {
-            this.particleSystem.emitIceTrail(orb.mesh.position, 4);
+            orb._trailTick = (orb._trailTick || 0) + 1;
+            if (orb._trailTick % 3 === 0) {
+                this.particleSystem.emitIceTrail(orb.mesh.position, 2);
+            }
         }
 
         // Check direct hits (orb itself)
@@ -428,8 +431,8 @@ export class FrostCombat {
         if (orb.lifetime >= orb.maxLifetime) {
             // Shatter explosion
             if (this.particleSystem) {
-                this.particleSystem.emitIceShatter(orbPos, 35);
-                this.particleSystem.emitIceBurst(orbPos, 30);
+                this.particleSystem.emitIceShatter(orbPos, 18);
+                this.particleSystem.emitIceBurst(orbPos, 14);
             }
             this.scene.remove(orb.mesh);
             orb.geometries.forEach(g => g.dispose());
@@ -776,9 +779,10 @@ export class FrostCombat {
                 updateIceMaterial(s.mesh.material, performance.now() / 1000 * 3, 0.85);
             }
 
-            // Trail particles while falling
-            if (this.particleSystem) {
-                this.particleSystem.emitIceTrail(s.mesh.position, 3);
+            // Trail particles while falling - throttle for performance
+            s._trailTick = (s._trailTick || 0) + 1;
+            if (this.particleSystem && s._trailTick % 2 === 0) {
+                this.particleSystem.emitIceTrail(s.mesh.position, 2);
             }
 
             if (t >= 1) {
@@ -981,13 +985,14 @@ export class FrostCombat {
         b.disc.rotation.z += deltaTime * 2;
         if (b.light) b.light.intensity = (40 + 15 * Math.sin(performance.now() / 1000 * 10)) * lifePct;
 
-        // Blizzard particles
-        if (this.particleSystem) {
+        // Blizzard particles - throttle for performance
+        b._trailTick = (b._trailTick || 0) + 1;
+        if (this.particleSystem && b._trailTick % 3 === 0) {
             this.particleSystem.emitIceTrail(b.center.clone().add(new THREE.Vector3(
                 (Math.random() - 0.5) * this.blizzardRadius * 2,
                 1 + Math.random() * 3,
                 (Math.random() - 0.5) * this.blizzardRadius * 2
-            )), 3);
+            )), 2);
         }
 
         // Damage tick

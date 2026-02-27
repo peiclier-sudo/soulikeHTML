@@ -926,7 +926,8 @@ export class CombatSystem {
         this.gameState.combat.isWhipAttacking = true;
         this.whipTimer = this.whipDuration;
         this.whipHitOnce = true;
-        if (this.onProjectileHit) this.onProjectileHit({ whipHit: true, bloodflailCharges: chargesUsed, punchFinish: true });
+        // Launch feedback: snappy but brief — save the big boom for impact
+        if (this.onProjectileHit) this.onProjectileHit({ bloodCrescendLaunch: true, bloodflailCharges: chargesUsed });
     }
 
     spawnDaggerBladeWave() {
@@ -1804,10 +1805,9 @@ export class CombatSystem {
         };
 
         if (this.particleSystem) {
-            this.particleSystem.emitUltimateLaunch(position);
-            this.particleSystem.emitSparks(position, 42 + chargesUsed * 12);
-            this.particleSystem.emitEmbers(position, 36 + chargesUsed * 10);
-            this.particleSystem.emitSlashTrail(position, dirNorm, 22 + chargesUsed * 3);
+            this.particleSystem.emitSparks(position, 14 + chargesUsed * 3);
+            this.particleSystem.emitEmbers(position, 10 + chargesUsed * 2);
+            this.particleSystem.emitSlashTrail(position, dirNorm, 10 + chargesUsed * 2);
         }
     }
 
@@ -1828,10 +1828,10 @@ export class CombatSystem {
 
         if (this.particleSystem) {
             c._trailTick = (c._trailTick || 0) + 1;
-            if (c._trailTick % 2 === 0) {
+            if (c._trailTick % 3 === 0) {
                 const trailDir = c.velocity.clone().normalize();
-                this.particleSystem.emitSlashTrail(c.mesh.position, trailDir, 12 + c.chargesUsed * 2);
-                this.particleSystem.emitOrbTrail(c.mesh.position, trailDir, 10 + c.chargesUsed * 2);
+                this.particleSystem.emitSlashTrail(c.mesh.position, trailDir, 6 + c.chargesUsed);
+                this.particleSystem.emitOrbTrail(c.mesh.position, trailDir, 5 + c.chargesUsed);
             }
         }
 
@@ -1857,7 +1857,6 @@ export class CombatSystem {
                 });
                 if (this.particleSystem) {
                     this.particleSystem.emitPunchBurst(this._enemyPos.clone());
-                    this.particleSystem.emitBloodMatterExplosion(this._enemyPos.clone());
                     this.particleSystem.emitUltimateEndExplosion(this._enemyPos.clone());
                 }
                 if (this.onProjectileHit) this.onProjectileHit({ charged: true, isBoss: !!enemy.isBoss, whipHit: true, bloodflailCharges: c.chargesUsed, punchFinish: true });

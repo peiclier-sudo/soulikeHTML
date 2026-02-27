@@ -6,8 +6,8 @@
 import * as THREE from 'three';
 import { createIceMaterial, updateIceMaterial } from '../shaders/IceShader.js';
 
-const MAX_TRAIL_POINTS = 22;
-const EMBER_COUNT = 50;
+const MAX_TRAIL_POINTS = 16;
+const EMBER_COUNT = 24;
 const SPIRAL_SPEED = 6.0;
 
 const ICE_COLORS = [
@@ -99,26 +99,30 @@ export function createIceVFX(scene, projectileGroup, opts = {}) {
     const _trailColor = new THREE.Color();
     const _iceBlue = new THREE.Color(0x66bbff);
     const _deepBlue = new THREE.Color(0x0a1a3a);
+    let _frameTick = 0;
 
     function update(dt, worldPos, velocity, lifetime, maxLifetime) {
-        // Trail
+        _frameTick++;
+        // Trail position - update every frame for smooth movement
         trailPositions[trailHead * 3] = worldPos.x;
         trailPositions[trailHead * 3 + 1] = worldPos.y;
         trailPositions[trailHead * 3 + 2] = worldPos.z;
         trailHead = (trailHead + 1) % MAX_TRAIL_POINTS;
         if (trailCount < MAX_TRAIL_POINTS) trailCount++;
-
-        // Update trail colors (newest=bright cyan, oldest=dark blue)
-        for (let i = 0; i < MAX_TRAIL_POINTS; i++) {
-            const age = (trailHead - 1 - i + MAX_TRAIL_POINTS) % MAX_TRAIL_POINTS;
-            const t = i < trailCount ? age / Math.max(1, trailCount - 1) : 1;
-            _trailColor.copy(_iceBlue).lerp(_deepBlue, t);
-            trailColors[i * 3] = _trailColor.r;
-            trailColors[i * 3 + 1] = _trailColor.g;
-            trailColors[i * 3 + 2] = _trailColor.b;
-        }
         trailGeo.attributes.position.needsUpdate = true;
-        trailGeo.attributes.color.needsUpdate = true;
+
+        // Update trail colors every 3rd frame (visual diff is negligible)
+        if (_frameTick % 3 === 0) {
+            for (let i = 0; i < MAX_TRAIL_POINTS; i++) {
+                const age = (trailHead - 1 - i + MAX_TRAIL_POINTS) % MAX_TRAIL_POINTS;
+                const t = i < trailCount ? age / Math.max(1, trailCount - 1) : 1;
+                _trailColor.copy(_iceBlue).lerp(_deepBlue, t);
+                trailColors[i * 3] = _trailColor.r;
+                trailColors[i * 3 + 1] = _trailColor.g;
+                trailColors[i * 3 + 2] = _trailColor.b;
+            }
+            trailGeo.attributes.color.needsUpdate = true;
+        }
         trailMesh.visible = trailCount > 1;
 
         // Light flicker
