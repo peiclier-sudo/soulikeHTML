@@ -39,7 +39,8 @@ export class Game {
         this.qualitySettings = {
             shadows: 'medium',
             particles: 'low',
-            postProcessing: true
+            postProcessing: true,
+            motionSmoothing: false
         };
 
         // Adaptive quality: auto-lower DPR when FPS drops, raise when stable
@@ -819,6 +820,14 @@ export class Game {
 
     _updateAfterimage() {
         if (!this.afterimagePass) return;
+
+        // Disabled by user setting → force off
+        if (!this.qualitySettings.motionSmoothing) {
+            this._afterimageDamp = 0;
+            this.afterimagePass.uniforms['damp'].value = 0;
+            this.afterimagePass.enabled = false;
+            return;
+        }
 
         // Per-frame instantaneous FPS from deltaTime (more responsive than 1s counter)
         const instantFps = this.deltaTime > 0 ? Math.min(1 / this.deltaTime, 120) : 60;
