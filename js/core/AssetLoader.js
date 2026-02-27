@@ -131,7 +131,7 @@ export class AssetLoader {
                             if ('specularIntensity' in mat) mat.specularIntensity = 0.05;
                             if ('clearcoat' in mat) mat.clearcoat = 0.0;
                             if ('sheen' in mat) mat.sheen = 0.0;
-                            if (mat.color) mat.color.multiplyScalar(0.32);
+                            if (mat.color) mat.color.setScalar(0.32);
                             if (mat.map) {
                                 mat.map.premultiplyAlpha = false;
                                 mat.map.needsUpdate = true;
@@ -204,7 +204,9 @@ export class AssetLoader {
 
     /**
      * Load rogue character model (RogueV2.glb) with embedded animations.
-     * RogueV2 clip names (exact): Walking, Idle, Running fast, Run left, Run right, Jump, Death, Basic attack Dagger, Basci attack bow
+     * Supports both old and new clip labels (case-insensitive), including:
+     * walk/Walking, idle/Idle/drink, run/Running fast/Fast running, run left, run right,
+     * jump/roll dodge, death, Basic attack Dagger, Basci attack bow.
      */
     async loadRogueModel() {
         const rogueUrl = './models/RogueV2.glb?v=1';
@@ -244,7 +246,7 @@ export class AssetLoader {
                             if ('specularIntensity' in mat) mat.specularIntensity = 0.05;
                             if ('clearcoat' in mat) mat.clearcoat = 0.0;
                             if ('sheen' in mat) mat.sheen = 0.0;
-                            if (mat.color) mat.color.multiplyScalar(0.32);
+                            if (mat.color) mat.color.setScalar(0.32);
                             if (mat.map) { mat.map.premultiplyAlpha = false; mat.map.needsUpdate = true; }
                             mat.needsUpdate = true;
                             return mat;
@@ -259,33 +261,33 @@ export class AssetLoader {
             const clips = gltf.animations || [];
             const fallback = clips[0];
 
-            // RogueV2 clip names (exact): Walking, Idle, Running fast, Run left, Run right, Jump, Death, Basic attack Dagger, Basci attack bow
-            const ROGUE_CLIPS = {
-                'Walking': 'Walking',
-                'Idle': 'Idle',
-                'Running fast': 'Running fast',
-                'Run left': 'Run left',
-                'Run right': 'Run right',
-                'Jump': 'Jump',
-                'Death': 'Death',
-                'Basic attack Dagger': 'Basic attack Dagger',
-                'Basci attack bow': 'Basci attack bow'
-            };
-
             if (clips.length > 0) {
                 const byName = {};
                 clips.forEach(clip => { byName[clip.name] = clip; });
+                const byNameLower = {};
+                clips.forEach((clip) => {
+                    byNameLower[clip.name.toLowerCase()] = clip;
+                });
                 console.log('RogueV2 animations:', clips.map(a => a.name));
 
-                const get = (key) => byName[ROGUE_CLIPS[key]] || fallback;
+                const get = (...candidates) => {
+                    for (const candidate of candidates) {
+                        const normalized = String(candidate || '').trim();
+                        if (!normalized) continue;
+                        if (byName[normalized]) return byName[normalized];
+                        const lower = normalized.toLowerCase();
+                        if (byNameLower[lower]) return byNameLower[lower];
+                    }
+                    return fallback;
+                };
 
-                const Idle = get('Idle');
-                const Walking = get('Walking');
-                const RunningFast = get('Running fast');
-                const RunLeft = get('Run left');
-                const RunRight = get('Run right');
-                const Jump = get('Jump');
-                const Death = get('Death');
+                const Idle = get('idle', 'Idle');
+                const Walking = get('walk', 'Walking');
+                const RunningFast = get('run', 'Running fast', 'Fast running');
+                const RunLeft = get('run left', 'Run left');
+                const RunRight = get('run right', 'Run right');
+                const Jump = get('jump', 'Jump', 'roll dodge', 'Roll dodge');
+                const Death = get('death', 'Death');
                 const BasicDagger = get('Basic attack Dagger');
                 const BasicBow = get('Basci attack bow');
 
