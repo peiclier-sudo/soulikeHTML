@@ -650,6 +650,7 @@ export class CombatSystem {
         }
 
         if (!this.isDaggerKit) this.spawnFireball(false);
+        if (this.isDaggerKit) this.spawnDaggerBladeWave();
 
         const basicClip = this.character.actions?.['Basic attack']?.getClip();
         const basicTimeScale = 3.8;
@@ -807,6 +808,57 @@ export class CombatSystem {
         if (this.onProjectileHit) this.onProjectileHit({ whipHit: true, bloodflailCharges: chargesUsed, punchFinish: true });
     }
 
+    spawnDaggerBladeWave() {
+        const wp = this.character.getWeaponPosition().clone();
+        const dir = this.character.getForwardDirection().clone().normalize();
+        const startPos = wp.addScaledVector(dir, 0.8);
+
+        const geom = new THREE.PlaneGeometry(1.2, 0.9);
+        const mat = new THREE.MeshBasicMaterial({
+            color: 0x56ff7f,
+            transparent: true,
+            opacity: 0.85,
+            side: THREE.DoubleSide,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending
+        });
+        const mesh = new THREE.Mesh(geom, mat);
+        mesh.position.copy(startPos);
+        mesh.lookAt(startPos.clone().add(dir));
+
+        this.scene.add(mesh);
+        this.projectiles.push({
+            mesh,
+            velocity: dir.multiplyScalar(24),
+            lifetime: 0,
+            maxLifetime: 0.16,
+            isDaggerBlade: true,
+            hitSet: new Set(),
+            materials: [mat],
+            geometries: [geom]
+        });
+    }
+
+    _applyDaggerBladeDamage(enemy, hitPos) {
+        const basic = this.gameState.selectedKit?.combat?.basicAttack || {};
+        const poisonGain = basic.poisonChargeGain ?? 1;
+        const baseDamage = basic.damage ?? this.gameState.equipment.weapon.damage;
+        const comboMultiplier = 1 + (this.gameState.combat.comboCount - 1) * 0.2;
+
+        let mult = this._consumeNextAttackMultiplier();
+        const c = this.gameState.combat;
+        if (c.teleportDamageBuffRemaining > 0) mult *= 2.0;
+        if (c.poisonDamageBuffRemaining > 0) mult *= (c.poisonDamageBuffMultiplier ?? 1);
+        const damage = Math.floor(baseDamage * comboMultiplier * mult);
+
+        enemy.takeDamage(damage);
+        this.gameState.addUltimateCharge('basic');
+        this.gameState.addPoisonCharge(poisonGain);
+        this.gameState.emit('damageNumber', { position: hitPos.clone(), damage, isCritical: false, anchorId: this._getDamageAnchorId(enemy) });
+        if (this.particleSystem?.emitPoisonBurst) this.particleSystem.emitPoisonBurst(hitPos.clone(), 14);
+        if (this.onProjectileHit) this.onProjectileHit({ daggerBladeHit: true });
+    }
+
     spawnFireball(isCharged = false) {
         if (!this._fbStartPos) this._fbStartPos = new THREE.Vector3();
         if (!this._fbDir) this._fbDir = new THREE.Vector3();
@@ -893,7 +945,9 @@ export class CombatSystem {
 
             const lifePct = 1.0 - p.lifetime / p.maxLifetime;
             const alpha = 0.92 * lifePct;
-            if (p.materials) {
+            if (p.isDaggerBlade) {
+                if (p.mesh.material) p.mesh.material.opacity = 0.85 * lifePct;
+            } else if (p.materials) {
                 p.materials.forEach((mat, idx) => {
                     const layerAlpha = idx === 0 ? alpha * 0.5 : alpha;
                     if (p.isFrost) {
@@ -906,7 +960,9 @@ export class CombatSystem {
 
             if (p.lifetime >= p.maxLifetime) {
                 if (this.particleSystem) {
-                    if (p.isFrost) {
+                    if (p.isDaggerBlade) {
+                        this.particleSystem.emitPoisonBurst?.(p.mesh.position.clone(), 8);
+                    } else if (p.isFrost) {
                         this.particleSystem.emitIceBurst(p.mesh.position, p.isCharged ? 8 : 3);
                     } else {
                         this.particleSystem.emitSmoke(p.mesh.position, p.isCharged ? 3 : 1);
@@ -914,6 +970,25 @@ export class CombatSystem {
                 }
                 this.disposeProjectile(p);
                 this.projectiles.splice(i, 1);
+                continue;
+            }
+
+            if (p.isDaggerBlade) {
+                const bladePos = p.mesh.position;
+                for (const enemyMesh of this.enemies) {
+                    const enemy = enemyMesh.userData?.enemy;
+                    if (!enemy || enemy.health <= 0 || p.hitSet.has(enemy)) continue;
+                    enemyMesh.getWorldPosition(this._enemyPos);
+                    const hitRadius = (enemy.hitRadius ?? (enemy.isBoss ? 2.5 : 0.8)) + 1.1;
+                    if (bladePos.distanceTo(this._enemyPos) < hitRadius) {
+                        p.hitSet.add(enemy);
+                        this._meleeHitThisSwing = true;
+                        this._applyDaggerBladeDamage(enemy, this._enemyPos);
+                        this.disposeProjectile(p);
+                        this.projectiles.splice(i, 1);
+                        break;
+                    }
+                }
                 continue;
             }
 

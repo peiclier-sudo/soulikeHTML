@@ -410,6 +410,10 @@ export class Character {
                 'Ultimate'
             ].forEach(bindAlias);
 
+            if (!this.actions['Jump']) {
+                this.actions['Jump'] = this.actions['Roll dodge'] || this.actions['Run'] || this.actions['Walk'] || this.actions['Idle'];
+            }
+
             // Dissociation: mask offensive animations only when using two-layer system
             if (this.useDissociation) {
                 this.applyDissociationMasking();
@@ -885,7 +889,10 @@ export class Character {
         if (isSuper) this.superDashCooldown = this.superDashCooldownDuration;
         this.gameState.combat.invulnerable = true;
         if (this.dashVfx) this.dashVfx.dispose();
-        this.dashVfx = createDashVFX(this.scene, { isFrost: this.gameState.selectedKit?.id === 'frost_mage' });
+        this.dashVfx = createDashVFX(this.scene, {
+            isFrost: this.gameState.selectedKit?.id === 'frost_mage',
+            isPoison: this.gameState.selectedKit?.id === 'shadow_assassin'
+        });
     }
 
     updateDash(deltaTime) {
