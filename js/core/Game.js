@@ -18,9 +18,10 @@ import { UIManager } from '../ui/UIManager.js';
 import { Boss } from '../entities/Boss.js';
 
 export class Game {
-    constructor(canvas, assetLoader) {
+    constructor(canvas, assetLoader, kitId = 'blood_mage') {
         this.canvas = canvas;
         this.assetLoader = assetLoader;
+        this.kitId = kitId;
         this.isRunning = false;
         this.isPaused = false;
         this.clock = new THREE.Clock();
@@ -126,8 +127,10 @@ export class Game {
     }
     
     initSystems() {
-        // Game state management
+        // Game state management (set kit before reset so stats are kit-driven)
         this.gameState = new GameState();
+        this.gameState.setKit(this.kitId);
+        this.gameState.reset();
         
         // Input handling
         this.inputManager = new InputManager(this.canvas);
@@ -155,6 +158,7 @@ export class Game {
         
         // UI Manager (camera for project damage numbers at hit position)
         this.uiManager = new UIManager(this.gameState, this.camera, this.combatSystem, this.character);
+        this.uiManager.applyKitToHud();
 
         // Spawn one random boss in the arena
         this.boss = null;
@@ -320,7 +324,11 @@ export class Game {
             if (this.pendingUltimateSlash <= 0) {
                 const dir = this.pendingUltimateDir || this.character.getForwardDirection().clone().normalize();
                 const pos = this.character.getWeaponPosition().clone().add(dir.clone().multiplyScalar(0.5));
-                this.combatSystem.spawnUltimateSlash(pos, dir);
+                if (this.combatSystem.isFrostKit && this.combatSystem.frostCombat) {
+                    this.combatSystem.frostCombat.castBlizzard(this.character.position);
+                } else {
+                    this.combatSystem.spawnUltimateSlash(pos, dir);
+                }
                 this.pendingUltimateSlash = 0;
                 this.pendingUltimateDir = null;
                 this.ultimateBloomTime = 0.06;
@@ -329,7 +337,11 @@ export class Game {
             }
         }
 
-        // Crimson Eruption (A / Q): single targeting mode — circle starts in front of player, then follows virtual cursor
+        // Q ability: Frost Mage → instant Frozen Orb, others → Crimson Eruption targeting
+        if (this.combatSystem && input.crimsonEruption && this.combatSystem.isFrostKit && this.combatSystem.frostCombat) {
+            this.combatSystem.frostCombat.castFrozenOrb();
+            input.crimsonEruption = false;
+        }
         if (this.combatSystem && typeof this.combatSystem.updateCrimsonEruptionPreview === 'function') {
             if (input.crimsonEruption && this.combatSystem.crimsonEruptionCooldown <= 0) {
                 this.crimsonEruptionTargeting = true;
@@ -375,7 +387,7 @@ export class Game {
 
         // Blood shield (C): activate and timer
         if (input.shield && !this.gameState.combat.shieldActive) {
-            this.gameState.activateShield(6);
+            this.gameState.activateShield(this.combatSystem.shieldDuration);
         }
         if (this.gameState.combat.shieldActive) {
             this.gameState.combat.shieldTimeRemaining -= this.deltaTime;

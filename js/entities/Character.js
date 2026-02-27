@@ -15,15 +15,19 @@ export class Character {
         this.gameState = gameState;
         this.particleSystem = particleSystem;
 
+        // Read kit stats for movement
+        const kit = gameState.selectedKit;
+        const stats = kit?.stats;
+
         // Character properties
         this.position = new THREE.Vector3(0, 0, 5);
         this.rotation = new THREE.Euler(0, 0, 0);
         this.velocity = new THREE.Vector3();
 
-        // Movement settings
-        this.walkSpeed = 4;
-        this.runSpeed = 8;
-        this.jumpForce = 8;
+        // Movement settings (driven by kit)
+        this.walkSpeed = stats?.walkSpeed ?? 4;
+        this.runSpeed = stats?.runSpeed ?? 8;
+        this.jumpForce = stats?.jumpForce ?? 8;
         this.gravity = -25;
 
         // Third-person camera settings (further back for better view)

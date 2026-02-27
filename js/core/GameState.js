@@ -2,29 +2,52 @@
  * Game State Manager - Centralized state management
  */
 
+import { getKit } from '../kits/KitDefinitions.js';
+
 export class GameState {
     constructor() {
+        /** @type {string|null} Currently selected kit id */
+        this.selectedKitId = null;
+        /** @type {object|null} Resolved kit definition object */
+        this.selectedKit = null;
         this.reset();
-        
+
         // Event listeners
         this.listeners = new Map();
     }
-    
+
+    /** Set the active kit before reset / game start */
+    setKit(kitId) {
+        const kit = getKit(kitId);
+        if (!kit) {
+            console.warn(`Unknown kit id: ${kitId}, falling back to blood_mage`);
+            this.selectedKitId = 'blood_mage';
+            this.selectedKit = getKit('blood_mage');
+        } else {
+            this.selectedKitId = kitId;
+            this.selectedKit = kit;
+        }
+    }
+
     reset() {
-        // Player stats
+        const kit = this.selectedKit;
+        const stats = kit?.stats;
+
+        // Player stats (driven by kit if available, else defaults)
         this.player = {
-            health: 100,
-            maxHealth: 100,
-            stamina: 100,
-            maxStamina: 100,
+            health: stats?.health ?? 100,
+            maxHealth: stats?.health ?? 100,
+            stamina: stats?.stamina ?? 100,
+            maxStamina: stats?.stamina ?? 100,
             ultimateCharge: 0,      // 0–100, fill with 6 charged or 12 basic hits taken
             souls: 0,
             level: 1,
             healthPotions: 5,
             drinkPotionCooldown: 0
         };
-        
+
         // Combat state
+        const chargeDuration = kit?.combat?.chargedAttack?.chargeDuration ?? 1.0;
         this.combat = {
             isAttacking: false,
             attackPhase: 0,
@@ -39,8 +62,8 @@ export class GameState {
             isCharging: false,
             isChargedAttacking: false,
             chargeTimer: 0,
-            chargeDuration: 1.0,
-            minChargeToRelease: 1.0,
+            chargeDuration: chargeDuration,
+            minChargeToRelease: chargeDuration,
             releasedCharge: 0,
             isWhipAttacking: false,
             isLifeDraining: false,
@@ -50,7 +73,7 @@ export class GameState {
             drinkingPotionTimer: 0,
             nextAttackDamageMultiplier: 1.0
         };
-        
+
         // Movement state
         this.movement = {
             isMoving: false,
@@ -59,19 +82,20 @@ export class GameState {
             isGrounded: true,
             velocity: { x: 0, y: 0, z: 0 }
         };
-        
-        // Equipment
+
+        // Equipment (driven by kit if available)
+        const weapon = kit?.weapon;
         this.equipment = {
             weapon: {
-                name: 'Claymore',
-                damage: 25,
-                staminaCost: 5,
-                attackSpeed: 1.0,
-                range: 2.75
+                name: weapon?.name ?? 'Claymore',
+                damage: weapon?.damage ?? 25,
+                staminaCost: weapon?.staminaCost ?? 5,
+                attackSpeed: weapon?.attackSpeed ?? 1.0,
+                range: weapon?.range ?? 2.75
             },
             armor: {
                 name: 'Knight Armor',
-                defense: 10
+                defense: stats?.armor ?? 10
             }
         };
         
@@ -239,12 +263,14 @@ export class GameState {
         return JSON.stringify({
             player: this.player,
             equipment: this.equipment,
-            flags: this.flags
+            flags: this.flags,
+            kitId: this.selectedKitId
         });
     }
-    
+
     deserialize(data) {
         const parsed = JSON.parse(data);
+        if (parsed.kitId) this.setKit(parsed.kitId);
         this.player = { ...this.player, ...parsed.player };
         this.equipment = { ...this.equipment, ...parsed.equipment };
         this.flags = { ...this.flags, ...parsed.flags };

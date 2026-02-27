@@ -5,6 +5,8 @@
 import * as THREE from 'three';
 import { createBloodFireMaterial, updateBloodFireMaterial } from '../shaders/BloodFireShader.js';
 import { createBloodFireVFX } from '../effects/BloodFireVFX.js';
+import { updateIceMaterial } from '../shaders/IceShader.js';
+import { FrostCombat } from './FrostCombat.js';
 
 export class CombatSystem {
     constructor(scene, character, gameState, particleSystem = null, onProjectileHit = null) {
@@ -13,30 +15,51 @@ export class CombatSystem {
         this.gameState = gameState;
         this.particleSystem = particleSystem;
         this.onProjectileHit = onProjectileHit;
-        
+
+        // Read kit combat config (falls back to Blood Mage defaults if no kit set)
+        const kit = gameState.selectedKit;
+        const kc = kit?.combat || {};
+        const basic = kc.basicAttack || {};
+        const charged = kc.chargedAttack || {};
+        const abilQ = kc.abilityQ || {};
+        const abilE = kc.abilityE || {};
+        const abilX = kc.abilityX || {};
+        const abilC = kc.abilityC || {};
+        const abilF = kc.abilityF || {};
+
         // Raycaster for hit detection
         this.raycaster = new THREE.Raycaster();
-        
+
         // Attack properties (2x faster - Basic attack animation only)
         this.attackDuration = 0.25;
         this.attackTimer = 0;
         this.comboWindow = 0.15;
         this.comboTimer = 0;
         this.maxCombo = 3;
-        
+
         // Projectiles (fireballs)
         this.projectiles = [];
+
+        // Kit-driven basic/charged projectile params
+        this.basicDamage = basic.damage ?? 20;
+        this.basicSpeed = basic.speed ?? 20;
+        this.basicRadius = basic.radius ?? 0.25;
+        this.basicLifetime = basic.lifetime ?? 1.5;
+        this.chargedDamage = charged.damage ?? 55;
+        this.chargedSpeed = charged.speed ?? 20;
+        this.chargedRadius = charged.radius ?? 0.72;
+        this.chargedLifetime = charged.lifetime ?? 2.4;
 
         // Charge orb (grows at hand while charging)
         this.chargeOrb = null;
 
         // Charged attack (right click hold then release)
         this.chargeTimer = 0;
-        this.chargeDuration = 1.0;
+        this.chargeDuration = charged.chargeDuration ?? 1.0;
         this.minChargeToRelease = this.chargeDuration;
         this.chargedAttackTimer = 0;
         this.chargedAttackDuration = 0.55;
-        
+
         // Enemies in scene (for hit detection)
         this.enemies = [];
         // Reused in updateProjectiles to avoid per-frame allocations
@@ -55,23 +78,24 @@ export class CombatSystem {
         // Ultimate: Zangetsu-style blood crescent slash (piercing, high damage)
         this.ultimateSlash = null;
         this._ultimateHitSet = new Set(); // enemies already hit by current slash
+        this.ultimateDamage = abilF.damage ?? 120;
 
         // E spell: Blood Crescend discharge, scales with bleed stacks
         this.bloodCrescend = null;
 
-        // Crimson Eruption (A): ground target circle, blood fire ring
+        // Crimson Eruption / Q ability: ground target circle
         this.crimsonEruptionPreview = null;
-        this.crimsonEruptionRadius = 3.5;
+        this.crimsonEruptionRadius = abilQ.radius ?? 3.5;
         this.crimsonEruptionCooldown = 0;
-        this.crimsonEruptionCooldownDuration = 8;
-        this.crimsonEruptionDamage = 50;
+        this.crimsonEruptionCooldownDuration = abilQ.cooldown ?? 8;
+        this.crimsonEruptionDamage = abilQ.damage ?? 50;
         this.crimsonEruptionVfx = null;
 
-        // Whip attack (E): CAC blood-fire slash, impactful
+        // Whip/finisher (E ability): CAC blood-fire slash, impactful
         this.whipTimer = null;
         this.whipDuration = 0.48;
-        this.whipRange = 3.8;
-        this.whipDamage = 45;
+        this.whipRange = abilE.range ?? 3.8;
+        this.whipDamage = abilE.baseDamage ?? 45;
         this.whipHitOnce = false;
 
         // Life drain (X): channel 2.5s, damage target and heal self (WoW-style)
@@ -99,16 +123,23 @@ export class CombatSystem {
         this._drainPath = Array.from({ length: 140 }, () => new THREE.Vector3());
         this._lastDrainBloodSecond = 0; // +1 blood charge per full second of life drain
 
-        // Blood Nova (X): short blood burst that roots/freezes enemies, especially bosses.
+        // Blood Nova / X ability: short blood burst that roots/freezes enemies
         this.bloodNovaCooldown = 0;
-        this.bloodNovaCooldownDuration = 10;
-        this.bloodNovaRadius = 12;
-        this.bloodNovaDamage = 35;
-        this.bloodNovaFreezeDuration = 2.4;
+        this.bloodNovaCooldownDuration = abilX.cooldown ?? 10;
+        this.bloodNovaRadius = abilX.radius ?? 12;
+        this.bloodNovaDamage = abilX.damage ?? 35;
+        this.bloodNovaFreezeDuration = abilX.freezeDuration ?? 2.4;
         this.bloodNovaWindup = 0;
         this.bloodNovaWindupDuration = 0.12;
         this._bloodNovaPendingCenter = new THREE.Vector3();
         this._bloodNovaPreview = null;
+
+        // Shield duration from kit
+        this.shieldDuration = abilC.duration ?? 6;
+
+        // Kit-specific combat module
+        this.isFrostKit = (kit?.id === 'frost_mage');
+        this.frostCombat = this.isFrostKit ? new FrostCombat(this) : null;
     }
 
     /** Crescent / croissant shape for ultimate slash (arc shape) */
@@ -169,8 +200,8 @@ export class CombatSystem {
     }
 
     _createProjectile(isCharged, startPos, dir) {
-        const radius = isCharged ? 0.72 : 0.25;
-        const speed = 20;
+        const radius = isCharged ? this.chargedRadius : this.basicRadius;
+        const speed = isCharged ? this.chargedSpeed : this.basicSpeed;
         const seg = isCharged ? 12 : 8;
         const group = new THREE.Group();
         group.position.copy(startPos);
@@ -210,8 +241,8 @@ export class CombatSystem {
         const velocity = new THREE.Vector3().copy(dir).normalize().multiplyScalar(speed);
         return {
             mesh: group, velocity, lifetime: 0,
-            maxLifetime: isCharged ? 2.4 : 1.5,
-            damage: isCharged ? 55 : 20,
+            maxLifetime: isCharged ? this.chargedLifetime : this.basicLifetime,
+            damage: isCharged ? this.chargedDamage : this.basicDamage,
             releaseBurst: isCharged ? 0.15 : 0,
             isCharged: !!isCharged,
             materials, geometries, vfx
@@ -343,7 +374,13 @@ export class CombatSystem {
     update(deltaTime, input) {
         if (this.crimsonEruptionCooldown > 0) this.crimsonEruptionCooldown -= deltaTime;
         if (this.bloodNovaCooldown > 0) this.bloodNovaCooldown -= deltaTime;
-        if (input.bloodNova) this.castBloodNova();
+        if (input.bloodNova) {
+            if (this.isFrostKit && this.frostCombat) {
+                this.frostCombat.castIceBlock();
+            } else {
+                this.castBloodNova();
+            }
+        }
         if (this.bloodNovaWindup > 0) {
             this.bloodNovaWindup -= deltaTime;
             if (this._bloodNovaPreview) {
@@ -508,6 +545,7 @@ export class CombatSystem {
         this.updateProjectiles(deltaTime);
         this.updateUltimateSlash(deltaTime);
         this.updateBloodCrescend(deltaTime);
+        if (this.frostCombat) this.frostCombat.update(deltaTime);
     }
 
     updateChargeOrb(deltaTime) {
@@ -715,8 +753,12 @@ export class CombatSystem {
         }
     }
 
-    /** E = Blood Crescend: consume bleed stacks and discharge a massive crescent toward the enemy. */
+    /** E = Blood Crescend / Frost Beam: consume stacks and discharge. */
     executeBloodflail(chargesUsed, multiplier) {
+        if (this.isFrostKit && this.frostCombat) {
+            this.frostCombat.executeFrostBeam(chargesUsed, multiplier);
+            return;
+        }
         this.executeBloodCrescend(chargesUsed, multiplier);
     }
 
@@ -748,14 +790,29 @@ export class CombatSystem {
         const dir = this._fbDir;
 
         if (this.particleSystem) {
-            this.particleSystem.emitSparks(startPos, isCharged ? 10 : 5);
-            this.particleSystem.emitEmbers(startPos, isCharged ? 6 : 3);
+            if (this.isFrostKit) {
+                this.particleSystem.emitIceBurst(startPos, isCharged ? 10 : 5);
+            } else {
+                this.particleSystem.emitSparks(startPos, isCharged ? 10 : 5);
+                this.particleSystem.emitEmbers(startPos, isCharged ? 6 : 3);
+            }
         }
 
-        const speed = 20;
-        const damage = Math.floor((isCharged ? 55 : 20) * this._consumeNextAttackMultiplier());
-        const maxLifetime = isCharged ? 2.4 : 1.5;
+        const speed = isCharged ? this.chargedSpeed : this.basicSpeed;
+        const damage = Math.floor((isCharged ? this.chargedDamage : this.basicDamage) * this._consumeNextAttackMultiplier());
+        const maxLifetime = isCharged ? this.chargedLifetime : this.basicLifetime;
         const releaseBurst = isCharged ? 0.15 : 0;
+
+        // Frost kit: create ice javelins (no pool reuse for now)
+        if (this.isFrostKit && this.frostCombat) {
+            const p = this.frostCombat.createIceProjectile(isCharged, startPos.clone(), dir.clone());
+            p.damage = damage;
+            p.maxLifetime = maxLifetime;
+            p.releaseBurst = releaseBurst;
+            this.scene.add(p.mesh);
+            this.projectiles.push(p);
+            return;
+        }
 
         const pool = isCharged ? this.poolCharged : this.poolBasic;
         if (pool.length > 0) {
@@ -811,13 +868,21 @@ export class CombatSystem {
             if (p.materials) {
                 p.materials.forEach((mat, idx) => {
                     const layerAlpha = idx === 0 ? alpha * 0.5 : alpha;
-                    updateBloodFireMaterial(mat, p.lifetime, layerAlpha);
+                    if (p.isFrost) {
+                        updateIceMaterial(mat, p.lifetime, layerAlpha);
+                    } else {
+                        updateBloodFireMaterial(mat, p.lifetime, layerAlpha);
+                    }
                 });
             }
 
             if (p.lifetime >= p.maxLifetime) {
                 if (this.particleSystem) {
-                    this.particleSystem.emitSmoke(p.mesh.position, p.isCharged ? 3 : 1);
+                    if (p.isFrost) {
+                        this.particleSystem.emitIceBurst(p.mesh.position, p.isCharged ? 8 : 3);
+                    } else {
+                        this.particleSystem.emitSmoke(p.mesh.position, p.isCharged ? 3 : 1);
+                    }
                 }
                 this.disposeProjectile(p);
                 this.projectiles.splice(i, 1);
@@ -836,11 +901,21 @@ export class CombatSystem {
                     enemyMesh.userData.enemy.takeDamage(p.damage);
                     hit = true;
                     this.gameState.addUltimateCharge(p.isCharged ? 'charged' : 'basic');
-                    this.gameState.addBloodCharge(p.isCharged ? 2 : 1);
+                    // Frost: add frost stacks instead of blood charges
+                    if (p.isFrost && this.frostCombat) {
+                        this.frostCombat.addFrostStack(enemy, p.isCharged ? 2 : 1);
+                    } else {
+                        this.gameState.addBloodCharge(p.isCharged ? 2 : 1);
+                    }
                     this.gameState.emit('damageNumber', { position: this._enemyPos.clone(), damage: p.damage, isCritical: false, anchorId: this._getDamageAnchorId(enemy) });
                     if (this.particleSystem) {
-                        this.particleSystem.emitHitEffect(fireballPos);
-                        this.particleSystem.emitEmbers(fireballPos, p.isCharged ? 6 : 3);
+                        if (p.isFrost) {
+                            this.particleSystem.emitIceBurst(fireballPos, p.isCharged ? 12 : 6);
+                            this.particleSystem.emitIceShatter(fireballPos, p.isCharged ? 8 : 4);
+                        } else {
+                            this.particleSystem.emitHitEffect(fireballPos);
+                            this.particleSystem.emitEmbers(fireballPos, p.isCharged ? 6 : 3);
+                        }
                     }
                     if (this.onProjectileHit) {
                         this.onProjectileHit({ charged: p.isCharged, isBoss: !!enemy.isBoss });

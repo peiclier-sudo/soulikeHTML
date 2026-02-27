@@ -10,6 +10,7 @@ export class UIManager {
         this.camera = camera;
         this.combatSystem = combatSystem;
         this.character = character;
+        this._kitApplied = false;
         this._projectedPos = new THREE.Vector3();
         this._damageAnchorScreenCache = new Map();
         this._canvas = document.getElementById('game-canvas');
@@ -60,6 +61,26 @@ export class UIManager {
             setTimeout(() => this.elements.reticule?.classList.remove('reticule-flash-ready'), 260);
         }
     }
+    /** Update HUD ability labels to match the selected kit */
+    applyKitToHud() {
+        const kit = this.gameState.selectedKit;
+        if (!kit || this._kitApplied) return;
+        this._kitApplied = true;
+        const kc = kit.combat || {};
+        const names = {
+            'ability-eruption': kc.abilityQ?.name ?? 'Eruption',
+            'ability-nova': kc.abilityX?.name ?? 'Nova',
+            'ability-shield': kc.abilityC?.name ?? 'Shield'
+        };
+        for (const [id, name] of Object.entries(names)) {
+            const el = document.getElementById(id);
+            if (el) {
+                const nameEl = el.querySelector('.ability-name');
+                if (nameEl) nameEl.textContent = name;
+            }
+        }
+    }
+
     setupEventListeners() {
         // Damage number events
         this.gameState.on('damageNumber', (data) => {
@@ -113,10 +134,13 @@ export class UIManager {
             this._abilityReadyState.set(id, !!ready);
         };
 
-        const eruptionCd = this.combatSystem?.crimsonEruptionCooldown ?? 0;
+        const isFrost = this.combatSystem?.isFrostKit;
+        const fc = this.combatSystem?.frostCombat;
+
+        const eruptionCd = isFrost ? (fc?.frozenOrbCooldown ?? 0) : (this.combatSystem?.crimsonEruptionCooldown ?? 0);
         setBox('ability-eruption', eruptionCd <= 0, eruptionCd <= 0 ? 'Ready' : fmt(eruptionCd));
 
-        const novaCd = this.combatSystem?.bloodNovaCooldown ?? 0;
+        const novaCd = isFrost ? (fc?.iceBlockCooldown ?? 0) : (this.combatSystem?.bloodNovaCooldown ?? 0);
         setBox('ability-nova', novaCd <= 0, novaCd <= 0 ? 'Ready' : fmt(novaCd));
 
         const shieldActive = this.gameState.combat.shieldActive;

@@ -29,11 +29,42 @@
         <div class="start-content">
             <h1 class="game-title">ELDEN FLAME</h1>
             <p class="subtitle">A Dark Souls Tribute</p>
-            <button id="start-button" class="game-button">ENTER THE ABYSS</button>
+            <button id="start-button" class="game-button">START NEW GAME</button>
             <div class="controls-hint">
                 <p>AZERTY: Z - Avancer | Q - Gauche | D - Droite | Souris - Regarder</p>
                 <p>Espace - Saut | R - Dash | Clic gauche - Attaque | Clic droit - Attaque chargée</p>
-                <p>Q - Crimson Eruption | E - Bloodflail (finisher, 1–5 charges) | X - Blood Nova (root boss) | C - Bouclier sang | & - Potion de vie | F - Ultimate</p>
+                <p>Q - Ability 1 | E - Finisher | X - Ability 3 | C - Shield | & - Potion | F - Ultimate</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Class Selection Screen -->
+    <div id="class-select-screen" style="display: none;">
+        <div class="class-select-content">
+            <h1 class="game-title class-select-title">CHOOSE YOUR PATH</h1>
+
+            <!-- Step 1: Class selection -->
+            <div id="class-step" class="selection-step">
+                <p class="step-label">SELECT A CLASS</p>
+                <div class="class-cards" id="class-cards"></div>
+            </div>
+
+            <!-- Step 2: Kit/Specialization selection -->
+            <div id="kit-step" class="selection-step" style="display: none;">
+                <p class="step-label">SELECT A SPECIALIZATION</p>
+                <div class="kit-cards" id="kit-cards"></div>
+                <button class="game-button back-button" id="kit-back-btn">BACK</button>
+            </div>
+
+            <!-- Step 3: Confirm -->
+            <div id="confirm-step" class="selection-step" style="display: none;">
+                <div class="kit-preview" id="kit-preview"></div>
+                <div class="kit-preview-stats" id="kit-preview-stats"></div>
+                <div class="kit-preview-abilities" id="kit-preview-abilities"></div>
+                <div class="confirm-buttons">
+                    <button class="game-button back-button" id="confirm-back-btn">BACK</button>
+                    <button class="game-button confirm-button" id="confirm-btn">ENTER THE ABYSS</button>
+                </div>
             </div>
         </div>
     </div>
