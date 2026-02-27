@@ -1,6 +1,5 @@
 /**
- * Elden Flame - Dark Souls Web Experience
- * Main Entry Point
+ * ORDALIE - Main Entry Point
  */
 
 import { Game } from './core/Game.js';
@@ -113,7 +112,7 @@ async function init() {
         // Setup tower progression screen buttons
         setupTowerScreen();
 
-        console.log('Elden Flame initialized successfully');
+        console.log('ORDALIE initialized successfully');
 
     } catch (error) {
         console.error('Failed to initialize game:', error);
@@ -332,6 +331,11 @@ function setupSettings() {
 
     postProcessing?.addEventListener('change', (e) => {
         game?.setQualitySetting('postProcessing', e.target.checked);
+    });
+
+    const motionSmoothing = document.getElementById('motion-smoothing');
+    motionSmoothing?.addEventListener('change', (e) => {
+        game?.setQualitySetting('motionSmoothing', e.target.checked);
     });
 
     mouseSensitivity?.addEventListener('input', (e) => {

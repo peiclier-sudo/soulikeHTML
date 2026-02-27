@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <meta name="description" content="Dark Souls-inspired 3D web game built with Three.js">
-    <meta name="theme-color" content="#1a1a2e">
-    <title>Elden Flame - Dark Souls Web Experience</title>
+    <meta name="description" content="ORDALIE - A dark action web game built with Three.js">
+    <meta name="theme-color" content="#06080c">
+    <title>ORDALIE</title>
     <link rel="stylesheet" href="/css/main.css?v=20260226-1">
     <link rel="stylesheet" href="/css/hud.css?v=20260226-1">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -15,7 +15,7 @@
     <!-- Loading Screen -->
     <div id="loading-screen">
         <div class="loading-content">
-            <h1 class="game-title">ELDEN FLAME</h1>
+            <h1 class="game-title">ORDALIE</h1>
             <div class="loading-bar-container">
                 <div class="loading-bar" id="loading-bar"></div>
             </div>
@@ -27,8 +27,8 @@
     <!-- Start Screen -->
     <div id="start-screen" style="display: none;">
         <div class="start-content">
-            <h1 class="game-title">ELDEN FLAME</h1>
-            <p class="subtitle">A Dark Souls Tribute</p>
+            <h1 class="game-title">ORDALIE</h1>
+            <p class="subtitle">Face the Trial</p>
             <button id="continue-button" class="game-button" style="display: none;">CONTINUE RUN</button>
             <button id="start-button" class="game-button">START NEW GAME</button>
             <!-- Account / Recovery Code -->
@@ -104,7 +104,7 @@
                 <div class="kit-preview-abilities" id="kit-preview-abilities"></div>
                 <div class="confirm-buttons">
                     <button class="game-button back-button" id="confirm-back-btn">BACK</button>
-                    <button class="game-button confirm-button" id="confirm-btn">ENTER THE ABYSS</button>
+                    <button class="game-button confirm-button" id="confirm-btn">BEGIN ORDALIE</button>
                 </div>
             </div>
         </div>
@@ -236,6 +236,10 @@
             <div class="setting-row">
                 <label>Post Processing (Bloom)</label>
                 <input type="checkbox" id="post-processing">
+            </div>
+            <div class="setting-row">
+                <label>Motion Smoothing</label>
+                <input type="checkbox" id="motion-smoothing">
             </div>
             <div class="setting-row">
                 <label>Mouse Sensitivity</label>
