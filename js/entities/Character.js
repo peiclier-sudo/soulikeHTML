@@ -1138,7 +1138,8 @@ export class Character {
         if (this.dashVfx) this.dashVfx.dispose();
         this.dashVfx = createDashVFX(this.scene, {
             isFrost: this.gameState.selectedKit?.id === 'frost_mage',
-            isPoison: this.gameState.selectedKit?.id === 'shadow_assassin'
+            isPoison: this.gameState.selectedKit?.id === 'shadow_assassin',
+            isBow: this.gameState.selectedKit?.id === 'bow_ranger'
         });
     }
 
