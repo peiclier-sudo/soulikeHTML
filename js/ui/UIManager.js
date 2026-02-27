@@ -137,7 +137,7 @@ export class UIManager {
         const isFrost = this.combatSystem?.isFrostKit;
         const fc = this.combatSystem?.frostCombat;
 
-        const eruptionCd = isFrost ? (fc?.frozenOrbCooldown ?? 0) : (this.combatSystem?.crimsonEruptionCooldown ?? 0);
+        const eruptionCd = isFrost ? (fc?.iceClawCooldown ?? 0) : (this.combatSystem?.crimsonEruptionCooldown ?? 0);
         setBox('ability-eruption', eruptionCd <= 0, eruptionCd <= 0 ? 'Ready' : fmt(eruptionCd));
 
         const novaCd = isFrost ? (fc?.stalactiteCooldown ?? 0) : (this.combatSystem?.bloodNovaCooldown ?? 0);

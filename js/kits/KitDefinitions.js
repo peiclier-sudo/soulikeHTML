@@ -169,11 +169,10 @@ export const KIT_DEFINITIONS = {
                 chargeDuration: 1.1
             },
             abilityQ: {
-                name: 'Frozen Orb',
-                type: 'projectile_aoe',
-                damage: 15,
-                radius: 14,
-                cooldown: 9,
+                name: 'Ice Claw',
+                type: 'projectile_homing',
+                damage: 55,
+                cooldown: 7,
                 bloodChargeGain: 2
             },
             abilityE: {
