@@ -51,7 +51,7 @@ export class Game {
         this.targetShakeOffset = new THREE.Vector3(0, 0, 0);
         this.lastPunchOffset = new THREE.Vector3(0, 0, 0);
         this.shakeSeed = Math.random() * 1000;
-        this.punchDecay = 0.78;
+        this.punchDecay = 0.82;
         this._shieldCenter = new THREE.Vector3();
 
         // Hit-stop (brief time freeze on heavy impacts)
@@ -584,20 +584,22 @@ export class Game {
         // Apply screen shake after camera update (short impact feel)
         this.applyScreenShake();
         this.applyPunchPush();
-        // Ultimate bloom pulse (insane feel)
+        // Bloom pulse with smooth ease-out
         if (this.ultimateBloomTime > 0) {
             this.ultimateBloomTime = Math.max(0, this.ultimateBloomTime - this.deltaTime);
             const t = this.ultimateBloomTime / this.ultimateBloomDuration;
-            const peak = 1.35;
-            this.bloomPass.strength = this.baseBloomStrength + (peak - this.baseBloomStrength) * t;
+            const eased = t * t; // ease-out: fast peak, smooth decay
+            const peak = 1.6;
+            this.bloomPass.strength = this.baseBloomStrength + (peak - this.baseBloomStrength) * eased;
         } else {
             this.bloomPass.strength = this.baseBloomStrength;
         }
-        // Ultimate FOV punch (fire only)
+        // FOV punch with smooth ease-out
         if (this.ultimateFovTime > 0) {
             this.ultimateFovTime = Math.max(0, this.ultimateFovTime - this.deltaTime);
-            const t = this.ultimateFovTime / 0.22;
-            this.camera.fov = this.baseFov + 8 * t;
+            const t = this.ultimateFovTime / 0.25;
+            const eased = t * t;
+            this.camera.fov = this.baseFov + 10 * eased;
             this.camera.updateProjectionMatrix();
         } else if (this.ultimateFovTime === 0 && this.camera.fov !== this.baseFov) {
             this.camera.fov = this.baseFov;
@@ -824,11 +826,16 @@ export class Game {
             this.lastPunchOffset.copy(this.character.getForwardDirection()).multiplyScalar(0.16);
             this.triggerHitStop(0.055);
         } else {
-            // Projectile hit: keep boss-hit shake subtle/smooth to avoid buggy-looking jitter.
-            const base = isBoss ? 0.0065 : 0.022;
-            this.shakeIntensity = base * (charged ? 1.35 : 1);
-            this.shakeDuration = isBoss ? (charged ? 0.24 : 0.2) : (charged ? 0.2 : 0.14);
-            this.triggerHitStop(charged ? 0.045 : 0.03);
+            // Projectile/melee hit feedback
+            const base = isBoss ? 0.01 : 0.028;
+            this.shakeIntensity = base * (charged ? 1.5 : 1);
+            this.shakeDuration = isBoss ? (charged ? 0.26 : 0.22) : (charged ? 0.22 : 0.16);
+            this.triggerHitStop(charged ? 0.05 : 0.035);
+            // Camera push toward target on every hit
+            this.lastPunchOffset.copy(this.character.getForwardDirection()).multiplyScalar(charged ? 0.1 : 0.06);
+            // Subtle bloom flash on every hit
+            this.ultimateBloomTime = Math.max(this.ultimateBloomTime, charged ? 0.15 : 0.1);
+            this.ultimateBloomDuration = Math.max(this.ultimateBloomDuration, charged ? 0.15 : 0.1);
         }
         this.shakeTime = this.shakeDuration;
     }
