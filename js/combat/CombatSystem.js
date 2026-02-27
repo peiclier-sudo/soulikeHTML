@@ -143,6 +143,9 @@ export class CombatSystem {
         this.frostCombat = this.isFrostKit ? new FrostCombat(this) : null;
         this.isDaggerKit = (kit?.id === 'shadow_assassin');
         this.daggerCombat = this.isDaggerKit ? new DaggerCombat(this) : null;
+        this.isVenomKit = (kit?.id === 'venom_stalker');
+        this.venomChargedSplashRadius = charged.splashRadius ?? 2.8;
+        this.venomChargedSplashDamageMultiplier = charged.splashDamageMultiplier ?? 0.5;
     }
 
     /** Crescent / croissant shape for ultimate slash (arc shape) */
@@ -653,7 +656,7 @@ export class CombatSystem {
         if (this.isDaggerKit) this.spawnDaggerBladeWave();
 
         const basicClip = this.character.actions?.['Basic attack']?.getClip();
-        const basicTimeScale = this.isDaggerKit ? 8.0 : 3.8;
+        const basicTimeScale = this.isDaggerKit ? 8.0 : (this.isVenomKit ? 1.0 : 3.8);
         this.attackDuration = basicClip?.duration ? basicClip.duration / basicTimeScale : 0.28;
         this.attackTimer = this.attackDuration;
         this._meleeHitThisSwing = false;
@@ -1003,6 +1006,20 @@ export class CombatSystem {
                 if (fireballPos.distanceTo(this._enemyPos) < hitRadius) {
                     enemyMesh.userData.enemy.takeDamage(p.damage);
                     hit = true;
+
+                    if (this.isVenomKit && p.isCharged) {
+                        for (const otherEnemyMesh of this.enemies) {
+                            const otherEnemy = otherEnemyMesh.userData?.enemy;
+                            if (!otherEnemy || otherEnemy === enemy || otherEnemy.health <= 0) continue;
+                            otherEnemyMesh.getWorldPosition(this._centerFlat);
+                            if (fireballPos.distanceTo(this._centerFlat) > this.venomChargedSplashRadius) continue;
+                            const splashDamage = Math.max(1, Math.floor(p.damage * this.venomChargedSplashDamageMultiplier));
+                            otherEnemy.takeDamage(splashDamage);
+                            this.gameState.emit('damageNumber', { position: this._centerFlat.clone(), damage: splashDamage, isCritical: false, anchorId: this._getDamageAnchorId(otherEnemy) });
+                        }
+                        if (this.particleSystem?.emitPoisonBurst) this.particleSystem.emitPoisonBurst(fireballPos.clone(), 18);
+                    }
+
                     this.gameState.addUltimateCharge(p.isCharged ? 'charged' : 'basic');
                     // Frost: add frost stacks instead of blood charges
                     if (p.isFrost && this.frostCombat) {
