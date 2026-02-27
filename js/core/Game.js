@@ -370,7 +370,9 @@ export class Game {
             this.combatSystem.bowRangerCombat.executeMultiShot();
         }
         if (input.bloodNova && this.combatSystem?.isDaggerKit && this.combatSystem?.daggerCombat) {
-            this.combatSystem.daggerCombat.executeToxicFocus();
+            if (!this.combatSystem.daggerCombat.executeToxicFocus()) {
+                this.uiManager.showNoBloodEssenceFeedback();
+            }
         }
 
         // Ultimate slash spawn (after short delay when F is pressed)

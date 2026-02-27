@@ -72,7 +72,7 @@ export class GameState {
             isDrinkingPotion: false,
             drinkingPotionTimer: 0,
             nextAttackDamageMultiplier: 1.0,
-            // Dagger kit (shadow_assassin): teleport = +100% damage 3s, vanish = invisible + 60% speed, X = 15% per charge 8s
+            // Dagger kit (shadow_assassin): teleport = +100% damage 3s, vanish = invisible + 60% speed, X = 20% per charge 8s
             teleportDamageBuffRemaining: 0,
             vanishRemaining: 0,
             poisonDamageBuffMultiplier: 1.0,
