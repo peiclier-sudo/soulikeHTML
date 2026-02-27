@@ -131,7 +131,7 @@ export class AssetLoader {
                             if ('specularIntensity' in mat) mat.specularIntensity = 0.05;
                             if ('clearcoat' in mat) mat.clearcoat = 0.0;
                             if ('sheen' in mat) mat.sheen = 0.0;
-                            if (mat.color) mat.color.multiplyScalar(0.32);
+                            if (mat.color) mat.color.setScalar(0.32);
                             if (mat.map) {
                                 mat.map.premultiplyAlpha = false;
                                 mat.map.needsUpdate = true;
@@ -246,7 +246,7 @@ export class AssetLoader {
                             if ('specularIntensity' in mat) mat.specularIntensity = 0.05;
                             if ('clearcoat' in mat) mat.clearcoat = 0.0;
                             if ('sheen' in mat) mat.sheen = 0.0;
-                            if (mat.color) mat.color.multiplyScalar(0.32);
+                            if (mat.color) mat.color.setScalar(0.32);
                             if (mat.map) { mat.map.premultiplyAlpha = false; mat.map.needsUpdate = true; }
                             mat.needsUpdate = true;
                             return mat;
