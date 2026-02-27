@@ -110,6 +110,9 @@ async function init() {
         setupAccountUI();
         refreshAccountUI();
 
+        // Setup tower progression screen buttons
+        setupTowerScreen();
+
         console.log('Elden Flame initialized successfully');
 
     } catch (error) {
@@ -333,6 +336,23 @@ function setupSettings() {
 
     mouseSensitivity?.addEventListener('input', (e) => {
         game?.setMouseSensitivity(parseFloat(e.target.value) / 5);
+    });
+}
+
+function setupTowerScreen() {
+    // Continue → next boss
+    document.getElementById('tower-continue-btn')?.addEventListener('click', () => {
+        if (game) game.proceedFromTower();
+    });
+
+    // Quit to menu from tower screen
+    document.getElementById('tower-quit-btn')?.addEventListener('click', () => {
+        document.getElementById('tower-screen').style.display = 'none';
+        document.getElementById('hud').style.display = 'none';
+        document.getElementById('start-screen').style.display = 'flex';
+        game?.stop();
+        refreshContinueButton();
+        refreshAccountUI();
     });
 }
 

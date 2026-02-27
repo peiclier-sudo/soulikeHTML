@@ -164,7 +164,6 @@ export class Game {
         // Boss tracking
         this.boss = null;
         this.bossNumber = 0;           // index of current boss in this run
-        this.pendingNextBoss = 0;      // countdown before next boss spawns
         this.pendingUltimateSlash = 0; // delay before spawning ultimate crescent (sync with anim)
         this.spawnBoss();
 
@@ -238,7 +237,64 @@ export class Game {
             : this.boss.name;
         this.uiManager.showBossHealth(label, this.boss.health, this.boss.maxHealth);
     }
-    
+
+    /** Show the tower progression overlay after a boss is defeated. */
+    showTowerScreen() {
+        // Pause the game and release pointer
+        this.pause();
+        document.exitPointerLock();
+        document.getElementById('hud').style.display = 'none';
+
+        const defeated = this.bossNumber + 1; // how many bosses beaten so far (1-indexed)
+        const towerScreen = document.getElementById('tower-screen');
+        const shaft = document.getElementById('tower-shaft');
+        const subtitle = document.getElementById('tower-subtitle');
+
+        subtitle.textContent = `Floor ${defeated} Conquered`;
+
+        // Build tower floors: show defeated + next + a couple of locked future floors
+        const totalVisible = Math.max(defeated + 3, 6);
+        shaft.innerHTML = '';
+
+        for (let i = 1; i <= totalVisible; i++) {
+            const floor = document.createElement('div');
+            floor.className = 'tower-floor';
+
+            if (i < defeated) {
+                // Previously beaten
+                floor.classList.add('defeated');
+                floor.innerHTML = `<span class="tower-floor-icon">\u2620</span> BOSS ${i}`;
+            } else if (i === defeated) {
+                // Just beaten — highlight
+                floor.classList.add('defeated', 'just-defeated');
+                floor.innerHTML = `<span class="tower-floor-icon">\u2694\uFE0F</span> BOSS ${i} \u2014 DEFEATED`;
+            } else if (i === defeated + 1) {
+                // Next boss
+                floor.classList.add('upcoming');
+                floor.innerHTML = `<span class="tower-floor-icon">?</span> BOSS ${i}`;
+            } else {
+                // Future locked
+                floor.classList.add('locked');
+                floor.innerHTML = `<span class="tower-floor-icon">\uD83D\uDD12</span> BOSS ${i}`;
+            }
+            shaft.appendChild(floor);
+        }
+
+        towerScreen.style.display = 'flex';
+    }
+
+    /** Called when player clicks Continue on the tower screen. */
+    proceedFromTower() {
+        document.getElementById('tower-screen').style.display = 'none';
+        document.getElementById('hud').style.display = 'block';
+
+        this.bossNumber++;
+        this.gameState.flags.bossDefeated = false;
+        this.spawnBoss();
+        this.resume();
+        requestAnimationFrame(() => document.getElementById('game-canvas').requestPointerLock());
+    }
+
     start() {
         this.isRunning = true;
         this.isPaused = false;
@@ -640,19 +696,8 @@ export class Game {
                 this.gameState.flags.bossDefeated = true;
                 RunProgress.onBossDefeated(this.gameState);
                 this.boss = null;
-                // Next boss spawns after 5 s
-                this.pendingNextBoss = 5.0;
-            }
-        }
-
-        // Countdown to next boss spawn
-        if (this.pendingNextBoss > 0) {
-            this.pendingNextBoss -= this.deltaTime;
-            if (this.pendingNextBoss <= 0) {
-                this.pendingNextBoss = 0;
-                this.bossNumber++;
-                this.gameState.flags.bossDefeated = false;
-                this.spawnBoss();
+                // Show tower progression screen instead of auto-spawning
+                this.showTowerScreen();
             }
         }
         
