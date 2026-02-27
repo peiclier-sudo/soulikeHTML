@@ -76,7 +76,9 @@ export class GameState {
             teleportDamageBuffRemaining: 0,
             vanishRemaining: 0,
             poisonDamageBuffMultiplier: 1.0,
-            poisonDamageBuffRemaining: 0
+            poisonDamageBuffRemaining: 0,
+            // Bow ranger: damage zone multiplier (updated each frame by BowCombat)
+            bowDamageZoneMultiplier: 1.0
         };
 
         // Movement state
@@ -111,6 +113,9 @@ export class GameState {
 
         // Dagger kit: poison charges (max 6), gained on basic/charged hit
         this.poisonCharges = 0;
+
+        // Bow ranger kit: trust charges (max 8), gained on arrow hits
+        this.trustCharges = 0;
 
         // Game flags
         this.flags = {
@@ -261,6 +266,37 @@ export class GameState {
         this.poisonCharges = 0;
         this.emit('poisonChargesChanged', 0);
         return { success: true, chargesUsed: consumed };
+    }
+
+    // ─── Bow ranger kit: trust charges (max 8) ─────────────────────
+    addTrustCharge(amount = 1) {
+        if (this.selectedKitId !== 'bow_ranger') return;
+        const newCharges = Math.min(8, (this.trustCharges ?? 0) + amount);
+        this.trustCharges = newCharges;
+        this.emit('trustChargesChanged', this.trustCharges);
+    }
+
+    getTrustCharges() {
+        return this.selectedKitId === 'bow_ranger' ? (this.trustCharges ?? 0) : 0;
+    }
+
+    /** Consume up to maxCharges trust charges; returns { consumed, remaining }. */
+    tryConsumeTrustCharges(maxCharges = 8) {
+        const have = this.trustCharges ?? 0;
+        const consumed = Math.min(maxCharges, have);
+        if (consumed <= 0) return { consumed: 0, remaining: have };
+        this.trustCharges = Math.max(0, have - consumed);
+        this.emit('trustChargesChanged', this.trustCharges);
+        return { consumed, remaining: this.trustCharges };
+    }
+
+    /** E = Judgment Arrow: consume all trust charges. Returns { success, chargesUsed }. */
+    tryJudgmentArrow() {
+        const have = this.getTrustCharges();
+        if (have < 1) return { success: false, chargesUsed: 0 };
+        this.trustCharges = 0;
+        this.emit('trustChargesChanged', 0);
+        return { success: true, chargesUsed: have };
     }
 
     /** Activate teleport-behind buff: +100% damage for 3 seconds. */

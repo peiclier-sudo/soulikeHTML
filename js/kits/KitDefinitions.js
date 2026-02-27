@@ -4,7 +4,7 @@
  * Each kit defines: stats, abilities, visual theme colors, and combat parameters.
  * The game systems read from the selected kit to configure themselves.
  *
- * Classes: Mage (2), Rogue (2), Warrior (2)
+ * Classes: Mage (2), Rogue (3), Warrior (2)
  */
 
 export const CLASS_MAGE = 'mage';
@@ -409,6 +409,112 @@ export const KIT_DEFINITIONS = {
             accent: 0xaaff44,     // acid yellow-green
             particleColor: 0x66ff22,
             uiClass: 'kit-venom-stalker'
+        },
+
+        model: 'character_3k_rogue',
+        animationKey: 'character_3k_rogue_bow'
+    },
+
+    // ─── ROGUE 3: BOW RANGER ──────────────────────────────────────
+    bow_ranger: {
+        id: 'bow_ranger',
+        name: 'Bow Ranger',
+        className: CLASS_ROGUE,
+        description: 'Precision archer. Builds Trust through relentless volleys, then unleashes devastating judgment arrows.',
+        icon: '\u{1F3F9}',
+
+        stats: {
+            health: 85,
+            stamina: 115,
+            walkSpeed: 4.5,
+            runSpeed: 9.5,
+            jumpForce: 8.5,
+            armor: 6,
+            critChance: 0.25,
+            critMultiplier: 1.65,
+            backstabMultiplier: 1.5
+        },
+
+        weapon: {
+            name: 'Longbow',
+            damage: 20,
+            staminaCost: 3,
+            attackSpeed: 1.3,
+            range: 3.0
+        },
+
+        combat: {
+            // LMB: single blue arrow
+            basicAttack: {
+                type: 'projectile',
+                damage: 22,
+                speed: 30,
+                radius: 0.18,
+                lifetime: 2.0,
+                staminaCost: 3,
+                trustChargeGain: 1
+            },
+            // RMB: 3-arrow spread
+            chargedAttack: {
+                type: 'projectile_charged',
+                damage: 18,
+                speed: 28,
+                radius: 0.18,
+                lifetime: 1.8,
+                chargeDuration: 0.7,
+                arrowCount: 3,
+                trustChargeGain: 2
+            },
+            // A/V: Recoil Shot - fire + dash backward
+            abilityA: {
+                name: 'Recoil Shot',
+                type: 'dash_attack',
+                damage: 55,
+                cooldown: 6,
+                dashDistance: 5.5
+            },
+            // E: Judgment Arrow - consume Trust stacks
+            abilityE: {
+                name: 'Judgment Arrow',
+                type: 'consume_charges_projectile',
+                baseDamage: 65,
+                damagePercentPerCharge: 25,
+                requiresTrustCharges: true
+            },
+            // X: Multi Shot - rapid fire, debuffs target
+            abilityX: {
+                name: 'Multi Shot',
+                type: 'rapid_fire',
+                damagePerArrow: 18,
+                arrowCount: 6,
+                cooldown: 10,
+                debuffDuration: 6,
+                debuffMultiplier: 1.5
+            },
+            // C: Hunter's Mark Zone - +100% damage while inside
+            abilityC: {
+                name: "Hunter's Mark",
+                type: 'ground_zone',
+                duration: 5,
+                radius: 3.5,
+                damageMultiplier: 2.0,
+                cooldown: 14
+            },
+            // F: Ultimate - huge piercing arrow
+            abilityF: {
+                name: 'Skyfall Arrow',
+                type: 'ultimate_piercing',
+                damage: 200,
+                chargeNeeded: 100
+            }
+        },
+
+        theme: {
+            primary: 0x1a3a6a,    // deep blue
+            secondary: 0x4488ff,  // bright blue
+            accent: 0xaaddff,     // ice white
+            particleColor: 0x4488ff,
+            uiClass: 'kit-bow-ranger'
         },
 
         model: 'character_3k_rogue',
