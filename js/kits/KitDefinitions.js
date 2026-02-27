@@ -178,11 +178,12 @@ export const KIT_DEFINITIONS = {
                 requiresBloodCharges: true
             },
             abilityX: {
-                name: 'Ice Block',
-                type: 'self_cast',
-                duration: 3.0,
-                cooldown: 18,
-                healPerSec: 8
+                name: 'Stalactite',
+                type: 'ground_targeted',
+                damage: 85,
+                radius: 4.0,
+                cooldown: 12,
+                freezeDuration: 2.5
             },
             abilityC: {
                 name: 'Ice Barrier',

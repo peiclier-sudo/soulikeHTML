@@ -15,6 +15,9 @@ import { createIceVFX } from '../effects/IceVFX.js';
 // ── Frost stack colors (dark blue → bright cyan) ──
 const FROST_STACK_COLORS = [0x0a1a3a, 0x1a3a6a, 0x2255aa, 0x3377cc, 0x44aaee, 0x66ccff, 0x88ddff, 0xccf0ff];
 
+/** Y position for stalactite ground impact (tip of cone at ground level + half height) */
+function spikeGroundY() { return 2.5; }
+
 export class FrostCombat {
     constructor(combatSystem) {
         this.cs = combatSystem;              // parent CombatSystem
@@ -32,8 +35,8 @@ export class FrostCombat {
         this.frozenOrb = null;
         this.frozenOrbCooldown = 0;
         this.frozenOrbCooldownDuration = 9;
-        this.frozenOrbDamage = 15;           // per shard
-        this.frozenOrbShardInterval = 0.12;
+        this.frozenOrbDamage = 30;           // per shard (was 15)
+        this.frozenOrbShardInterval = 0.14;
         this.frozenOrbRadius = 14;
 
         // ── Frost Beam (E) - consumes frost stacks ──
@@ -41,21 +44,26 @@ export class FrostCombat {
         this.frostBeamTimer = 0;
         this.frostBeamDuration = 0.6;
 
-        // ── Ice Block (X) - self-cast invulnerability ──
-        this.iceBlockActive = false;
-        this.iceBlockTimer = 0;
-        this.iceBlockDuration = 3.0;
-        this.iceBlockCooldown = 0;
-        this.iceBlockCooldownDuration = 18;
-        this.iceBlockMesh = null;
-        this.iceBlockHealPerSec = 8;
+        // ── Stalactite Drop (X) - ground-targeted AoE ──
+        this.stalactiteTargeting = false;          // true while choosing zone
+        this.stalactiteCooldown = 0;
+        this.stalactiteCooldownDuration = 12;
+        this.stalactiteRadius = 4.0;
+        this.stalactiteDamage = 85;
+        this.stalactiteFreezeDuration = 2.5;
+        this.stalactitePreview = null;             // targeting ring mesh
+        this.stalactiteActive = null;              // active stalactite falling
+        this._stalactiteTargetPos = new THREE.Vector3();
 
-        // ── Blizzard (F ultimate) ──
+        // ── Blizzard (F ultimate) - ground-targeted AoE ──
         this.blizzard = null;
+        this.blizzardTargeting = false;
         this.blizzardDuration = 3.5;
         this.blizzardRadius = 8;
         this.blizzardDamagePerTick = 28;
         this.blizzardTickInterval = 0.25;
+        this.blizzardPreview = null;
+        this._blizzardTargetPos = new THREE.Vector3();
 
         // Reusable vectors
         this._enemyPos = new THREE.Vector3();
@@ -347,9 +355,9 @@ export class FrostCombat {
 
         this.frozenOrb = {
             mesh: group,
-            velocity: dir.clone().multiplyScalar(8), // slow-moving
+            velocity: dir.clone().multiplyScalar(4.5), // slow-moving heavy orb
             lifetime: 0,
-            maxLifetime: 3.0,
+            maxLifetime: 4.0,
             shardTimer: 0,
             materials: [orbMat, coreMat],
             geometries: [orbGeo, coreGeo],
@@ -400,12 +408,12 @@ export class FrostCombat {
             const hitRadius = (enemy.hitRadius ?? (enemy.isBoss ? 2.5 : 0.8)) + 0.8;
             if (orbPos.distanceTo(this._enemyPos) < hitRadius && !orb.hitSet.has(enemy)) {
                 orb.hitSet.add(enemy);
-                enemy.takeDamage(this.frozenOrbDamage * 3);
-                this.addFrostStack(enemy, 2);
+                enemy.takeDamage(this.frozenOrbDamage * 4);
+                this.addFrostStack(enemy, 3);
                 this.gameState.addUltimateCharge('charged');
                 this.gameState.emit('damageNumber', {
                     position: this._enemyPos.clone(),
-                    damage: this.frozenOrbDamage * 3,
+                    damage: this.frozenOrbDamage * 4,
                     isCritical: true,
                     kind: 'ability',
                     anchorId: this.cs._getDamageAnchorId(enemy)
@@ -473,8 +481,9 @@ export class FrostCombat {
     //  FROST BEAM (E) - consume frost stacks, freeze proportionally
     // ═══════════════════════════════════════════════════════════
 
-    /** E ability: consume frost stacks and fire a frost beam that freezes.
-     *  0.5s freeze per stack consumed. Half the crescend damage. */
+    /** E ability: fire a frost beam that consumes frost stacks per enemy hit.
+     *  Damage and freeze duration scale with each enemy's frost stacks.
+     *  0.5s freeze per frost stack consumed on that enemy. */
     executeFrostBeam(chargesUsed, multiplier) {
         if (this.frostBeam) return;
 
@@ -484,9 +493,11 @@ export class FrostCombat {
         if (dir.lengthSq() < 0.0001) dir.set(0, 0, -1);
         dir.normalize();
 
-        // Create beam visual
+        // Create beam visual - width scales with blood charges spent
         const beamLength = 12;
-        const beamGeo = new THREE.CylinderGeometry(0.15, 0.35, beamLength, 8);
+        const beamWidthBase = 0.15 + chargesUsed * 0.03;
+        const beamWidthTip = 0.35 + chargesUsed * 0.05;
+        const beamGeo = new THREE.CylinderGeometry(beamWidthBase, beamWidthTip, beamLength, 8);
         beamGeo.rotateX(Math.PI / 2);
         beamGeo.translate(0, 0, beamLength / 2);
         const beamMat = createIceMaterial({
@@ -523,12 +534,7 @@ export class FrostCombat {
         light.position.copy(weaponPos);
         this.scene.add(light);
 
-        // Calculate damage (half of crescend equivalent)
-        const baseDamage = Math.floor((42 + chargesUsed * 18) * (multiplier ?? 1));
-        const freezeDuration = chargesUsed * 0.5; // 0.5s per stack
-
-        // Hit enemies in the beam path
-        const beamEnd = weaponPos.clone().addScaledVector(dir, beamLength);
+        // Hit enemies in the beam path — consume frost stacks per enemy
         for (const enemyMesh of this.cs.enemies) {
             const enemy = enemyMesh.userData?.enemy;
             if (!enemy || enemy.health <= 0) continue;
@@ -543,6 +549,13 @@ export class FrostCombat {
             const hitRadius = (enemy.hitRadius ?? (enemy.isBoss ? 2.5 : 0.8)) + 0.5;
             if (dist > hitRadius) continue;
 
+            // Consume THIS enemy's frost stacks for scaling
+            const frostStacks = this.consumeFrostStacks(enemy);
+            // Damage: base from blood charges + bonus per frost stack
+            const baseDamage = Math.floor((42 + chargesUsed * 18 + frostStacks * 12) * (multiplier ?? 1));
+            // Freeze: 0.5s per frost stack consumed on this enemy
+            const freezeDuration = frostStacks * 0.5;
+
             enemy.takeDamage(baseDamage);
             if (freezeDuration > 0) {
                 enemy.staggerTimer = Math.max(enemy.staggerTimer ?? 0, freezeDuration + (enemy.isBoss ? 0.5 : 0));
@@ -552,13 +565,13 @@ export class FrostCombat {
             this.gameState.emit('damageNumber', {
                 position: this._enemyPos.clone(),
                 damage: baseDamage,
-                isCritical: chargesUsed >= 6,
+                isCritical: frostStacks >= 6,
                 kind: 'heavy',
                 anchorId: this.cs._getDamageAnchorId(enemy)
             });
             if (this.particleSystem) {
-                this.particleSystem.emitIceBurst(this._enemyPos, 20 + chargesUsed * 3);
-                this.particleSystem.emitIceShatter(this._enemyPos, 15);
+                this.particleSystem.emitIceBurst(this._enemyPos, 20 + frostStacks * 4);
+                this.particleSystem.emitIceShatter(this._enemyPos, 10 + frostStacks * 3);
             }
         }
 
@@ -611,92 +624,282 @@ export class FrostCombat {
     }
 
     // ═══════════════════════════════════════════════════════════
-    //  ICE BLOCK (X) - self-cast invulnerability
+    //  STALACTITE DROP (X) - ground-targeted AoE
+    //  First press: enter targeting mode (preview ring on ground)
+    //  Second press / click: drop the stalactite
     // ═══════════════════════════════════════════════════════════
 
-    castIceBlock() {
-        if (this.iceBlockActive || this.iceBlockCooldown > 0) return false;
+    /** Toggle stalactite targeting mode (called on X press) */
+    beginStalactiteTargeting() {
+        if (this.stalactiteCooldown > 0 || this.stalactiteActive) return false;
 
-        this.iceBlockActive = true;
-        this.iceBlockTimer = this.iceBlockDuration;
-        this.iceBlockCooldown = this.iceBlockCooldownDuration;
-        this.gameState.combat.invulnerable = true;
-
-        // Create ice block mesh around player
-        const geo = new THREE.BoxGeometry(1.2, 2.2, 1.2);
-        const mat = createIceMaterial({
-            coreBrightness: 1.0,
-            iceSpeed: 2.0,
-            isCharged: 0.5,
-            layerScale: 0.6,
-            rimPower: 3.0,
-            displaceAmount: 0.3
-        });
-        mat.uniforms.alpha.value = 0.6;
-        this.iceBlockMesh = new THREE.Mesh(geo, mat);
-        this.iceBlockMesh.position.copy(this.character.position);
-        this.iceBlockMesh.position.y += 1.0;
-        this.scene.add(this.iceBlockMesh);
-
-        if (this.particleSystem) {
-            this.particleSystem.emitIceBurst(this.character.position, 30);
+        if (this.stalactiteTargeting) {
+            // Already targeting — cancel
+            this.cancelStalactiteTargeting();
+            return false;
         }
-        if (this.cs.onProjectileHit) this.cs.onProjectileHit({ whipWindup: true });
 
+        this.stalactiteTargeting = true;
         return true;
     }
 
-    updateIceBlock(deltaTime) {
-        if (!this.iceBlockActive) return;
-
-        this.iceBlockTimer -= deltaTime;
-
-        // Follow character position
-        if (this.iceBlockMesh) {
-            this.iceBlockMesh.position.copy(this.character.position);
-            this.iceBlockMesh.position.y += 1.0;
-            const mat = this.iceBlockMesh.material;
-            if (mat.uniforms) {
-                updateIceMaterial(mat, performance.now() / 1000 * 2, 0.5 + 0.1 * Math.sin(this.iceBlockTimer * 4));
-            }
-            // Pulse scale
-            const pulse = 1 + 0.03 * Math.sin(this.iceBlockTimer * 8);
-            this.iceBlockMesh.scale.setScalar(pulse);
+    /** Update targeting preview ring position */
+    updateStalactitePreview(worldPosition) {
+        if (!this.stalactiteTargeting) return;
+        if (!this.stalactitePreview) {
+            const r = this.stalactiteRadius;
+            const ringGeo = new THREE.RingGeometry(r - 0.3, r + 0.15, 48);
+            const mat = new THREE.MeshBasicMaterial({
+                color: 0x44aaff,
+                transparent: true,
+                opacity: 0.5,
+                side: THREE.DoubleSide,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending
+            });
+            this.stalactitePreview = new THREE.Mesh(ringGeo, mat);
+            this.stalactitePreview.rotation.x = -Math.PI / 2;
+            this.stalactitePreview.position.y = 0.03;
+            this.stalactitePreview.visible = false;
+            this.scene.add(this.stalactitePreview);
         }
+        this.stalactitePreview.position.x = worldPosition.x;
+        this.stalactitePreview.position.z = worldPosition.z;
+        this.stalactitePreview.visible = true;
+        this._stalactiteTargetPos.set(worldPosition.x, 0, worldPosition.z);
+    }
 
-        // Heal slowly
-        this.gameState.heal(this.iceBlockHealPerSec * deltaTime);
+    hideStalactitePreview() {
+        if (this.stalactitePreview) this.stalactitePreview.visible = false;
+    }
 
-        // Particles
+    cancelStalactiteTargeting() {
+        this.stalactiteTargeting = false;
+        this.hideStalactitePreview();
+    }
+
+    /** Drop the stalactite at the target position */
+    dropStalactite(targetPos) {
+        if (!targetPos) targetPos = this._stalactiteTargetPos.clone();
+        this.stalactiteTargeting = false;
+        this.hideStalactitePreview();
+        this.stalactiteCooldown = this.stalactiteCooldownDuration;
+
+        const center = targetPos.clone();
+        center.y = 0;
+
+        // Create falling stalactite mesh (pointed cone)
+        const spikeHeight = 5.0;
+        const spikeRadius = 0.8;
+        const spikeGeo = new THREE.ConeGeometry(spikeRadius, spikeHeight, 6);
+        // Point downward
+        spikeGeo.rotateX(Math.PI);
+        const spikeMat = createIceMaterial({
+            coreBrightness: 1.8,
+            iceSpeed: 3.0,
+            isCharged: 1.0,
+            layerScale: 0.5,
+            rimPower: 2.5,
+            displaceAmount: 0.6
+        });
+        spikeMat.uniforms.alpha.value = 0.85;
+        const spikeMesh = new THREE.Mesh(spikeGeo, spikeMat);
+        spikeMesh.position.set(center.x, 20, center.z); // start high above
+        this.scene.add(spikeMesh);
+
+        // Shadow/warning circle on ground
+        const shadowGeo = new THREE.CircleGeometry(this.stalactiteRadius, 32);
+        const shadowMat = new THREE.MeshBasicMaterial({
+            color: 0x44aaff,
+            transparent: true,
+            opacity: 0.3,
+            side: THREE.DoubleSide,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending
+        });
+        const shadow = new THREE.Mesh(shadowGeo, shadowMat);
+        shadow.rotation.x = -Math.PI / 2;
+        shadow.position.set(center.x, 0.05, center.z);
+        this.scene.add(shadow);
+
+        // Point light
+        const light = new THREE.PointLight(0x66ccff, 25, 25, 2);
+        light.position.set(center.x, 10, center.z);
+        this.scene.add(light);
+
+        this.stalactiteActive = {
+            mesh: spikeMesh,
+            shadow, light,
+            center,
+            materials: [spikeMat, shadowMat],
+            geometries: [spikeGeo, shadowGeo],
+            phase: 'falling', // 'falling' → 'impact' → 'fade'
+            fallTimer: 0,
+            fallDuration: 0.35,  // fast drop
+            impactTimer: 0,
+            impactDuration: 0.8
+        };
+
         if (this.particleSystem) {
-            this.particleSystem.emitIceTrail(this.character.position, 2);
+            this.particleSystem.emitIceTrail(new THREE.Vector3(center.x, 15, center.z), 8);
         }
+        if (this.cs.onProjectileHit) this.cs.onProjectileHit({ whipWindup: true });
+    }
 
-        if (this.iceBlockTimer <= 0) {
-            this.iceBlockActive = false;
-            this.gameState.combat.invulnerable = false;
+    updateStalactite(deltaTime) {
+        if (!this.stalactiteActive) return;
+        const s = this.stalactiteActive;
 
-            // Shatter effect
-            if (this.particleSystem) {
-                this.particleSystem.emitIceShatter(this.character.position, 40);
-                this.particleSystem.emitIceBurst(this.character.position, 25);
+        if (s.phase === 'falling') {
+            s.fallTimer += deltaTime;
+            const t = Math.min(1, s.fallTimer / s.fallDuration);
+            // Accelerate downward (easeInQuad)
+            const eased = t * t;
+            const startY = 20;
+            const endY = spikeGroundY(s.center);
+            s.mesh.position.y = startY + (endY - startY) * eased;
+            s.light.position.y = s.mesh.position.y + 2;
+
+            // Shadow grows as spike approaches
+            const shadowScale = 0.3 + 0.7 * eased;
+            s.shadow.scale.setScalar(shadowScale);
+            s.shadow.material.opacity = 0.2 + 0.4 * eased;
+
+            // Update ice material
+            if (s.mesh.material.uniforms) {
+                updateIceMaterial(s.mesh.material, performance.now() / 1000 * 3, 0.85);
             }
 
-            if (this.iceBlockMesh) {
-                this.scene.remove(this.iceBlockMesh);
-                this.iceBlockMesh.geometry.dispose();
-                this.iceBlockMesh.material.dispose();
-                this.iceBlockMesh = null;
+            // Trail particles while falling
+            if (this.particleSystem) {
+                this.particleSystem.emitIceTrail(s.mesh.position, 3);
+            }
+
+            if (t >= 1) {
+                // IMPACT
+                s.phase = 'impact';
+                s.impactTimer = s.impactDuration;
+                this._stalactiteImpact(s);
+            }
+        } else if (s.phase === 'impact') {
+            s.impactTimer -= deltaTime;
+            const lifePct = Math.max(0, s.impactTimer / s.impactDuration);
+
+            // Fade spike and light
+            if (s.mesh.material.uniforms) {
+                updateIceMaterial(s.mesh.material, performance.now() / 1000 * 3, 0.8 * lifePct);
+            }
+            s.shadow.material.opacity = 0.3 * lifePct;
+            s.light.intensity = 25 * lifePct;
+
+            // Sink slightly
+            s.mesh.position.y -= deltaTime * 0.5;
+
+            if (s.impactTimer <= 0) {
+                // Cleanup
+                this.scene.remove(s.mesh);
+                this.scene.remove(s.shadow);
+                this.scene.remove(s.light);
+                s.geometries.forEach(g => g.dispose());
+                s.materials.forEach(m => m.dispose());
+                s.light.dispose();
+                this.stalactiteActive = null;
             }
         }
     }
 
+    /** Apply stalactite impact: damage + freeze enemies in radius */
+    _stalactiteImpact(s) {
+        const center = s.center;
+        let hitCount = 0;
+
+        for (const enemyMesh of this.cs.enemies) {
+            const enemy = enemyMesh.userData?.enemy;
+            if (!enemy || enemy.health <= 0) continue;
+            enemyMesh.getWorldPosition(this._enemyPos);
+            const dist = center.distanceTo(this._enemyPos);
+            const modelRadius = enemy.hitRadius ?? (enemy.isBoss ? 2.5 : 0.8);
+            if (dist > this.stalactiteRadius + modelRadius) continue;
+
+            enemy.takeDamage(this.stalactiteDamage);
+            this.addFrostStack(enemy, 3);
+            // Freeze on impact
+            const freezeDur = this.stalactiteFreezeDuration + (enemy.isBoss ? 0.5 : 0);
+            enemy.staggerTimer = Math.max(enemy.staggerTimer ?? 0, freezeDur);
+            enemy.state = 'stagger';
+            hitCount++;
+            this.gameState.addUltimateCharge('charged');
+            this.gameState.emit('damageNumber', {
+                position: this._enemyPos.clone(),
+                damage: this.stalactiteDamage,
+                isCritical: true,
+                kind: 'ability',
+                anchorId: this.cs._getDamageAnchorId(enemy)
+            });
+        }
+
+        // VFX explosion
+        if (this.particleSystem) {
+            this.particleSystem.emitIceShatter(center, 50);
+            this.particleSystem.emitIceBurst(center, 40);
+        }
+
+        if (hitCount > 0 && this.cs.onProjectileHit) {
+            this.cs.onProjectileHit({ bloodNova: true, hits: hitCount });
+        }
+    }
+
     // ═══════════════════════════════════════════════════════════
-    //  BLIZZARD (F ultimate) - AoE damage storm
+    //  BLIZZARD (F ultimate) - ground-targeted AoE damage storm
+    //  First press F: enter targeting mode (preview ring)
+    //  Click: deploy blizzard at location
     // ═══════════════════════════════════════════════════════════
+
+    /** Enter blizzard targeting mode */
+    beginBlizzardTargeting() {
+        if (this.blizzard) return false;
+        this.blizzardTargeting = true;
+        return true;
+    }
+
+    updateBlizzardPreview(worldPosition) {
+        if (!this.blizzardTargeting) return;
+        if (!this.blizzardPreview) {
+            const r = this.blizzardRadius;
+            const ringGeo = new THREE.RingGeometry(r - 0.35, r + 0.2, 48);
+            const mat = new THREE.MeshBasicMaterial({
+                color: 0x44aaff,
+                transparent: true,
+                opacity: 0.45,
+                side: THREE.DoubleSide,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending
+            });
+            this.blizzardPreview = new THREE.Mesh(ringGeo, mat);
+            this.blizzardPreview.rotation.x = -Math.PI / 2;
+            this.blizzardPreview.position.y = 0.03;
+            this.blizzardPreview.visible = false;
+            this.scene.add(this.blizzardPreview);
+        }
+        this.blizzardPreview.position.x = worldPosition.x;
+        this.blizzardPreview.position.z = worldPosition.z;
+        this.blizzardPreview.visible = true;
+        this._blizzardTargetPos.set(worldPosition.x, 0, worldPosition.z);
+    }
+
+    hideBlizzardPreview() {
+        if (this.blizzardPreview) this.blizzardPreview.visible = false;
+    }
+
+    cancelBlizzardTargeting() {
+        this.blizzardTargeting = false;
+        this.hideBlizzardPreview();
+    }
 
     castBlizzard(position) {
         if (this.blizzard) return;
+        this.blizzardTargeting = false;
+        this.hideBlizzardPreview();
 
         const center = position.clone();
         center.y = 0.1;
@@ -824,11 +1027,11 @@ export class FrostCombat {
 
     update(deltaTime) {
         if (this.frozenOrbCooldown > 0) this.frozenOrbCooldown -= deltaTime;
-        if (this.iceBlockCooldown > 0) this.iceBlockCooldown -= deltaTime;
+        if (this.stalactiteCooldown > 0) this.stalactiteCooldown -= deltaTime;
 
         this.updateFrozenOrb(deltaTime);
         this.updateFrostBeam(deltaTime);
-        this.updateIceBlock(deltaTime);
+        this.updateStalactite(deltaTime);
         this.updateBlizzard(deltaTime);
         this.updateFrostIndicators(deltaTime);
     }

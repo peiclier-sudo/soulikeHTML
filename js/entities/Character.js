@@ -6,6 +6,7 @@
 import * as THREE from 'three';
 import { createDashVFX } from '../effects/DashVFX.js';
 import { createBloodFireMaterial, updateBloodFireMaterial } from '../shaders/BloodFireShader.js';
+import { createIceMaterial, updateIceMaterial } from '../shaders/IceShader.js';
 
 export class Character {
     constructor(scene, camera, assetLoader, gameState, particleSystem = null) {
@@ -86,10 +87,12 @@ export class Character {
         this.createBloodChargeIndicator();
     }
 
-    /** 3D blood charge orbs on a circle (axis) around the character – same place on the ring always. Layered blood/dark, alive. Hidden when 0 charges. */
+    /** 3D charge orbs on a circle (axis) around the character. Frost mage uses ice orbs. */
     createBloodChargeIndicator() {
         this.bloodChargeIndicator = new THREE.Group();
         this.bloodChargeIndicator.name = 'bloodChargeIndicator';
+        const isFrost = this.gameState.selectedKit?.id === 'frost_mage';
+        this._isFrostChargeIndicator = isFrost;
         const innerRadius = 0.052;
         const outerRadius = 0.075;
         const circleRadius = 1.35;
@@ -97,17 +100,26 @@ export class Character {
         const startAngle = -arcSpan / 2;
         const innerGeom = new THREE.SphereGeometry(innerRadius, 6, 6);
         const outerGeom = new THREE.SphereGeometry(outerRadius, 6, 6);
-        const sharedInnerMat = createBloodFireMaterial({
-            coreBrightness: 1.0,
-            plasmaSpeed: 3.2,
-            isCharged: 0.6,
-            layerScale: 1.1,
-            rimPower: 2.0,
-            alpha: 0.98,
-            redTint: 0.92
-        });
+        const sharedInnerMat = isFrost
+            ? createIceMaterial({
+                coreBrightness: 1.2,
+                iceSpeed: 4.0,
+                isCharged: 0.6,
+                layerScale: 1.1,
+                rimPower: 2.0,
+                alpha: 0.95
+            })
+            : createBloodFireMaterial({
+                coreBrightness: 1.0,
+                plasmaSpeed: 3.2,
+                isCharged: 0.6,
+                layerScale: 1.1,
+                rimPower: 2.0,
+                alpha: 0.98,
+                redTint: 0.92
+            });
         const sharedOuterMat = new THREE.MeshBasicMaterial({
-            color: 0x2a0808,
+            color: isFrost ? 0x0a2a5a : 0x2a0808,
             transparent: true,
             opacity: 0.78,
             depthWrite: false
@@ -119,6 +131,7 @@ export class Character {
             orbGroup.position.set(circleRadius * Math.cos(angle), 0, circleRadius * Math.sin(angle));
             const inner = new THREE.Mesh(innerGeom, sharedInnerMat);
             inner.userData.bloodMat = sharedInnerMat;
+            inner.userData.isFrost = isFrost;
             orbGroup.add(inner);
             const outer = new THREE.Mesh(outerGeom, sharedOuterMat);
             outer.renderOrder = -1;
@@ -161,11 +174,19 @@ export class Character {
                 orbGroup.scale.setScalar(pulse);
                 const inner = orbGroup.userData.inner;
                 if (inner?.userData?.bloodMat?.uniforms) {
-                    updateBloodFireMaterial(inner.userData.bloodMat, t * 5, 0.94 + 0.05 * Math.sin(t * 2.7));
+                    if (inner.userData.isFrost) {
+                        updateIceMaterial(inner.userData.bloodMat, t * 5, 0.9 + 0.08 * Math.sin(t * 2.7));
+                    } else {
+                        updateBloodFireMaterial(inner.userData.bloodMat, t * 5, 0.94 + 0.05 * Math.sin(t * 2.7));
+                    }
                 }
                 if (this.particleSystem && t - (orbGroup.userData.lastParticleEmit ?? 0) > 0.18) {
                     orbGroup.getWorldPosition(this._bloodOrbWorldPos);
-                    this.particleSystem.emitEmbers(this._bloodOrbWorldPos, 1);
+                    if (this._isFrostChargeIndicator) {
+                        this.particleSystem.emitIceTrail(this._bloodOrbWorldPos, 1);
+                    } else {
+                        this.particleSystem.emitEmbers(this._bloodOrbWorldPos, 1);
+                    }
                     orbGroup.userData.lastParticleEmit = t;
                 }
             }
@@ -736,7 +757,7 @@ export class Character {
     updateCamera(input, sensitivity, deltaTime = 0.016) {
         const lookSensitivity = 0.0022 * sensitivity;  // Slightly more responsive
         const maxAnglePerFrame = 0.22;  // Snappier turn feel
-        const lockCamera = input.crimsonEruptionTargeting === true;
+        const lockCamera = input.crimsonEruptionTargeting === true || input.stalactiteTargeting === true || input.blizzardTargeting === true;
         const deltaYaw = lockCamera ? 0 : Math.max(-maxAnglePerFrame, Math.min(maxAnglePerFrame, -input.mouseDeltaX * lookSensitivity));
         const deltaPitch = lockCamera ? 0 : Math.max(-maxAnglePerFrame, Math.min(maxAnglePerFrame, input.mouseDeltaY * lookSensitivity));
         this.cameraYaw += deltaYaw;
