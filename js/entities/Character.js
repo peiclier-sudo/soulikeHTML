@@ -401,9 +401,9 @@ export class Character {
 
             // Scale models to match each other
             if (modelKey === 'character_3k_mage') {
-                this.mesh.scale.setScalar(6.0);
+                this.mesh.scale.setScalar(7.5);
             } else if (modelKey === 'character_3k_rogue') {
-                this.mesh.scale.setScalar(0.8);
+                this.mesh.scale.setScalar(0.7);
             }
 
             // Enable shadows
