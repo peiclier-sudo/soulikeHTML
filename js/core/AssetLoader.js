@@ -203,11 +203,11 @@ export class AssetLoader {
     }
 
     /**
-     * Load rogue character model (character_3k_rogue.glb) with embedded animations.
-     * Rogue clips: Idle, Walking, Running, RunFast, Run left, Run right, Basic attack Dagger/Bow, Charged attack Bow, special attack 1 Dagger, Sword_Judgment.
+     * Load rogue character model (RogueV2.glb) with embedded animations.
+     * RogueV2 clip names (exact): Walking, Idle, Running fast, Run left, Run right, Jump, Death, Basic attack Dagger, Basci attack bow
      */
     async loadRogueModel() {
-        const rogueUrl = './models/character_3k_rogue.glb?v=20260226-1';
+        const rogueUrl = './models/RogueV2.glb?v=1';
         try {
             const gltf = await this.loadGLTF(rogueUrl);
             const model = gltf.scene;
@@ -257,54 +257,72 @@ export class AssetLoader {
             this.assets.models.character_3k_rogue = model;
 
             const clips = gltf.animations || [];
-            if (clips.length > 0) {
-                console.log('Rogue animations:', clips.map(a => a.name));
+            const fallback = clips[0];
 
+            // RogueV2 clip names (exact): Walking, Idle, Running fast, Run left, Run right, Jump, Death, Basic attack Dagger, Basci attack bow
+            const ROGUE_CLIPS = {
+                'Walking': 'Walking',
+                'Idle': 'Idle',
+                'Running fast': 'Running fast',
+                'Run left': 'Run left',
+                'Run right': 'Run right',
+                'Jump': 'Jump',
+                'Death': 'Death',
+                'Basic attack Dagger': 'Basic attack Dagger',
+                'Basci attack bow': 'Basci attack bow'
+            };
+
+            if (clips.length > 0) {
                 const byName = {};
                 clips.forEach(clip => { byName[clip.name] = clip; });
+                console.log('RogueV2 animations:', clips.map(a => a.name));
 
-                const getIdle = () => byName['Idle'] || clips[0];
-                const getWalk = () => byName['Walking'] || clips[0];
-                const getRunFast = () => byName['Running fast'] || byName['RunFast'] || byName['Running'] || getWalk();
-                const getRunLeft = () => byName['Run left'] || getRunFast();
-                const getRunRight = () => byName['Run right'] || getRunFast();
-                const basicDagger = () => byName['Basic attack Dagger'] || clips[0];
-                const basicBow = () => byName['Basic attack Bow'] || clips[0];
-                const chargedBow = () => byName['Charged attack Bow'] || basicBow();
-                const special1Dagger = () => byName['special attack 1 Dagger'] || basicDagger();
-                const swordJudgment = () => byName['Sword_Judgment'] || basicBow();
+                const get = (key) => byName[ROGUE_CLIPS[key]] || fallback;
 
-                // Shared locomotion for both kits: Idle, Run left, Run right, Running fast
+                const Idle = get('Idle');
+                const Walking = get('Walking');
+                const RunningFast = get('Running fast');
+                const RunLeft = get('Run left');
+                const RunRight = get('Run right');
+                const Jump = get('Jump');
+                const Death = get('Death');
+                const BasicDagger = get('Basic attack Dagger');
+                const BasicBow = get('Basci attack bow');
+
                 const loco = {
-                    Idle: getIdle(),
-                    Walk: getWalk(),
-                    'Run': getRunFast(),
-                    'Fast running': getRunFast(),
-                    'Run left': getRunLeft(),
-                    'Run right': getRunRight(),
-                    Drink: getIdle(),
-                    'Roll dodge': basicDagger()
+                    Idle,
+                    Walk: Walking,
+                    Run: RunningFast,
+                    'Fast running': RunningFast,
+                    'Run left': RunLeft,
+                    'Run right': RunRight,
+                    Jump,
+                    Death,
+                    Drink: Idle,
+                    'Roll dodge': Jump
                 };
 
-                // Dagger kit (CAC): all attacks use Basic attack Dagger except Ultimate → Special attack 1 Dagger
-                const mapDagger = { ...loco };
-                mapDagger['Basic attack'] = basicDagger();
-                mapDagger['Charged attack'] = basicDagger();
-                mapDagger['Special attack 1'] = basicDagger();
-                mapDagger['Special attack 2'] = basicDagger();
-                mapDagger['Special attack 3'] = basicDagger();
-                mapDagger['Ultimate'] = special1Dagger();
-                mapDagger['Whip'] = basicDagger();
+                const mapDagger = {
+                    ...loco,
+                    'Basic attack': BasicDagger,
+                    'Charged attack': BasicDagger,
+                    'Special attack 1': BasicDagger,
+                    'Special attack 2': BasicDagger,
+                    'Special attack 3': BasicDagger,
+                    'Ultimate': BasicDagger,
+                    'Whip': BasicDagger
+                };
 
-                // Bow kit: Basic attack Bow for basic/specials/ultimate, Charged attack Bow for charged
-                const mapBow = { ...loco };
-                mapBow['Basic attack'] = basicBow();
-                mapBow['Charged attack'] = chargedBow();
-                mapBow['Special attack 1'] = basicBow();
-                mapBow['Special attack 2'] = basicBow();
-                mapBow['Special attack 3'] = basicBow();
-                mapBow['Ultimate'] = swordJudgment();
-                mapBow['Whip'] = basicBow();
+                const mapBow = {
+                    ...loco,
+                    'Basic attack': BasicBow,
+                    'Charged attack': BasicBow,
+                    'Special attack 1': BasicBow,
+                    'Special attack 2': BasicBow,
+                    'Special attack 3': BasicBow,
+                    'Ultimate': BasicBow,
+                    'Whip': BasicBow
+                };
 
                 this.assets.animations.character_3k_rogue_dagger = { clips, map: mapDagger };
                 this.assets.animations.character_3k_rogue_bow = { clips, map: mapBow };
@@ -316,10 +334,10 @@ export class AssetLoader {
                 this.assets.animations.character_3k_rogue = empty;
             }
 
-            console.log('Rogue loaded successfully');
+            console.log('RogueV2 loaded successfully');
             return model;
         } catch (error) {
-            console.warn('Rogue model not found, rogue kits will fall back to mage model:', error.message);
+            console.warn('RogueV2 model not found, rogue kits will fall back to mage model:', error.message);
             this.assets.models.character_3k_rogue = null;
             const empty = { clips: [], map: {} };
             this.assets.animations.character_3k_rogue_dagger = empty;
