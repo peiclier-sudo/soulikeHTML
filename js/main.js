@@ -6,6 +6,7 @@
 import { Game } from './core/Game.js';
 import { AssetLoader } from './core/AssetLoader.js';
 import { KIT_DEFINITIONS, CLASS_INFO, getKitsByClass } from './kits/KitDefinitions.js';
+import { RunProgress } from './core/RunProgress.js';
 
 // Global game instance
 let game = null;
@@ -14,6 +15,19 @@ let canvas = null;
 
 /** Currently selected kit id from the class selection screen */
 let selectedKitId = null;
+
+/** Update the "Continue Run" button visibility on the start screen. */
+function refreshContinueButton() {
+    const btn = document.getElementById('continue-button');
+    if (!btn) return;
+    const saved = RunProgress.getSavedRun();
+    if (saved) {
+        btn.style.display = '';
+        btn.textContent = `CONTINUE RUN  (Boss ${saved.bossesDefeated + 1})`;
+    } else {
+        btn.style.display = 'none';
+    }
+}
 
 // Initialize the game
 async function init() {
@@ -38,9 +52,22 @@ async function init() {
         loadingScreen.style.display = 'none';
         startScreen.style.display = 'flex';
 
-        // Setup start button → goes to class selection
+        // Show "Continue" button if a saved run exists
+        const continueButton = document.getElementById('continue-button');
         const startButton = document.getElementById('start-button');
+        refreshContinueButton();
+
+        // Continue saved run
+        continueButton.addEventListener('click', () => {
+            const saved = RunProgress.getSavedRun();
+            if (!saved) return;
+            startScreen.style.display = 'none';
+            startGameWithKit(saved.kitId, saved);
+        });
+
+        // New game → class selection (clears any saved run)
         startButton.addEventListener('click', () => {
+            RunProgress.clearRun();
             startScreen.style.display = 'none';
             showClassSelection();
         });
@@ -190,14 +217,30 @@ function showConfirmStep(kit) {
     `;
 }
 
-function startGameWithKit(kitId) {
+function startGameWithKit(kitId, savedRun = null) {
     // Create or recreate game with selected kit
     if (game) {
         game.stop();
         game = null;
     }
+
+    // If this is a fresh new game, start a new run in localStorage
+    if (!savedRun) {
+        RunProgress.startNewRun(kitId);
+    }
+
     game = new Game(canvas, assetLoader, kitId);
     window.game = game;
+
+    // Restore saved run state (boss number, health, potions)
+    if (savedRun) {
+        game.restoreRun(savedRun);
+    }
+
+    // Wire up death → end the run in localStorage
+    game.gameState.on('playerDeath', () => {
+        RunProgress.onPlayerDeath();
+    });
 
     document.getElementById('hud').style.display = 'block';
     game.start();
@@ -233,6 +276,7 @@ function setupMenuButtons() {
         document.getElementById('hud').style.display = 'none';
         document.getElementById('start-screen').style.display = 'flex';
         game?.stop();
+        refreshContinueButton();
     });
 
     // Settings handlers
