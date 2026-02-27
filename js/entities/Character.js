@@ -410,6 +410,10 @@ export class Character {
                 'Ultimate'
             ].forEach(bindAlias);
 
+            if (!this.actions['Jump']) {
+                this.actions['Jump'] = this.actions['Roll dodge'] || this.actions['Run'] || this.actions['Walk'] || this.actions['Idle'];
+            }
+
             // Dissociation: mask offensive animations only when using two-layer system
             if (this.useDissociation) {
                 this.applyDissociationMasking();
@@ -885,7 +889,10 @@ export class Character {
         if (isSuper) this.superDashCooldown = this.superDashCooldownDuration;
         this.gameState.combat.invulnerable = true;
         if (this.dashVfx) this.dashVfx.dispose();
-        this.dashVfx = createDashVFX(this.scene, { isFrost: this.gameState.selectedKit?.id === 'frost_mage' });
+        this.dashVfx = createDashVFX(this.scene, {
+            isFrost: this.gameState.selectedKit?.id === 'frost_mage',
+            isPoison: this.gameState.selectedKit?.id === 'shadow_assassin'
+        });
     }
 
     updateDash(deltaTime) {
@@ -1098,7 +1105,7 @@ export class Character {
             if (this.upperAction) {
                 this.upperAction.setEffectiveWeight(1);
                 if (this.currentUpperState === 'Basic attack') {
-                    this.upperAction.setEffectiveTimeScale(3.8); // Slightly slower end to avoid overshoot/shake
+                    this.upperAction.setEffectiveTimeScale(this.gameState.selectedKit?.id === 'shadow_assassin' ? 8.0 : 3.8); // Rogue basics are near-instant
                 } else if (this.currentUpperState === 'Charged attack') {
                     const clipDuration = this.upperAction.getClip().duration;
                     const chargeDuration = this.gameState.combat.chargeDuration;
@@ -1119,7 +1126,7 @@ export class Character {
             if (this.currentAction) {
                 this.currentAction.setEffectiveWeight(1);
                 if (this.currentAnimation === 'Basic attack') {
-                    this.currentAction.setEffectiveTimeScale(3.8); // Slightly slower end to avoid overshoot/shake
+                    this.currentAction.setEffectiveTimeScale(this.gameState.selectedKit?.id === 'shadow_assassin' ? 8.0 : 3.8); // Rogue basics are near-instant
                 } else if (this.currentAnimation === 'Charged attack') {
                     const clipDuration = this.currentAction.getClip().duration;
                     const chargeDuration = this.gameState.combat.chargeDuration;

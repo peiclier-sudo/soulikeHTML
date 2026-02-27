@@ -37,7 +37,7 @@ export class DaggerCombat {
         this.poisonPierceDuration = 0.45;
         this.poisonPierceHit = false;
 
-        // Teleport (V)
+        // Teleport (A on AZERTY / V fallback)
         this.teleportCooldown = 0;
         this.teleportCooldownDuration = 12;
 
@@ -117,8 +117,7 @@ export class DaggerCombat {
         this.gameState.activateTeleportDamageBuff();
         this.teleportCooldown = this.teleportCooldownDuration;
         if (this.particleSystem) {
-            this.particleSystem.emitSparks(this._behindPos.clone(), 12);
-            this.particleSystem.emitEmbers(this._behindPos.clone(), 8);
+            this.particleSystem.emitPoisonBurst(this._behindPos.clone(), 16);
         }
         return true;
     }
@@ -171,8 +170,7 @@ export class DaggerCombat {
                     anchorId: this.cs._getDamageAnchorId(enemy)
                 });
                 if (this.particleSystem) {
-                    this.particleSystem.emitPunchBurst(this.cs._enemyPos.clone());
-                    this.particleSystem.emitBloodMatterExplosion(this.cs._enemyPos.clone());
+                    this.particleSystem.emitPoisonBurst(this.cs._enemyPos.clone(), 24);
                 }
             }
         }
@@ -275,8 +273,7 @@ export class DaggerCombat {
                     anchorId: this.cs._getDamageAnchorId(enemy)
                 });
                 if (this.particleSystem) {
-                    this.particleSystem.emitBloodMatterExplosion(this._enemyPos.clone());
-                    this.particleSystem.emitSparks(this._enemyPos.clone(), 24);
+                    this.particleSystem.emitPoisonBurst(this._enemyPos.clone(), 30);
                 }
             }
         }

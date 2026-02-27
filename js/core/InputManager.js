@@ -95,7 +95,8 @@ export class InputManager {
         const bloodNovaKey = (this.keys['KeyX'] || this.keyChars['x']) && !(this.prevKeys['KeyX'] || this.prevKeyChars['x']);
         const superDashKey = (this.keys['Digit2'] || this.keys['KeyDigit2'] || this.keyChars['é']) && !(this.prevKeys['Digit2'] || this.prevKeys['KeyDigit2'] || this.prevKeyChars['é']);
         const shieldKey = (this.keys['KeyC'] || this.keyChars['c']) && !(this.prevKeys['KeyC'] || this.prevKeyChars['c']);
-        const teleportKey = (this.keys['KeyV'] || this.keyChars['v']) && !(this.prevKeys['KeyV'] || this.prevKeyChars['v']);
+        const teleportKey = (this.keys['KeyV'] || this.keyChars['v'] || this.keys['KeyQ'] || this.keyChars['a']) &&
+            !(this.prevKeys['KeyV'] || this.prevKeyChars['v'] || this.prevKeys['KeyQ'] || this.prevKeyChars['a']);
         const healthPotionKey = (this.keys['KeyDigit1'] || this.keyChars['&']) && !(this.prevKeys['KeyDigit1'] || this.prevKeyChars['&']);
         return {
             // Movement - French AZERTY: Z=KeyW, Q=KeyA, D=KeyD
@@ -160,4 +161,3 @@ export class InputManager {
         document.removeEventListener('contextmenu', this.onContextMenu);
     }
 }
-
