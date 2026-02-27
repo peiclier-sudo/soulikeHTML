@@ -304,7 +304,8 @@ export class FrostCombat {
             releaseBurst: isCharged ? 0.15 : 0,
             isCharged: !!isCharged,
             isFrost: true,
-            materials, geometries, vfx
+            materials, geometries, vfx,
+            hitSet: new Set()
         };
     }
 
