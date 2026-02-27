@@ -143,6 +143,9 @@ export class CombatSystem {
         this.frostCombat = this.isFrostKit ? new FrostCombat(this) : null;
         this.isDaggerKit = (kit?.id === 'shadow_assassin');
         this.daggerCombat = this.isDaggerKit ? new DaggerCombat(this) : null;
+        this.isVenomKit = (kit?.id === 'venom_stalker');
+        this.venomChargedSplashRadius = charged.splashRadius ?? 2.8;
+        this.venomChargedSplashDamageMultiplier = charged.splashDamageMultiplier ?? 0.5;
     }
 
     /** Crescent / croissant shape for ultimate slash (arc shape) */
@@ -569,14 +572,24 @@ export class CombatSystem {
                         rimPower: 2.0,
                         displaceAmount: 0.3
                     })
-                    : createBloodFireMaterial({
-                        coreBrightness: 0.9,
-                        plasmaSpeed: 4.5,
-                        isCharged: 1.0,
-                        layerScale: 1.2,
-                        rimPower: 2.0,
-                        redTint: 0.92
-                    });
+                    : (this.isVenomKit
+                        ? new THREE.MeshStandardMaterial({
+                            color: 0x48ff7a,
+                            emissive: 0x1f8f4f,
+                            emissiveIntensity: 1.4,
+                            roughness: 0.35,
+                            metalness: 0.05,
+                            transparent: true,
+                            opacity: 0.9
+                        })
+                        : createBloodFireMaterial({
+                            coreBrightness: 0.9,
+                            plasmaSpeed: 4.5,
+                            isCharged: 1.0,
+                            layerScale: 1.2,
+                            rimPower: 2.0,
+                            redTint: 0.92
+                        }));
                 this.chargeOrb = new THREE.Mesh(geometry, material);
                 this.chargeOrb.castShadow = false;
                 this.chargeOrb.userData.orbTime = 0;
@@ -587,7 +600,7 @@ export class CombatSystem {
                 ringGeo.setAttribute('position', new THREE.BufferAttribute(ringPos, 3));
                 const ringMat = new THREE.PointsMaterial({
                     size: 0.04,
-                    color: this.isFrostKit ? 0x44aaff : 0xaa0a0a,
+                    color: this.isFrostKit ? 0x44aaff : (this.isVenomKit ? 0x66ff66 : 0xaa0a0a),
                     transparent: true,
                     opacity: 0.9,
                     depthWrite: false,
@@ -601,18 +614,27 @@ export class CombatSystem {
             }
             this.chargeOrb.userData.orbTime += deltaTime;
             const t = Math.min(1, combat.chargeTimer / this.chargeDuration);
-            const scale = 0.2 + 1.6 * t;
+            const scale = this.isVenomKit ? (0.55 + 2.35 * t) : (0.2 + 1.6 * t);
             this.chargeOrb.scale.setScalar(scale);
             const wpos = this.character.getWeaponPosition();
             const wdir = this.character.getForwardDirection();
-            this.chargeOrb.position.set(wpos.x + wdir.x * 0.4, wpos.y + wdir.y * 0.4, wpos.z + wdir.z * 0.4);
+            if (this.isVenomKit) {
+                this.chargeOrb.position.set(wpos.x, wpos.y + 0.32, wpos.z);
+            } else {
+                this.chargeOrb.position.set(wpos.x + wdir.x * 0.4, wpos.y + wdir.y * 0.4, wpos.z + wdir.z * 0.4);
+            }
             // Pulse: brightness and alpha increase with charge
             const pulse = 0.95 + 0.15 * Math.sin(this.chargeOrb.userData.orbTime * 6);
-            this.chargeOrb.material.uniforms.time.value = this.chargeOrb.userData.orbTime;
-            this.chargeOrb.material.uniforms.alpha.value = 0.75 + 0.25 * t * pulse;
-            this.chargeOrb.material.uniforms.coreBrightness.value = 0.9 + 0.6 * t * pulse;
+            if (this.chargeOrb.material.uniforms) {
+                this.chargeOrb.material.uniforms.time.value = this.chargeOrb.userData.orbTime;
+                this.chargeOrb.material.uniforms.alpha.value = 0.75 + 0.25 * t * pulse;
+                this.chargeOrb.material.uniforms.coreBrightness.value = 0.9 + 0.6 * t * pulse;
+            } else if (this.isVenomKit) {
+                this.chargeOrb.material.opacity = 0.6 + 0.35 * t;
+                this.chargeOrb.material.emissiveIntensity = 1.2 + 1.6 * t;
+            }
             // Ring tightens and brightens with charge
-            const ringRadius = 0.5 * (1.2 - 0.9 * t);
+            const ringRadius = this.isVenomKit ? (0.95 * (1.25 - 0.8 * t)) : (0.5 * (1.2 - 0.9 * t));
             const ringGeo = this.chargeOrb.userData.ringGeo;
             const posAttr = ringGeo.getAttribute('position');
             for (let i = 0; i < 36; i++) {
@@ -622,7 +644,7 @@ export class CombatSystem {
                 posAttr.array[i * 3 + 2] = 0;
             }
             posAttr.needsUpdate = true;
-            this.chargeOrb.userData.ringMat.opacity = 0.5 + 0.5 * t;
+            this.chargeOrb.userData.ringMat.opacity = this.isVenomKit ? (0.78 + 0.22 * t) : (0.5 + 0.5 * t);
         } else {
             if (this.chargeOrb) {
                 this.scene.remove(this.chargeOrb);
@@ -653,7 +675,7 @@ export class CombatSystem {
         if (this.isDaggerKit) this.spawnDaggerBladeWave();
 
         const basicClip = this.character.actions?.['Basic attack']?.getClip();
-        const basicTimeScale = this.isDaggerKit ? 8.0 : 3.8;
+        const basicTimeScale = this.isDaggerKit ? 8.0 : (this.isVenomKit ? 2.25 : 3.8);
         this.attackDuration = basicClip?.duration ? basicClip.duration / basicTimeScale : 0.28;
         this.attackTimer = this.attackDuration;
         this._meleeHitThisSwing = false;
@@ -1003,6 +1025,20 @@ export class CombatSystem {
                 if (fireballPos.distanceTo(this._enemyPos) < hitRadius) {
                     enemyMesh.userData.enemy.takeDamage(p.damage);
                     hit = true;
+
+                    if (this.isVenomKit && p.isCharged) {
+                        for (const otherEnemyMesh of this.enemies) {
+                            const otherEnemy = otherEnemyMesh.userData?.enemy;
+                            if (!otherEnemy || otherEnemy === enemy || otherEnemy.health <= 0) continue;
+                            otherEnemyMesh.getWorldPosition(this._centerFlat);
+                            if (fireballPos.distanceTo(this._centerFlat) > this.venomChargedSplashRadius) continue;
+                            const splashDamage = Math.max(1, Math.floor(p.damage * this.venomChargedSplashDamageMultiplier));
+                            otherEnemy.takeDamage(splashDamage);
+                            this.gameState.emit('damageNumber', { position: this._centerFlat.clone(), damage: splashDamage, isCritical: false, anchorId: this._getDamageAnchorId(otherEnemy) });
+                        }
+                        if (this.particleSystem?.emitPoisonBurst) this.particleSystem.emitPoisonBurst(fireballPos.clone(), 18);
+                    }
+
                     this.gameState.addUltimateCharge(p.isCharged ? 'charged' : 'basic');
                     // Frost: add frost stacks instead of blood charges
                     if (p.isFrost && this.frostCombat) {

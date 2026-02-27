@@ -332,8 +332,8 @@ export const KIT_DEFINITIONS = {
             name: 'Venom Fangs',
             damage: 20,
             staminaCost: 4,
-            attackSpeed: 1.4,
-            range: 2.2
+            attackSpeed: 1.0,
+            range: 3.2
         },
 
         combat: {
@@ -342,7 +342,7 @@ export const KIT_DEFINITIONS = {
                 damage: 16,
                 speed: 24,
                 radius: 0.2,
-                lifetime: 1.2,
+                lifetime: 1.8,
                 staminaCost: 4
             },
             chargedAttack: {
@@ -351,7 +351,9 @@ export const KIT_DEFINITIONS = {
                 speed: 22,
                 radius: 0.5,
                 lifetime: 2.0,
-                chargeDuration: 0.8
+                chargeDuration: 0.8,
+                splashRadius: 2.8,
+                splashDamageMultiplier: 0.5
             },
             abilityQ: {
                 name: 'Venom Pool',
