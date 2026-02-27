@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { AfterimagePass } from 'three/addons/postprocessing/AfterimagePass.js';
 
 import { InputManager } from './InputManager.js';
 import { GameState } from './GameState.js';
@@ -134,6 +135,12 @@ export class Game {
         this.baseBloomStrength = 0.12;
         this.ultimateBloomTime = 0;
         this.ultimateBloomDuration = 0.4;
+
+        // Adaptive afterimage: smooths visual output during FPS drops + dash trails
+        this.afterimagePass = new AfterimagePass(0);
+        this.composer.addPass(this.afterimagePass);
+        this._afterimageDamp = 0;        // current smoothed damp value
+        this._afterimageTarget = 0;      // target damp value
     }
     
     initSystems() {
@@ -696,6 +703,9 @@ export class Game {
             this.camera.updateProjectionMatrix();
         }
 
+        // Adaptive afterimage: reacts per-frame to smooth FPS drops + dash trails
+        this._updateAfterimage();
+
         // Update boss AI and boss health bar; apply damage + ultimate charge when boss hits player
         if (this.boss) {
             if (this.boss.isAlive) {
@@ -805,6 +815,38 @@ export class Game {
             this._lowFpsFrames = 0;
             this._highFpsFrames = 0;
         }
+    }
+
+    _updateAfterimage() {
+        if (!this.afterimagePass) return;
+
+        // Per-frame instantaneous FPS from deltaTime (more responsive than 1s counter)
+        const instantFps = this.deltaTime > 0 ? Math.min(1 / this.deltaTime, 120) : 60;
+
+        // Base target: scale up as FPS drops below 55
+        let target = 0;
+        if (instantFps < 55) {
+            // Linear ramp: 0 at 55fps -> 0.4 at 35fps
+            target = Math.min(0.4, (55 - instantFps) / 50);
+        }
+
+        // Dash trail boost: adds a speed-trail feel during dashes
+        if (this.character && this.character.isDashing) {
+            target = Math.max(target, 0.5);
+        }
+
+        this._afterimageTarget = target;
+
+        // Smooth toward target (fast ramp-up, slower decay for natural feel)
+        const rate = this._afterimageDamp < this._afterimageTarget ? 12 : 5;
+        this._afterimageDamp += (this._afterimageTarget - this._afterimageDamp) * Math.min(1, rate * this.deltaTime);
+
+        // Snap to zero when very small to avoid permanent faint ghosting
+        if (this._afterimageDamp < 0.01) this._afterimageDamp = 0;
+
+        this.afterimagePass.uniforms['damp'].value = this._afterimageDamp;
+        // Disable the pass entirely when inactive (zero GPU cost)
+        this.afterimagePass.enabled = this._afterimageDamp > 0;
     }
 
     handleResize() {
