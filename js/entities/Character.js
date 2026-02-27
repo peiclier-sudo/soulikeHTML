@@ -399,6 +399,11 @@ export class Character {
             this.mesh = originalModel;
             this.mesh.position.copy(this.position);
 
+            // Scale mage model up to match rogue model size
+            if (modelKey === 'character_3k_mage') {
+                this.mesh.scale.setScalar(1.22);
+            }
+
             // Enable shadows
             this.mesh.traverse(child => {
                 if (child.isMesh) {
