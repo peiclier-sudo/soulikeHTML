@@ -16,6 +16,31 @@ let canvas = null;
 /** Currently selected kit id from the class selection screen */
 let selectedKitId = null;
 
+/** Show the right account panel (none / info / form) based on saved state. */
+function refreshAccountUI() {
+    const acct = RunProgress.getAccount();
+    const noneEl = document.getElementById('account-none');
+    const infoEl = document.getElementById('account-info');
+    const createEl = document.getElementById('account-create-form');
+    const restoreEl = document.getElementById('account-restore-form');
+    const codeEl = document.getElementById('account-code-display');
+    if (!noneEl) return;
+
+    // Hide all panels first
+    noneEl.style.display = 'none';
+    infoEl.style.display = 'none';
+    createEl.style.display = 'none';
+    restoreEl.style.display = 'none';
+    codeEl.style.display = 'none';
+
+    if (acct) {
+        infoEl.style.display = '';
+        document.getElementById('account-name-text').textContent = acct.name;
+    } else {
+        noneEl.style.display = '';
+    }
+}
+
 /** Update the "Continue Run" button visibility on the start screen. */
 function refreshContinueButton() {
     const btn = document.getElementById('continue-button');
@@ -80,6 +105,10 @@ async function init() {
 
         // Setup class selection UI
         setupClassSelection();
+
+        // Setup account / recovery code UI
+        setupAccountUI();
+        refreshAccountUI();
 
         console.log('Elden Flame initialized successfully');
 
@@ -277,6 +306,7 @@ function setupMenuButtons() {
         document.getElementById('start-screen').style.display = 'flex';
         game?.stop();
         refreshContinueButton();
+        refreshAccountUI();
     });
 
     // Settings handlers
@@ -303,6 +333,94 @@ function setupSettings() {
 
     mouseSensitivity?.addEventListener('input', (e) => {
         game?.setMouseSensitivity(parseFloat(e.target.value) / 5);
+    });
+}
+
+function setupAccountUI() {
+    const noneEl    = document.getElementById('account-none');
+    const infoEl    = document.getElementById('account-info');
+    const createEl  = document.getElementById('account-create-form');
+    const restoreEl = document.getElementById('account-restore-form');
+    const codeEl    = document.getElementById('account-code-display');
+
+    // helper to show one panel, hide others
+    function showPanel(el) {
+        [noneEl, infoEl, createEl, restoreEl, codeEl].forEach(e => e.style.display = 'none');
+        el.style.display = '';
+    }
+
+    // "Create Account" button
+    document.getElementById('create-account-btn')?.addEventListener('click', () => {
+        showPanel(createEl);
+        document.getElementById('account-name-input').value = '';
+        document.getElementById('account-name-input').focus();
+    });
+
+    // "Restore Account" button
+    document.getElementById('restore-account-btn')?.addEventListener('click', () => {
+        showPanel(restoreEl);
+        document.getElementById('account-code-input').value = '';
+        document.getElementById('account-restore-error').style.display = 'none';
+        document.getElementById('account-code-input').focus();
+    });
+
+    // Confirm create
+    document.getElementById('account-create-confirm')?.addEventListener('click', () => {
+        const name = document.getElementById('account-name-input').value.trim();
+        if (!name) return;
+        const code = RunProgress.createAccount(name);
+        // Show the recovery code immediately
+        document.getElementById('recovery-code-text').textContent = code;
+        showPanel(codeEl);
+        refreshContinueButton();
+    });
+
+    // Cancel create
+    document.getElementById('account-create-cancel')?.addEventListener('click', () => {
+        refreshAccountUI();
+    });
+
+    // Confirm restore
+    document.getElementById('account-restore-confirm')?.addEventListener('click', () => {
+        const code = document.getElementById('account-code-input').value.trim();
+        if (!code) return;
+        const result = RunProgress.restoreFromCode(code);
+        if (result.success) {
+            refreshAccountUI();
+            refreshContinueButton();
+        } else {
+            const errEl = document.getElementById('account-restore-error');
+            errEl.textContent = result.error;
+            errEl.style.display = '';
+        }
+    });
+
+    // Cancel restore
+    document.getElementById('account-restore-cancel')?.addEventListener('click', () => {
+        refreshAccountUI();
+    });
+
+    // "Show Recovery Code" button (from account-info panel)
+    document.getElementById('show-code-btn')?.addEventListener('click', () => {
+        const code = RunProgress.generateRecoveryCode();
+        document.getElementById('recovery-code-text').textContent = code;
+        showPanel(codeEl);
+    });
+
+    // Copy code
+    document.getElementById('copy-code-btn')?.addEventListener('click', () => {
+        const code = document.getElementById('recovery-code-text').textContent;
+        navigator.clipboard.writeText(code).then(() => {
+            document.getElementById('copy-code-btn').textContent = 'COPIED!';
+            setTimeout(() => {
+                document.getElementById('copy-code-btn').textContent = 'COPY CODE';
+            }, 2000);
+        });
+    });
+
+    // Close code display
+    document.getElementById('close-code-btn')?.addEventListener('click', () => {
+        refreshAccountUI();
     });
 }
 

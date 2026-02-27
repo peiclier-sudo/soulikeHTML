@@ -31,6 +31,46 @@
             <p class="subtitle">A Dark Souls Tribute</p>
             <button id="continue-button" class="game-button" style="display: none;">CONTINUE RUN</button>
             <button id="start-button" class="game-button">START NEW GAME</button>
+            <!-- Account / Recovery Code -->
+            <div id="account-section" class="account-section">
+                <!-- No account yet -->
+                <div id="account-none">
+                    <button id="create-account-btn" class="game-button account-btn">CREATE ACCOUNT</button>
+                    <button id="restore-account-btn" class="game-button account-btn">RESTORE ACCOUNT</button>
+                </div>
+                <!-- Account exists -->
+                <div id="account-info" style="display:none;">
+                    <p class="account-name">Account: <span id="account-name-text"></span></p>
+                    <button id="show-code-btn" class="game-button account-btn">SHOW RECOVERY CODE</button>
+                </div>
+                <!-- Create account form -->
+                <div id="account-create-form" style="display:none;">
+                    <p class="account-label">Choose a name for your account:</p>
+                    <input type="text" id="account-name-input" class="account-input" maxlength="20" placeholder="Your name...">
+                    <div class="account-form-buttons">
+                        <button id="account-create-confirm" class="game-button account-btn">CONFIRM</button>
+                        <button id="account-create-cancel" class="game-button account-btn">CANCEL</button>
+                    </div>
+                </div>
+                <!-- Restore account form -->
+                <div id="account-restore-form" style="display:none;">
+                    <p class="account-label">Enter your recovery code:</p>
+                    <input type="text" id="account-code-input" class="account-input" placeholder="XXXX-XXXX-XXXX-...">
+                    <p id="account-restore-error" class="account-error" style="display:none;"></p>
+                    <div class="account-form-buttons">
+                        <button id="account-restore-confirm" class="game-button account-btn">RESTORE</button>
+                        <button id="account-restore-cancel" class="game-button account-btn">CANCEL</button>
+                    </div>
+                </div>
+                <!-- Show recovery code -->
+                <div id="account-code-display" style="display:none;">
+                    <p class="account-label">Your recovery code (save it!):</p>
+                    <div class="recovery-code-box" id="recovery-code-text"></div>
+                    <button id="copy-code-btn" class="game-button account-btn">COPY CODE</button>
+                    <button id="close-code-btn" class="game-button account-btn">CLOSE</button>
+                </div>
+            </div>
+
             <div class="controls-hint">
                 <p>AZERTY: Z - Avancer | Q - Gauche | D - Droite | Souris - Regarder</p>
                 <p>Espace - Saut | R - Dash | Clic gauche - Attaque | Clic droit - Attaque chargée</p>

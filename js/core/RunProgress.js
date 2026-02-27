@@ -5,11 +5,21 @@
  *  1. **Current run** — kitId, boss number, potions, health (survives tab close)
  *  2. **Meta stats** — lifetime totals that persist forever (runs, kills, deaths, best streak)
  *
+ * Recovery codes: all save data can be packed into a portable alphanumeric code
+ * that the player can use on any browser/device to restore their account.
+ *
  * Boss scaling: each subsequent boss in a run gains +25 % HP and +15 % damage.
  */
 
 const STORAGE_RUN  = 'eldenflame_run';
 const STORAGE_META = 'eldenflame_meta';
+const STORAGE_ACCT = 'eldenflame_account';
+
+// Kit ids mapped to short indices for compact encoding
+const KIT_IDS = [
+    'blood_mage', 'frost_mage', 'shadow_assassin',
+    'venom_stalker', 'bow_ranger', 'berserker', 'paladin'
+];
 
 // ─── helpers ──────────────────────────────────────────────────
 
@@ -127,7 +137,7 @@ export const RunProgress = {
     // ── boss scaling ──────────────────────────────────────────
 
     /**
-     * Returns { health, damage, name } for the Nth boss in this run.
+     * Returns { health, damage } for the Nth boss in this run.
      * Boss 0 = base stats, each subsequent boss scales up.
      */
     getBossConfig(bossNumber) {
@@ -140,5 +150,76 @@ export const RunProgress = {
             health: Math.round(baseHP * hpScale),
             damage: Math.round(baseDMG * dmgScale)
         };
+    },
+
+    // ── account / recovery code ───────────────────────────────
+
+    /** Returns the current account name, or null. */
+    getAccount() {
+        return load(STORAGE_ACCT);
+    },
+
+    /** Create account — just stores a display name and generates a code. */
+    createAccount(name) {
+        const acct = { name, createdAt: Date.now() };
+        save(STORAGE_ACCT, acct);
+        return this.generateRecoveryCode();
+    },
+
+    /**
+     * Pack all save data into a portable recovery code.
+     * Format: base64url of JSON { a, m, r }
+     *   a = account, m = meta stats, r = current run (nullable)
+     */
+    generateRecoveryCode() {
+        const payload = {
+            v: 1,
+            a: this.getAccount(),
+            m: this.getMeta(),
+            r: this.getSavedRun()
+        };
+        const json = JSON.stringify(payload);
+        // base64url encode (browser-safe, no +/= chars)
+        const b64 = btoa(unescape(encodeURIComponent(json)))
+            .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+        // Split into groups of 4 for readability
+        return b64.match(/.{1,4}/g).join('-');
+    },
+
+    /**
+     * Restore all save data from a recovery code.
+     * Returns { success, account } or { success: false, error }.
+     */
+    restoreFromCode(code) {
+        try {
+            // Strip dashes and whitespace
+            const clean = code.replace(/[-\s]/g, '');
+            // Restore base64 padding
+            const padded = clean + '=='.slice(0, (4 - clean.length % 4) % 4);
+            const b64 = padded.replace(/-/g, '+').replace(/_/g, '/');
+            const json = decodeURIComponent(escape(atob(b64)));
+            const payload = JSON.parse(json);
+
+            if (!payload.v || !payload.m) {
+                return { success: false, error: 'Invalid code format' };
+            }
+
+            // Restore account
+            if (payload.a) save(STORAGE_ACCT, payload.a);
+
+            // Restore meta stats
+            save(STORAGE_META, payload.m);
+
+            // Restore current run (if one was in progress)
+            if (payload.r) {
+                save(STORAGE_RUN, payload.r);
+            } else {
+                localStorage.removeItem(STORAGE_RUN);
+            }
+
+            return { success: true, account: payload.a };
+        } catch (e) {
+            return { success: false, error: 'Could not decode recovery code' };
+        }
     }
 };
