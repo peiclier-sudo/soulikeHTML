@@ -13,7 +13,7 @@ const BOSS_COLOR = 0x3a2818; // procedural fallback only; loaded GLB boss materi
 const ATK = { PUNCH: 0, REVERSE: 1, CHARGED: 2 };
 const ATK_COUNT = 3;
 
-const POOL_SIZE = 36;
+const POOL_SIZE = 18;
 
 export class Boss extends Enemy {
     constructor(scene, position, config = {}) {
@@ -267,7 +267,7 @@ export class Boss extends Enemy {
         this._pool = [];
         this._tmpVec = this._tmpVec || new THREE.Vector3();
         this._tmpDir = this._tmpDir || new THREE.Vector3();
-        const geo = new THREE.SphereGeometry(1, 5, 5);
+        const geo = new THREE.SphereGeometry(1, 4, 3);
         for (let i = 0; i < POOL_SIZE; i++) {
             const mat = new THREE.MeshBasicMaterial({ color: 0xdddddd, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false });
             const mesh = new THREE.Mesh(geo, mat);
@@ -278,10 +278,10 @@ export class Boss extends Enemy {
         }
         this._poolReady = true;
 
-        this._light = new THREE.PointLight(0xeeeeee, 0, 30, 2);
+        this._light = new THREE.PointLight(0xeeeeee, 0, 15, 2);
         this.scene.add(this._light);
 
-        this._ringGeo = new THREE.RingGeometry(1, 8, 24);
+        this._ringGeo = new THREE.RingGeometry(1, 8, 14);
         this._ringMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false });
         this._ringMesh = new THREE.Mesh(this._ringGeo, this._ringMat);
         this._ringMesh.rotation.x = -Math.PI / 2;
@@ -297,7 +297,7 @@ export class Boss extends Enemy {
                 p.vx = vx; p.vy = vy; p.vz = vz;
                 p.size = size; p.life = 0; p.maxLife = maxLife;
                 p.mat.color.setHex(color || 0xdddddd);
-                p.mat.opacity = 0.9;
+                p.mat.opacity = 0.45;
                 p.mesh.scale.setScalar(size);
                 p.mesh.visible = true;
                 return;
@@ -316,7 +316,7 @@ export class Boss extends Enemy {
             p.mesh.position.z += p.vz * dt;
             p.vy -= 2 * dt;
             const t = p.life / p.maxLife;
-            p.mat.opacity = 0.9 * (1 - t);
+            p.mat.opacity = 0.45 * (1 - t);
             p.mesh.scale.setScalar(p.size * (1 + t * 2));
         }
     }
@@ -577,16 +577,16 @@ export class Boss extends Enemy {
         if (t >= hitStart && t <= hitEnd) {
             this._getFistPos(this._tmpVec);
             this._light.position.copy(this._tmpVec);
-            this._light.intensity = 18 + 6 * Math.sin(t * 20);
+            this._light.intensity = 6 + 3 * Math.sin(t * 20);
             this._light.color.setHex(0xeeeeee);
             // Warmup telegraph ring for clearer read before damage frame.
             if (!this._ringMesh.visible) this._ringMesh.visible = true;
             this._ringMesh.position.set(this.position.x, 0.14, this.position.z);
             this._ringMat.color.setHex(0xffffff);
-            this._ringMat.opacity = 0.3;
+            this._ringMat.opacity = 0.15;
             this._ringMesh.scale.setScalar(this.hitRadius * 0.42);
 
-            if (Math.random() < 0.25) {
+            if (Math.random() < 0.12) {
                 const s = this.hitRadius * 0.3;
                 this._spawnParticle(
                     this._tmpVec.x + (Math.random() - 0.5) * s,
@@ -641,15 +641,15 @@ export class Boss extends Enemy {
         if (t >= hitStart && t <= hitEnd) {
             this._getFistPos(this._tmpVec);
             this._light.position.copy(this._tmpVec);
-            this._light.intensity = 20 + 8 * Math.sin(t * 22);
+            this._light.intensity = 8 + 4 * Math.sin(t * 22);
             this._light.color.setHex(0xeeeeee);
             if (!this._ringMesh.visible) this._ringMesh.visible = true;
             this._ringMesh.position.set(this.position.x, 0.16, this.position.z);
             this._ringMat.color.setHex(0xffffff);
-            this._ringMat.opacity = 0.35;
+            this._ringMat.opacity = 0.18;
             this._ringMesh.scale.setScalar(this.hitRadius * 0.52);
 
-            if (Math.random() < 0.3) {
+            if (Math.random() < 0.12) {
                 const s = this.hitRadius * 0.36;
                 this._spawnParticle(
                     this._tmpVec.x + (Math.random() - 0.5) * s,
@@ -696,19 +696,19 @@ export class Boss extends Enemy {
             const p = (t - windStart) / (windEnd - windStart);
             const pulse = 0.5 + 0.5 * Math.sin(t * 24);
             this._light.position.set(this.position.x, (this._bossHeight ?? 2.5) * 0.65, this.position.z);
-            this._light.intensity = 6 + p * 30 + pulse * 6;
+            this._light.intensity = 3 + p * 14 + pulse * 3;
             this._light.color.setHex(0xeeeeee);
 
             this._ringMesh.visible = true;
             this._ringMesh.position.set(this.position.x, 0.15, this.position.z);
             this._ringMesh.scale.setScalar(0.45 + p * (this.hitRadius * 0.42));
-            this._ringMat.opacity = 0.4 + p * 0.35;
+            this._ringMat.opacity = 0.2 + p * 0.18;
             this._ringMat.color.setHex(0xffffff);
             // Telegraph pulse: the faster it pulses, the closer the slam.
             const pulseAlpha = 0.2 + 0.8 * (0.5 + 0.5 * Math.sin(t * (10 + p * 16)));
             this._ringMat.opacity *= pulseAlpha;
 
-            if (Math.random() < 0.25) {
+            if (Math.random() < 0.1) {
                 const a = Math.random() * Math.PI * 2;
                 const r = this.hitRadius * (0.35 + Math.random() * 0.5);
                 this._spawnParticle(
@@ -735,15 +735,15 @@ export class Boss extends Enemy {
             this._ringMesh.visible = true;
             this._ringMesh.position.set(this.position.x, 0.16, this.position.z);
             this._ringMesh.scale.setScalar((this.hitRadius + 7.5) * 0.55);
-            this._ringMat.opacity = 0.85;
+            this._ringMat.opacity = 0.4;
             this._ringMat.color.setHex(0xffffff);
-            this._light.intensity = 50;
+            this._light.intensity = 20;
         }
 
         if (t > hitEnd) {
             const ft = Math.min(1, (t - hitEnd) / Math.max(0.2, this._attackDuration - hitEnd));
-            this._light.intensity = 50 * (1 - ft);
-            this._ringMat.opacity = 0.85 * (1 - ft);
+            this._light.intensity = 20 * (1 - ft);
+            this._ringMat.opacity = 0.4 * (1 - ft);
             this._ringMesh.scale.multiplyScalar(1 + dt * 1.3);
             if (ft >= 1) this._ringMesh.visible = false;
         }
