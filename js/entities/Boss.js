@@ -369,6 +369,38 @@ export class Boss extends Enemy {
         if (!this.isAlive) return;
         this._playerRef = playerPosition;
 
+        // If player is vanished, boss loses focus: cancel attacks, idle, wander
+        const isPlayerVanished = this._gameState?.combat?.vanishRemaining > 0;
+        if (isPlayerVanished) {
+            this.globalAttackCooldown = Math.max(0, this.globalAttackCooldown - deltaTime);
+            for (let i = 0; i < ATK_COUNT; i++) this._atkCooldowns[i] = Math.max(0, this._atkCooldowns[i] - deltaTime);
+
+            // Cancel any active attack
+            if (this.activeAttack >= 0) this._endAttack();
+
+            // Wander aimlessly: slow idle strafe
+            this.state = 'idle';
+            this._idleTimer += deltaTime;
+            if (this._idleTimer > 1.5) {
+                this._getForward(this._tmpDir);
+                const rightX = -this._tmpDir.z;
+                const rightZ = this._tmpDir.x;
+                this.position.x += rightX * this._strafeDir * this.speed * 0.25 * deltaTime;
+                this.position.z += rightZ * this._strafeDir * this.speed * 0.25 * deltaTime;
+                this._clampArena();
+                if (this._idleTimer > 3.5) {
+                    this._idleTimer = 0;
+                    this._strafeDir *= -1;
+                }
+            }
+
+            this.mesh.position.copy(this.position);
+            if (this._bossFloorOffset != null) this.mesh.position.y = this.position.y + this._bossFloorOffset;
+            if (this.mixer) { this.updateBossAnimation(); this.mixer.update(deltaTime); this._resetRootMotion(); }
+            this._updatePool(deltaTime);
+            return;
+        }
+
         this.globalAttackCooldown = Math.max(0, this.globalAttackCooldown - deltaTime);
         for (let i = 0; i < ATK_COUNT; i++) this._atkCooldowns[i] = Math.max(0, this._atkCooldowns[i] - deltaTime);
 

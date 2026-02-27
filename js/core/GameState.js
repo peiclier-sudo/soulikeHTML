@@ -274,11 +274,11 @@ export class GameState {
         this.emit('vanishChanged', true);
     }
 
-    /** X: consume poison charges for damage buff; 15% per charge, 8s. Returns charges consumed. */
+    /** X: consume poison charges for damage buff; 20% per charge, 8s. Returns charges consumed. */
     tryActivatePoisonDamageBuff() {
         const { consumed } = this.tryConsumePoisonCharges(6);
         if (consumed <= 0) return 0;
-        this.combat.poisonDamageBuffMultiplier = 1 + 0.15 * consumed;
+        this.combat.poisonDamageBuffMultiplier = 1 + 0.20 * consumed;
         this.combat.poisonDamageBuffRemaining = 8.0;
         return consumed;
     }
