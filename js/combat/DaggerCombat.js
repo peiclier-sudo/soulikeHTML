@@ -186,14 +186,16 @@ export class DaggerCombat {
             const enemy = this.cs._getEnemyFromHitObject(intersects[0].object);
             if (enemy && enemy.health > 0) {
                 this.poisonPierceHit = true;
-                const totalDamage = Math.floor(damage * (this.cs._consumeNextAttackMultiplier?.() ?? 1));
+                const rawDmg = Math.floor(damage * (this.cs._consumeNextAttackMultiplier?.() ?? 1));
+                const { damage: totalDamage, isCritical, isBackstab } = this.cs._applyCritBackstab(rawDmg, enemy, intersects[0].object);
                 enemy.takeDamage(totalDamage);
                 this._applyPoisonDoT(enemy, poisonDuration, poisonDamagePerTick);
                 intersects[0].object.getWorldPosition(this.cs._enemyPos);
                 this.gameState.emit('damageNumber', {
                     position: this.cs._enemyPos.clone(),
                     damage: totalDamage,
-                    isCritical: false,
+                    isCritical,
+                    isBackstab,
                     kind: 'ability',
                     anchorId: this.cs._getDamageAnchorId(enemy)
                 });
@@ -328,12 +330,14 @@ export class DaggerCombat {
             const radius = enemy.hitRadius ?? 1.0;
             if (dist < radius + 0.8) {
                 p.hitSet.add(enemy);
-                const totalDamage = Math.floor(p.damage * (this.cs._consumeNextAttackMultiplier?.() ?? 1));
+                const rawUltDmg = Math.floor(p.damage * (this.cs._consumeNextAttackMultiplier?.() ?? 1));
+                const { damage: totalDamage, isCritical, isBackstab } = this.cs._applyCritBackstab(rawUltDmg, enemy, mesh);
                 enemy.takeDamage(totalDamage);
                 this.gameState.emit('damageNumber', {
                     position: this._enemyPos.clone(),
                     damage: totalDamage,
-                    isCritical: true,
+                    isCritical,
+                    isBackstab,
                     kind: 'ultimate',
                     anchorId: this.cs._getDamageAnchorId(enemy)
                 });

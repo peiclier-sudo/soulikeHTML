@@ -146,6 +146,65 @@ export class CombatSystem {
         this.isVenomKit = (kit?.id === 'venom_stalker');
         this.venomChargedSplashRadius = charged.splashRadius ?? 2.8;
         this.venomChargedSplashDamageMultiplier = charged.splashDamageMultiplier ?? 0.5;
+
+        // Crit / backstab stats from kit
+        const stats = kit?.stats;
+        this._critChance = stats?.critChance ?? 0.15;
+        this._critMultiplier = stats?.critMultiplier ?? 1.5;
+        this._backstabMultiplier = stats?.backstabMultiplier ?? 1.3;
+        this._backstabTmpFwd = new THREE.Vector3();
+        this._backstabTmpToPlayer = new THREE.Vector3();
+    }
+
+    // ─── Crit / Backstab helpers ─────────────────────────────────
+
+    /** Roll crit based on kit's critChance. Returns true if this hit is a crit. */
+    _rollCrit() {
+        return Math.random() < this._critChance;
+    }
+
+    /**
+     * Check if the player is behind the enemy (backstab).
+     * Returns true if the player's attack comes from behind the enemy's facing direction.
+     * @param {object} enemy - enemy with mesh.rotation or _getForward
+     * @param {THREE.Object3D} [enemyMesh] - the enemy's mesh for position
+     */
+    _isBackstab(enemy, enemyMesh) {
+        if (!enemy || !enemy.mesh) return false;
+        const playerPos = this.character.position;
+
+        // Get enemy forward direction
+        if (typeof enemy._getForward === 'function') {
+            enemy._getForward(this._backstabTmpFwd);
+        } else {
+            this._backstabTmpFwd.set(0, 0, 1).applyEuler(enemy.mesh.rotation);
+            this._backstabTmpFwd.y = 0;
+            this._backstabTmpFwd.normalize();
+        }
+
+        // Vector from enemy to player
+        const ePos = enemy.position || enemy.mesh.position;
+        this._backstabTmpToPlayer.set(
+            playerPos.x - ePos.x,
+            0,
+            playerPos.z - ePos.z
+        ).normalize();
+
+        // If the player is behind the enemy, dot product of enemy-forward and enemy-to-player is negative
+        return this._backstabTmpFwd.dot(this._backstabTmpToPlayer) < -0.25;
+    }
+
+    /**
+     * Apply crit and backstab modifiers to a base damage value.
+     * Returns { damage, isCritical, isBackstab }.
+     */
+    _applyCritBackstab(baseDamage, enemy, enemyMesh) {
+        const isCritical = this._rollCrit();
+        const isBackstab = this._isBackstab(enemy, enemyMesh);
+        let damage = baseDamage;
+        if (isBackstab) damage = Math.floor(damage * this._backstabMultiplier);
+        if (isCritical) damage = Math.floor(damage * this._critMultiplier);
+        return { damage, isCritical, isBackstab };
     }
 
     /** Crescent / croissant shape for ultimate slash (arc shape) */
@@ -342,14 +401,16 @@ export class CombatSystem {
             const dist = center.distanceTo(this._enemyPos);
             const modelRadius = enemy.hitRadius ?? (enemy.isBoss ? 2.5 : 0.8);
             if (dist > this.bloodNovaRadius + modelRadius) continue;
-            enemy.takeDamage(this.bloodNovaDamage);
+            const { damage: novaDmg, isCritical: novaCrit, isBackstab: novaBack } = this._applyCritBackstab(this.bloodNovaDamage, enemy, enemyMesh);
+            enemy.takeDamage(novaDmg);
             enemy.staggerTimer = Math.max(enemy.staggerTimer, this.bloodNovaFreezeDuration + (enemy.isBoss ? 0.8 : 0.0));
             enemy.state = 'stagger';
             hitCount++;
             this.gameState.emit('damageNumber', {
                 position: this._enemyPos.clone(),
-                damage: this.bloodNovaDamage,
-                isCritical: enemy.isBoss === true,
+                damage: novaDmg,
+                isCritical: novaCrit,
+                isBackstab: novaBack,
                 kind: 'ability',
                 anchorId: this._getDamageAnchorId(enemy)
             });
@@ -414,9 +475,9 @@ export class CombatSystem {
                     } else {
                         while (this.lifeDrainNextTick <= 0) {
                             this.lifeDrainNextTick += this.lifeDrainTickInterval;
-                            const damage = this.lifeDrainDamagePerTick;
-                            this.lifeDrainTarget.takeDamage(damage);
-                            const heal = Math.floor(damage * this.lifeDrainHealRatio);
+                            const { damage: drainDmg, isCritical: drainCrit, isBackstab: drainBack } = this._applyCritBackstab(this.lifeDrainDamagePerTick, this.lifeDrainTarget, this.lifeDrainTargetMesh);
+                            this.lifeDrainTarget.takeDamage(drainDmg);
+                            const heal = Math.floor(drainDmg * this.lifeDrainHealRatio);
                             this.gameState.heal(heal);
                             this.gameState.addUltimateCharge('basic');
                             const elapsed = this.lifeDrainDuration - this.lifeDrainTimer;
@@ -425,7 +486,7 @@ export class CombatSystem {
                                 this.gameState.addBloodCharge(1);
                                 this._lastDrainBloodSecond = secondsFull;
                             }
-                            this.gameState.emit('damageNumber', { position: this._enemyPos.clone(), damage, isCritical: false, anchorId: this._getDamageAnchorId(this.lifeDrainTarget) });
+                            this.gameState.emit('damageNumber', { position: this._enemyPos.clone(), damage: drainDmg, isCritical: drainCrit, isBackstab: drainBack, anchorId: this._getDamageAnchorId(this.lifeDrainTarget) });
                             if (this.particleSystem) this.particleSystem.emitDrainFlow(this._enemyPos, this.character.position, 18);
                         }
                         this.lifeDrainBeamTime += deltaTime;
@@ -513,6 +574,7 @@ export class CombatSystem {
             this.chargedAttackTimer -= deltaTime;
             if (this.chargedAttackTimer <= 0) {
                 if (!this.isDaggerKit) this.spawnFireball(true);
+                if (this.isDaggerKit) this.spawnDaggerChargedSlash();
                 this.gameState.combat.isChargedAttacking = false;
             }
         } else if (this.gameState.combat.isAttacking) {
@@ -744,25 +806,23 @@ export class CombatSystem {
             baseDamage = charged?.damage ?? baseDamage * 2;
         }
         const comboMultiplier = 1 + (this.gameState.combat.comboCount - 1) * 0.2;
-        const isCritical = Math.random() < 0.15;
 
         let mult = this._consumeNextAttackMultiplier();
         const c = this.gameState.combat;
         if (c.teleportDamageBuffRemaining > 0) mult *= 2.0;
         if (c.poisonDamageBuffRemaining > 0) mult *= (c.poisonDamageBuffMultiplier ?? 1);
-        let damage = Math.floor(baseDamage * comboMultiplier * mult);
-        if (isCritical) {
-            damage = Math.floor(damage * 1.5);
-        }
+        let rawDamage = Math.floor(baseDamage * comboMultiplier * mult);
 
-        if (hitInfo.object.userData.enemy) {
-            hitInfo.object.userData.enemy.takeDamage(damage);
+        const enemy = hitInfo.object.userData.enemy;
+        if (enemy) {
+            const { damage, isCritical, isBackstab } = this._applyCritBackstab(rawDamage, enemy, hitInfo.object);
+            enemy.takeDamage(damage);
             this.gameState.addUltimateCharge(isCharged ? 'charged' : 'basic');
             if (this.isDaggerKit) {
                 this.gameState.addPoisonCharge(isCharged ? 2 : 1);
             }
             const hitPos = hitInfo.point?.clone() ?? hitInfo.object.getWorldPosition?.(new THREE.Vector3()) ?? this.character.position.clone();
-            this.gameState.emit('damageNumber', { position: hitPos, damage, isCritical, anchorId: this._getDamageAnchorId(hitInfo.object.userData.enemy) });
+            this.gameState.emit('damageNumber', { position: hitPos, damage, isCritical, isBackstab, anchorId: this._getDamageAnchorId(enemy) });
         }
     }
 
@@ -787,7 +847,8 @@ export class CombatSystem {
             const enemy = this._getEnemyFromHitObject(hit.object);
             if (enemy) {
                 this.whipHitOnce = true;
-                const whipDamage = Math.floor(this.whipDamage * this._consumeNextAttackMultiplier());
+                const rawWhipDmg = Math.floor(this.whipDamage * this._consumeNextAttackMultiplier());
+                const { damage: whipDamage, isCritical: whipCrit, isBackstab: whipBack } = this._applyCritBackstab(rawWhipDmg, enemy, hit.object);
                 enemy.takeDamage(whipDamage);
                 enemy.staggerTimer = Math.max(enemy.staggerTimer, 0.72);
                 enemy.state = 'stagger';
@@ -799,6 +860,7 @@ export class CombatSystem {
                     this.particleSystem.emitSparks(this._enemyPos.clone(), 36);
                     this.particleSystem.emitEmbers(this._enemyPos.clone(), 28);
                 }
+                this.gameState.emit('damageNumber', { position: this._enemyPos.clone(), damage: whipDamage, isCritical: whipCrit, isBackstab: whipBack, anchorId: this._getDamageAnchorId(enemy) });
                 if (this.onProjectileHit) this.onProjectileHit({ whipHit: true, punchFinish: true });
             }
         }
@@ -900,6 +962,73 @@ export class CombatSystem {
         });
     }
 
+    /** Charged attack: twin crossing slashes (X pattern) with bigger VFX */
+    spawnDaggerChargedSlash() {
+        const wp = this.character.getWeaponPosition().clone();
+        const dir = this.character.getForwardDirection().clone().normalize();
+        const startPos = wp.addScaledVector(dir, 0.6);
+
+        for (let side = -1; side <= 1; side += 2) {
+            const arcShape = new THREE.Shape();
+            const outerR = 1.8;
+            const innerR = 1.1;
+            arcShape.absarc(0, 0, outerR, -0.7, 0.7, false);
+            arcShape.absarc(0, 0, innerR, 0.7, -0.7, true);
+            const geom = new THREE.ShapeGeometry(arcShape, 14);
+            geom.rotateX(-Math.PI / 2);
+
+            const group = new THREE.Group();
+            group.position.copy(startPos);
+            group.lookAt(startPos.clone().add(dir));
+            group.rotateZ(side * 0.6);
+
+            const mat = new THREE.MeshBasicMaterial({
+                color: 0x8bff7a,
+                transparent: true,
+                opacity: 0.95,
+                side: THREE.DoubleSide,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending
+            });
+            const slash = new THREE.Mesh(geom, mat);
+            group.add(slash);
+
+            const glowGeom = new THREE.ShapeGeometry(arcShape, 14);
+            glowGeom.rotateX(-Math.PI / 2);
+            const glowMat = new THREE.MeshBasicMaterial({
+                color: 0x1fbf4c,
+                transparent: true,
+                opacity: 0.4,
+                side: THREE.DoubleSide,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending
+            });
+            const glow = new THREE.Mesh(glowGeom, glowMat);
+            glow.scale.setScalar(1.4);
+            group.add(glow);
+
+            this.scene.add(group);
+            this.projectiles.push({
+                mesh: group,
+                velocity: dir.clone().multiplyScalar(32),
+                lifetime: 0,
+                maxLifetime: 0.22,
+                isDaggerBlade: true,
+                isDaggerSlash: true,
+                isChargedSlash: true,
+                hitSet: new Set(),
+                materials: [mat, glowMat],
+                geometries: [geom, glowGeom]
+            });
+        }
+
+        if (this.particleSystem) {
+            this.particleSystem.emitPoisonBurst(startPos.clone(), 16);
+            this.particleSystem.emitShadowStepBurst(startPos.clone(), 12);
+        }
+        if (this.onProjectileHit) this.onProjectileHit({ daggerSlashImpact: true });
+    }
+
     _applyDaggerBladeDamage(enemy, hitPos) {
         const basic = this.gameState.selectedKit?.combat?.basicAttack || {};
         const poisonGain = basic.poisonChargeGain ?? 1;
@@ -910,12 +1039,13 @@ export class CombatSystem {
         const c = this.gameState.combat;
         if (c.teleportDamageBuffRemaining > 0) mult *= 2.0;
         if (c.poisonDamageBuffRemaining > 0) mult *= (c.poisonDamageBuffMultiplier ?? 1);
-        const damage = Math.floor(baseDamage * comboMultiplier * mult);
+        const rawDamage = Math.floor(baseDamage * comboMultiplier * mult);
+        const { damage, isCritical, isBackstab } = this._applyCritBackstab(rawDamage, enemy);
 
         enemy.takeDamage(damage);
         this.gameState.addUltimateCharge('basic');
         this.gameState.addPoisonCharge(poisonGain);
-        this.gameState.emit('damageNumber', { position: hitPos.clone(), damage, isCritical: false, anchorId: this._getDamageAnchorId(enemy) });
+        this.gameState.emit('damageNumber', { position: hitPos.clone(), damage, isCritical, isBackstab, anchorId: this._getDamageAnchorId(enemy) });
         if (this.particleSystem?.emitPoisonBurst) this.particleSystem.emitPoisonBurst(hitPos.clone(), 18);
         if (this.onProjectileHit) this.onProjectileHit({ daggerBladeHit: true, daggerSlashImpact: true });
     }
@@ -1070,7 +1200,8 @@ export class CombatSystem {
                 const modelRadius = enemy.hitRadius ?? (enemy.isBoss ? 2.5 : 0.8);
                 const hitRadius = modelRadius + (p.isCharged ? 0.6 : 0.3);
                 if (fireballPos.distanceTo(this._enemyPos) < hitRadius) {
-                    enemyMesh.userData.enemy.takeDamage(p.damage);
+                    const { damage: projDmg, isCritical: projCrit, isBackstab: projBack } = this._applyCritBackstab(p.damage, enemy, enemyMesh);
+                    enemy.takeDamage(projDmg);
                     hit = true;
 
                     if (this.isVenomKit && p.isCharged) {
@@ -1079,7 +1210,7 @@ export class CombatSystem {
                             if (!otherEnemy || otherEnemy === enemy || otherEnemy.health <= 0) continue;
                             otherEnemyMesh.getWorldPosition(this._centerFlat);
                             if (fireballPos.distanceTo(this._centerFlat) > this.venomChargedSplashRadius) continue;
-                            const splashDamage = Math.max(1, Math.floor(p.damage * this.venomChargedSplashDamageMultiplier));
+                            const splashDamage = Math.max(1, Math.floor(projDmg * this.venomChargedSplashDamageMultiplier));
                             otherEnemy.takeDamage(splashDamage);
                             this.gameState.emit('damageNumber', { position: this._centerFlat.clone(), damage: splashDamage, isCritical: false, anchorId: this._getDamageAnchorId(otherEnemy) });
                         }
@@ -1087,13 +1218,12 @@ export class CombatSystem {
                     }
 
                     this.gameState.addUltimateCharge(p.isCharged ? 'charged' : 'basic');
-                    // Frost: add frost stacks instead of blood charges
                     if (p.isFrost && this.frostCombat) {
                         this.frostCombat.addFrostStack(enemy, p.isCharged ? 2 : 1);
                     } else {
                         this.gameState.addBloodCharge(p.isCharged ? 2 : 1);
                     }
-                    this.gameState.emit('damageNumber', { position: this._enemyPos.clone(), damage: p.damage, isCritical: false, anchorId: this._getDamageAnchorId(enemy) });
+                    this.gameState.emit('damageNumber', { position: this._enemyPos.clone(), damage: projDmg, isCritical: projCrit, isBackstab: projBack, anchorId: this._getDamageAnchorId(enemy) });
                     if (this.particleSystem) {
                         if (p.isFrost) {
                             this.particleSystem.emitIceBurst(fireballPos, p.isCharged ? 12 : 6);
@@ -1377,11 +1507,13 @@ export class CombatSystem {
             enemyMesh.getWorldPosition(this._enemyPos);
             this._enemyPos.y = 0;
             if (this._centerFlat.distanceTo(this._enemyPos) > r) continue;
-            enemyMesh.userData.enemy.takeDamage(this.crimsonEruptionDamage);
-            enemyMesh.userData.enemy.staggerTimer = Math.max(enemyMesh.userData.enemy.staggerTimer, 0.8);
-            enemyMesh.userData.enemy.state = 'stagger';
+            const ceEnemy = enemyMesh.userData.enemy;
+            const { damage: ceDmg, isCritical: ceCrit, isBackstab: ceBack } = this._applyCritBackstab(this.crimsonEruptionDamage, ceEnemy, enemyMesh);
+            ceEnemy.takeDamage(ceDmg);
+            ceEnemy.staggerTimer = Math.max(ceEnemy.staggerTimer, 0.8);
+            ceEnemy.state = 'stagger';
             enemyMesh.getWorldPosition(this._enemyPos);
-            this.gameState.emit('damageNumber', { position: this._enemyPos.clone(), damage: this.crimsonEruptionDamage, isCritical: false, kind: 'ability', anchorId: this._getDamageAnchorId(enemyMesh.userData.enemy) });
+            this.gameState.emit('damageNumber', { position: this._enemyPos.clone(), damage: ceDmg, isCritical: ceCrit, isBackstab: ceBack, kind: 'ability', anchorId: this._getDamageAnchorId(ceEnemy) });
             crimsonHitCount++;
         }
         if (crimsonHitCount > 0) this.gameState.addBloodCharge(2);
@@ -1479,9 +1611,10 @@ export class CombatSystem {
             enemyMesh.getWorldPosition(this._enemyPos);
             const hitRadius = (enemy.hitRadius ?? (enemy.isBoss ? 2.5 : 0.8)) + 0.8;
             if (orbPos.distanceTo(this._enemyPos) < hitRadius) {
-                const damage = Math.floor(s.baseDamage * Math.min(1.5, Math.max(0.3, s.currentScale)));
-                enemyMesh.userData.enemy.takeDamage(damage);
-                this.gameState.emit('damageNumber', { position: this._enemyPos.clone(), damage, isCritical: true, kind: 'heavy', anchorId: this._getDamageAnchorId(enemyMesh.userData.enemy) });
+                const rawUltDmg = Math.floor(s.baseDamage * Math.min(1.5, Math.max(0.3, s.currentScale)));
+                const { damage, isCritical: ultCrit, isBackstab: ultBack } = this._applyCritBackstab(rawUltDmg, enemy, enemyMesh);
+                enemy.takeDamage(damage);
+                this.gameState.emit('damageNumber', { position: this._enemyPos.clone(), damage, isCritical: ultCrit || true, isBackstab: ultBack, kind: 'heavy', anchorId: this._getDamageAnchorId(enemy) });
                 if (this.particleSystem) {
                     this.particleSystem.emitUltimateEndExplosion(orbPos);
                 }
@@ -1629,14 +1762,16 @@ export class CombatSystem {
             const hitRadius = (enemy.hitRadius ?? (enemy.isBoss ? 2.5 : 0.8)) + c.hitRadius;
             if (c.mesh.position.distanceTo(this._enemyPos) <= hitRadius) {
                 c.hitSet.add(enemy);
-                enemy.takeDamage(c.damage);
+                const { damage: bcDmg, isCritical: bcCrit, isBackstab: bcBack } = this._applyCritBackstab(c.damage, enemy, enemyMesh);
+                enemy.takeDamage(bcDmg);
                 enemy.staggerTimer = Math.max(enemy.staggerTimer, 0.95);
                 enemy.state = 'stagger';
                 this.gameState.addUltimateCharge('charged');
                 this.gameState.emit('damageNumber', {
                     position: this._enemyPos.clone(),
-                    damage: c.damage,
-                    isCritical: c.chargesUsed >= 6,
+                    damage: bcDmg,
+                    isCritical: bcCrit,
+                    isBackstab: bcBack,
                     kind: 'heavy',
                     anchorId: this._getDamageAnchorId(enemy)
                 });

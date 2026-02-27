@@ -37,7 +37,10 @@ export const KIT_DEFINITIONS = {
             walkSpeed: 4,
             runSpeed: 8,
             jumpForce: 8,
-            armor: 10
+            armor: 10,
+            critChance: 0.15,
+            critMultiplier: 1.5,
+            backstabMultiplier: 1.3
         },
 
         weapon: {
@@ -134,7 +137,10 @@ export const KIT_DEFINITIONS = {
             walkSpeed: 4,
             runSpeed: 8,
             jumpForce: 8,
-            armor: 8
+            armor: 8,
+            critChance: 0.15,
+            critMultiplier: 1.5,
+            backstabMultiplier: 1.3
         },
 
         weapon: {
@@ -225,7 +231,10 @@ export const KIT_DEFINITIONS = {
             walkSpeed: 5,
             runSpeed: 10,
             jumpForce: 9,
-            armor: 5
+            armor: 5,
+            critChance: 0.30,
+            critMultiplier: 1.75,
+            backstabMultiplier: 1.5
         },
 
         weapon: {
@@ -325,7 +334,10 @@ export const KIT_DEFINITIONS = {
             walkSpeed: 4.5,
             runSpeed: 9.5,
             jumpForce: 8.5,
-            armor: 6
+            armor: 6,
+            critChance: 0.30,
+            critMultiplier: 1.75,
+            backstabMultiplier: 1.5
         },
 
         weapon: {
@@ -417,7 +429,10 @@ export const KIT_DEFINITIONS = {
             walkSpeed: 3.5,
             runSpeed: 7.5,
             jumpForce: 7,
-            armor: 12
+            armor: 12,
+            critChance: 0.20,
+            critMultiplier: 1.6,
+            backstabMultiplier: 1.4
         },
 
         weapon: {
@@ -506,7 +521,10 @@ export const KIT_DEFINITIONS = {
             walkSpeed: 3.8,
             runSpeed: 7.8,
             jumpForce: 7.5,
-            armor: 15
+            armor: 15,
+            critChance: 0.20,
+            critMultiplier: 1.6,
+            backstabMultiplier: 1.4
         },
 
         weapon: {
