@@ -8,6 +8,7 @@ import { createBloodFireVFX } from '../effects/BloodFireVFX.js';
 import { createIceMaterial, updateIceMaterial } from '../shaders/IceShader.js';
 import { FrostCombat } from './FrostCombat.js';
 import { DaggerCombat } from './DaggerCombat.js';
+import { BowCombat } from './BowCombat.js';
 
 export class CombatSystem {
     constructor(scene, character, gameState, particleSystem = null, onProjectileHit = null) {
@@ -144,6 +145,8 @@ export class CombatSystem {
         this.isDaggerKit = (kit?.id === 'shadow_assassin');
         this.daggerCombat = this.isDaggerKit ? new DaggerCombat(this) : null;
         this.isVenomKit = (kit?.id === 'venom_stalker');
+        this.isBowRangerKit = (kit?.id === 'bow_ranger');
+        this.bowRangerCombat = this.isBowRangerKit ? new BowCombat(this) : null;
         this.venomChargedSplashRadius = charged.splashRadius ?? 2.8;
         this.venomChargedSplashDamageMultiplier = charged.splashDamageMultiplier ?? 0.5;
 
@@ -204,6 +207,8 @@ export class CombatSystem {
         let damage = baseDamage;
         if (isBackstab) damage = Math.floor(damage * this._backstabMultiplier);
         if (isCritical) damage = Math.floor(damage * this._critMultiplier);
+        // Bow multi-shot vulnerability debuff
+        if (enemy?._bowVulnerabilityRemaining > 0) damage = Math.floor(damage * (enemy._bowVulnerabilityMult ?? 1));
         return { damage, isCritical, isBackstab };
     }
 
@@ -441,7 +446,7 @@ export class CombatSystem {
     update(deltaTime, input) {
         if (this.crimsonEruptionCooldown > 0) this.crimsonEruptionCooldown -= deltaTime;
         if (this.bloodNovaCooldown > 0) this.bloodNovaCooldown -= deltaTime;
-        if (input.bloodNova && !this.isDaggerKit) {
+        if (input.bloodNova && !this.isDaggerKit && !this.isBowRangerKit) {
             if (this.isFrostKit && this.frostCombat) {
                 this.frostCombat.beginStalactiteTargeting();
             } else {
@@ -573,8 +578,13 @@ export class CombatSystem {
             }
             this.chargedAttackTimer -= deltaTime;
             if (this.chargedAttackTimer <= 0) {
-                if (!this.isDaggerKit) this.spawnFireball(true);
-                if (this.isDaggerKit) this.spawnDaggerChargedSlash();
+                if (this.isBowRangerKit && this.bowRangerCombat) {
+                    this.bowRangerCombat.spawnArrow(true);
+                } else if (this.isDaggerKit) {
+                    this.spawnDaggerChargedSlash();
+                } else {
+                    this.spawnFireball(true);
+                }
                 this.gameState.combat.isChargedAttacking = false;
             }
         } else if (this.gameState.combat.isAttacking) {
@@ -618,6 +628,7 @@ export class CombatSystem {
         this.updateBloodCrescend(deltaTime);
         if (this.frostCombat) this.frostCombat.update(deltaTime);
         if (this.daggerCombat) this.daggerCombat.update(deltaTime);
+        if (this.bowRangerCombat) this.bowRangerCombat.update(deltaTime);
     }
 
     updateChargeOrb(deltaTime) {
@@ -634,24 +645,34 @@ export class CombatSystem {
                         rimPower: 2.0,
                         displaceAmount: 0.3
                     })
-                    : (this.isVenomKit
+                    : (this.isBowRangerKit
                         ? new THREE.MeshStandardMaterial({
-                            color: 0x48ff7a,
-                            emissive: 0x1f8f4f,
-                            emissiveIntensity: 1.4,
-                            roughness: 0.35,
-                            metalness: 0.05,
+                            color: 0x4488ff,
+                            emissive: 0x2244aa,
+                            emissiveIntensity: 1.6,
+                            roughness: 0.3,
+                            metalness: 0.1,
                             transparent: true,
                             opacity: 0.9
                         })
-                        : createBloodFireMaterial({
-                            coreBrightness: 0.9,
-                            plasmaSpeed: 4.5,
-                            isCharged: 1.0,
-                            layerScale: 1.2,
-                            rimPower: 2.0,
-                            redTint: 0.92
-                        }));
+                        : (this.isVenomKit
+                            ? new THREE.MeshStandardMaterial({
+                                color: 0x48ff7a,
+                                emissive: 0x1f8f4f,
+                                emissiveIntensity: 1.4,
+                                roughness: 0.35,
+                                metalness: 0.05,
+                                transparent: true,
+                                opacity: 0.9
+                            })
+                            : createBloodFireMaterial({
+                                coreBrightness: 0.9,
+                                plasmaSpeed: 4.5,
+                                isCharged: 1.0,
+                                layerScale: 1.2,
+                                rimPower: 2.0,
+                                redTint: 0.92
+                            })));
                 this.chargeOrb = new THREE.Mesh(geometry, material);
                 this.chargeOrb.castShadow = false;
                 this.chargeOrb.userData.orbTime = 0;
@@ -662,7 +683,7 @@ export class CombatSystem {
                 ringGeo.setAttribute('position', new THREE.BufferAttribute(ringPos, 3));
                 const ringMat = new THREE.PointsMaterial({
                     size: 0.04,
-                    color: this.isFrostKit ? 0x44aaff : (this.isVenomKit ? 0x66ff66 : 0xaa0a0a),
+                    color: this.isFrostKit ? 0x44aaff : (this.isBowRangerKit ? 0x4488ff : (this.isVenomKit ? 0x66ff66 : 0xaa0a0a)),
                     transparent: true,
                     opacity: 0.9,
                     depthWrite: false,
@@ -676,11 +697,11 @@ export class CombatSystem {
             }
             this.chargeOrb.userData.orbTime += deltaTime;
             const t = Math.min(1, combat.chargeTimer / this.chargeDuration);
-            const scale = this.isVenomKit ? (0.55 + 2.35 * t) : (0.2 + 1.6 * t);
+            const scale = (this.isVenomKit || this.isBowRangerKit) ? (0.55 + 2.35 * t) : (0.2 + 1.6 * t);
             this.chargeOrb.scale.setScalar(scale);
             const wpos = this.character.getWeaponPosition();
             const wdir = this.character.getForwardDirection();
-            if (this.isVenomKit) {
+            if (this.isVenomKit || this.isBowRangerKit) {
                 this.chargeOrb.position.set(wpos.x, wpos.y + 0.32, wpos.z);
             } else {
                 this.chargeOrb.position.set(wpos.x + wdir.x * 0.4, wpos.y + wdir.y * 0.4, wpos.z + wdir.z * 0.4);
@@ -691,12 +712,12 @@ export class CombatSystem {
                 this.chargeOrb.material.uniforms.time.value = this.chargeOrb.userData.orbTime;
                 this.chargeOrb.material.uniforms.alpha.value = 0.75 + 0.25 * t * pulse;
                 this.chargeOrb.material.uniforms.coreBrightness.value = 0.9 + 0.6 * t * pulse;
-            } else if (this.isVenomKit) {
+            } else if (this.isVenomKit || this.isBowRangerKit) {
                 this.chargeOrb.material.opacity = 0.6 + 0.35 * t;
                 this.chargeOrb.material.emissiveIntensity = 1.2 + 1.6 * t;
             }
             // Ring tightens and brightens with charge
-            const ringRadius = this.isVenomKit ? (0.95 * (1.25 - 0.8 * t)) : (0.5 * (1.2 - 0.9 * t));
+            const ringRadius = (this.isVenomKit || this.isBowRangerKit) ? (0.95 * (1.25 - 0.8 * t)) : (0.5 * (1.2 - 0.9 * t));
             const ringGeo = this.chargeOrb.userData.ringGeo;
             const posAttr = ringGeo.getAttribute('position');
             for (let i = 0; i < 36; i++) {
@@ -706,7 +727,7 @@ export class CombatSystem {
                 posAttr.array[i * 3 + 2] = 0;
             }
             posAttr.needsUpdate = true;
-            this.chargeOrb.userData.ringMat.opacity = this.isVenomKit ? (0.78 + 0.22 * t) : (0.5 + 0.5 * t);
+            this.chargeOrb.userData.ringMat.opacity = (this.isVenomKit || this.isBowRangerKit) ? (0.78 + 0.22 * t) : (0.5 + 0.5 * t);
         } else {
             if (this.chargeOrb) {
                 this.scene.remove(this.chargeOrb);
@@ -733,11 +754,16 @@ export class CombatSystem {
             return;
         }
 
-        if (!this.isDaggerKit) this.spawnFireball(false);
-        if (this.isDaggerKit) this.spawnDaggerBladeWave();
+        if (this.isBowRangerKit && this.bowRangerCombat) {
+            this.bowRangerCombat.spawnArrow(false);
+        } else if (this.isDaggerKit) {
+            this.spawnDaggerBladeWave();
+        } else {
+            this.spawnFireball(false);
+        }
 
         const basicClip = this.character.actions?.['Basic attack']?.getClip();
-        const basicTimeScale = this.isDaggerKit ? 8.0 : (this.isVenomKit ? 2.25 : 3.8);
+        const basicTimeScale = this.isDaggerKit ? 8.0 : ((this.isVenomKit || this.isBowRangerKit) ? 2.25 : 3.8);
         this.attackDuration = basicClip?.duration ? basicClip.duration / basicTimeScale : 0.28;
         this.attackTimer = this.attackDuration;
         this._meleeHitThisSwing = false;
@@ -811,6 +837,7 @@ export class CombatSystem {
         const c = this.gameState.combat;
         if (c.teleportDamageBuffRemaining > 0) mult *= 2.0;
         if (c.poisonDamageBuffRemaining > 0) mult *= (c.poisonDamageBuffMultiplier ?? 1);
+        if (c.bowDamageZoneMultiplier > 1) mult *= c.bowDamageZoneMultiplier;
         let rawDamage = Math.floor(baseDamage * comboMultiplier * mult);
 
         const enemy = hitInfo.object.userData.enemy;
@@ -820,6 +847,9 @@ export class CombatSystem {
             this.gameState.addUltimateCharge(isCharged ? 'charged' : 'basic');
             if (this.isDaggerKit) {
                 this.gameState.addPoisonCharge(isCharged ? 2 : 1);
+            }
+            if (this.isBowRangerKit) {
+                this.gameState.addTrustCharge(isCharged ? 2 : 1);
             }
             const hitPos = hitInfo.point?.clone() ?? hitInfo.object.getWorldPosition?.(new THREE.Vector3()) ?? this.character.position.clone();
             this.gameState.emit('damageNumber', { position: hitPos, damage, isCritical, isBackstab, anchorId: this._getDamageAnchorId(enemy) });
@@ -1136,7 +1166,16 @@ export class CombatSystem {
 
             const lifePct = 1.0 - p.lifetime / p.maxLifetime;
             const alpha = 0.92 * lifePct;
-            if (p.isDaggerBlade) {
+            if (p.isBowArrow) {
+                // Bow arrows: fade materials and emit trail sparks
+                if (p.materials) {
+                    p.materials.forEach(m => { m.opacity = Math.max(0, m.opacity) * (0.4 + 0.6 * lifePct); });
+                }
+                // Trail particles
+                if (this.particleSystem && p.lifetime > 0.05 && Math.random() < 0.5) {
+                    this.particleSystem.emitSparks(p.mesh.position.clone(), 1);
+                }
+            } else if (p.isDaggerBlade) {
                 // Animate slash: scale outward and fade
                 if (p.isDaggerSlash) {
                     const expandT = Math.min(1, p.lifetime / (p.maxLifetime * 0.5));
@@ -1159,7 +1198,9 @@ export class CombatSystem {
 
             if (p.lifetime >= p.maxLifetime) {
                 if (this.particleSystem) {
-                    if (p.isDaggerBlade) {
+                    if (p.isBowArrow) {
+                        this.particleSystem.emitSparks(p.mesh.position.clone(), p.isCharged ? 6 : 3);
+                    } else if (p.isDaggerBlade) {
                         this.particleSystem.emitPoisonBurst?.(p.mesh.position.clone(), 8);
                     } else if (p.isFrost) {
                         this.particleSystem.emitIceBurst(p.mesh.position, p.isCharged ? 8 : 3);
@@ -1196,10 +1237,11 @@ export class CombatSystem {
             for (const enemyMesh of this.enemies) {
                 enemyMesh.getWorldPosition(this._enemyPos);
                 const enemy = enemyMesh.userData?.enemy;
-                if (!enemy) continue;
+                if (!enemy || enemy.health <= 0 || p.hitSet.has(enemy)) continue;
                 const modelRadius = enemy.hitRadius ?? (enemy.isBoss ? 2.5 : 0.8);
                 const hitRadius = modelRadius + (p.isCharged ? 0.6 : 0.3);
                 if (fireballPos.distanceTo(this._enemyPos) < hitRadius) {
+                    p.hitSet.add(enemy);
                     const { damage: projDmg, isCritical: projCrit, isBackstab: projBack } = this._applyCritBackstab(p.damage, enemy, enemyMesh);
                     enemy.takeDamage(projDmg);
                     hit = true;
@@ -1217,15 +1259,45 @@ export class CombatSystem {
                         if (this.particleSystem?.emitPoisonBurst) this.particleSystem.emitPoisonBurst(fireballPos.clone(), 18);
                     }
 
+                    // Bow arrow: Judgment Arrow AoE at 6+ stacks
+                    if (p.isJudgmentArrow && p.judgmentAoe) {
+                        for (const otherMesh of this.enemies) {
+                            const otherEnemy = otherMesh.userData?.enemy;
+                            if (!otherEnemy || otherEnemy === enemy || otherEnemy.health <= 0) continue;
+                            otherMesh.getWorldPosition(this._centerFlat);
+                            if (fireballPos.distanceTo(this._centerFlat) > (p.judgmentAoeRadius ?? 3.5)) continue;
+                            const aoeDmg = Math.floor(projDmg * 0.6);
+                            otherEnemy.takeDamage(aoeDmg);
+                            this.gameState.emit('damageNumber', { position: this._centerFlat.clone(), damage: aoeDmg, isCritical: false, kind: 'ability', anchorId: this._getDamageAnchorId(otherEnemy) });
+                        }
+                        if (this.particleSystem) this.particleSystem.emitSparks(fireballPos.clone(), 25);
+                    }
+
+                    // Bow arrow: Judgment Arrow mark at 8 stacks (+30% vuln 6s)
+                    if (p.isJudgmentArrow && p.judgmentMark) {
+                        enemy._bowVulnerabilityRemaining = 6;
+                        enemy._bowVulnerabilityMult = 1.3;
+                    }
+
+                    // Bow arrow: Multi Shot vulnerability debuff (+50% damage taken 6s)
+                    if (p.isMultiShot && this.bowRangerCombat) {
+                        this.bowRangerCombat.applyMultiShotVulnerability(enemy);
+                    }
+
                     this.gameState.addUltimateCharge(p.isCharged ? 'charged' : 'basic');
-                    if (p.isFrost && this.frostCombat) {
+                    if (p.isBowArrow) {
+                        this.gameState.addTrustCharge(p.isCharged ? 2 : 1);
+                    } else if (p.isFrost && this.frostCombat) {
                         this.frostCombat.addFrostStack(enemy, p.isCharged ? 2 : 1);
                     } else {
                         this.gameState.addBloodCharge(p.isCharged ? 2 : 1);
                     }
                     this.gameState.emit('damageNumber', { position: this._enemyPos.clone(), damage: projDmg, isCritical: projCrit, isBackstab: projBack, anchorId: this._getDamageAnchorId(enemy) });
                     if (this.particleSystem) {
-                        if (p.isFrost) {
+                        if (p.isBowArrow) {
+                            this.particleSystem.emitSparks(fireballPos.clone(), p.isCharged ? 10 : 5);
+                            if (this.particleSystem.emitIceBurst) this.particleSystem.emitIceBurst(fireballPos, p.isCharged ? 6 : 3);
+                        } else if (p.isFrost) {
                             this.particleSystem.emitIceBurst(fireballPos, p.isCharged ? 12 : 6);
                             this.particleSystem.emitIceShatter(fireballPos, p.isCharged ? 8 : 4);
                         } else {
@@ -1234,12 +1306,13 @@ export class CombatSystem {
                         }
                     }
                     if (this.onProjectileHit) {
-                        this.onProjectileHit({ charged: p.isCharged, isBoss: !!enemy.isBoss });
+                        this.onProjectileHit({ charged: p.isCharged, isBoss: !!enemy.isBoss, isUltimate: !!p.isUltimateArrow });
                     }
-                    break;
+                    // Piercing arrows don't stop on hit
+                    if (!p.isPiercing) break;
                 }
             }
-            if (hit) {
+            if (hit && !p.isPiercing) {
                 this.disposeProjectile(p);
                 this.projectiles.splice(i, 1);
             }

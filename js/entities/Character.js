@@ -91,6 +91,12 @@ export class Character {
         if (this._isDaggerKit) {
             this.createPoisonChargeIndicator();
         }
+
+        // Trust charge indicator (bow ranger): blue orbs orbiting the character
+        this._isBowRangerKit = this.gameState.selectedKit?.id === 'bow_ranger';
+        if (this._isBowRangerKit) {
+            this.createTrustChargeIndicator();
+        }
     }
 
     /** 3D charge orbs on a circle (axis) around the character. Frost mage uses ice orbs. */
@@ -285,6 +291,100 @@ export class Character {
             if (this.particleSystem && t - (orbGroup.userData.lastParticleEmit ?? 0) > 0.12) {
                 orbGroup.getWorldPosition(this._poisonOrbWorldPos);
                 this.particleSystem.emitPoisonTrail(this._poisonOrbWorldPos, 1);
+                orbGroup.userData.lastParticleEmit = t;
+            }
+        });
+    }
+
+    /** Trust charge orbs (bow ranger): blue diamond-shaped orbs orbiting the character. */
+    createTrustChargeIndicator() {
+        this.trustChargeIndicator = new THREE.Group();
+        this.trustChargeIndicator.name = 'trustChargeIndicator';
+        const maxTrustStacks = 8;
+        const innerRadius = 0.055;
+        const outerRadius = 0.08;
+
+        const innerGeom = new THREE.OctahedronGeometry(innerRadius, 0);
+        const outerGeom = new THREE.SphereGeometry(outerRadius, 6, 6);
+        const sharedInnerMat = new THREE.MeshBasicMaterial({
+            color: 0x4488ff,
+            transparent: true,
+            opacity: 0.95,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending
+        });
+        const sharedOuterMat = new THREE.MeshBasicMaterial({
+            color: 0x0a1a3a,
+            transparent: true,
+            opacity: 0.7,
+            depthWrite: false
+        });
+
+        for (let i = 0; i < maxTrustStacks; i++) {
+            const orbGroup = new THREE.Group();
+            const inner = new THREE.Mesh(innerGeom, sharedInnerMat.clone());
+            orbGroup.add(inner);
+            const outer = new THREE.Mesh(outerGeom, sharedOuterMat.clone());
+            outer.renderOrder = -1;
+            orbGroup.add(outer);
+            orbGroup.userData.inner = inner;
+            orbGroup.userData.outer = outer;
+            orbGroup.userData.lastParticleEmit = 0;
+            orbGroup.userData.orbitPhase = (i / maxTrustStacks) * Math.PI * 2;
+            this.trustChargeIndicator.add(orbGroup);
+        }
+        this._trustOrbWorldPos = new THREE.Vector3();
+        this.trustChargeIndicator.visible = false;
+        this.scene.add(this.trustChargeIndicator);
+    }
+
+    updateTrustChargeIndicator() {
+        if (!this.trustChargeIndicator) return;
+        const n = this.gameState.trustCharges ?? 0;
+        this.trustChargeIndicator.visible = n >= 1;
+        if (n < 1) return;
+
+        const height = 1.1;
+        this.trustChargeIndicator.position.set(this.position.x, this.position.y + height, this.position.z);
+        const t = this.animationTime;
+        const orbitRadius = 1.25;
+        const orbitSpeed = 2.0;
+        const bobAmplitude = 0.1;
+        const pulse = 1 + 0.08 * Math.sin(t * 5);
+
+        this.trustChargeIndicator.children.forEach((orbGroup, i) => {
+            const visible = i < n;
+            orbGroup.visible = visible;
+            if (!visible) return;
+
+            const baseAngle = orbGroup.userData.orbitPhase;
+            const angle = baseAngle + t * orbitSpeed;
+            const bob = bobAmplitude * Math.sin(t * 3.5 + i * 1.3);
+            orbGroup.position.set(
+                orbitRadius * Math.cos(angle),
+                bob,
+                orbitRadius * Math.sin(angle)
+            );
+            orbGroup.scale.setScalar(pulse);
+
+            // Spin the diamond shape
+            const inner = orbGroup.userData.inner;
+            inner.rotation.y = t * 3 + i;
+            inner.rotation.x = t * 1.5 + i * 0.5;
+
+            // Pulsing glow - brighter with more stacks
+            const glowIntensity = 0.7 + 0.3 * Math.sin(t * 4.5 + i * 0.7);
+            inner.material.opacity = glowIntensity;
+            const stackRatio = n / 8;
+            const r = 0.2 + 0.15 * stackRatio;
+            const g = 0.4 + 0.25 * stackRatio;
+            const b = 0.8 + 0.2 * Math.sin(t * 3 + i);
+            inner.material.color.setRGB(r, g, b);
+
+            // Emit spark trail
+            if (this.particleSystem && t - (orbGroup.userData.lastParticleEmit ?? 0) > 0.15) {
+                orbGroup.getWorldPosition(this._trustOrbWorldPos);
+                this.particleSystem.emitSparks(this._trustOrbWorldPos, 1);
                 orbGroup.userData.lastParticleEmit = t;
             }
         });
@@ -1113,6 +1213,7 @@ export class Character {
         }
         this.updateBloodChargeIndicator();
         if (this._isDaggerKit) this.updatePoisonChargeIndicator();
+        if (this._isBowRangerKit) this.updateTrustChargeIndicator();
     }
 
     updateAnimation(deltaTime, input) {
