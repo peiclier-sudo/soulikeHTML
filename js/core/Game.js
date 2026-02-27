@@ -315,9 +315,16 @@ export class Game {
             combat.poisonDamageBuffRemaining = Math.max(0, combat.poisonDamageBuffRemaining - this.deltaTime);
         }
 
-        // E = Finisher: Blood Crescend (blood mage) / Frost Beam (frost mage) / Poison Pierce (dagger)
+        // E = Finisher: Judgment Arrow (bow) / Poison Pierce (dagger) / Frost Beam / Blood Crescend
         if (input.whipAttack) {
-            if (this.combatSystem?.isDaggerKit && this.combatSystem?.daggerCombat) {
+            if (this.combatSystem?.isBowRangerKit && this.combatSystem?.bowRangerCombat) {
+                const result = this.gameState.tryJudgmentArrow();
+                if (result.success) {
+                    this.combatSystem.bowRangerCombat.executeJudgmentArrow(result.chargesUsed);
+                } else {
+                    this.uiManager.showNoBloodEssenceFeedback();
+                }
+            } else if (this.combatSystem?.isDaggerKit && this.combatSystem?.daggerCombat) {
                 const result = this.gameState.tryPoisonPierce();
                 if (result.success) {
                     this.combatSystem.daggerCombat.executePoisonPierce(result.chargesUsed);
@@ -336,22 +343,32 @@ export class Game {
             }
         }
 
-        // V = Teleport Behind (dagger kit)
-        if (input.teleport && this.combatSystem?.isDaggerKit && this.combatSystem?.daggerCombat) {
-            this.combatSystem.daggerCombat.executeTeleportBehind();
-            input.crimsonEruption = false;
+        // V/A = Recoil Shot (bow) or Teleport Behind (dagger)
+        if (input.teleport) {
+            if (this.combatSystem?.isBowRangerKit && this.combatSystem?.bowRangerCombat) {
+                this.combatSystem.bowRangerCombat.executeRecoilShot();
+                input.crimsonEruption = false;
+            } else if (this.combatSystem?.isDaggerKit && this.combatSystem?.daggerCombat) {
+                this.combatSystem.daggerCombat.executeTeleportBehind();
+                input.crimsonEruption = false;
+            }
         }
 
-        // C = Vanish (dagger) or Shield (others)
+        // C = Hunter's Mark Zone (bow) / Vanish (dagger) / Shield (others)
         if (input.shield && !this.gameState.combat.shieldActive) {
-            if (this.combatSystem?.isDaggerKit && this.combatSystem?.daggerCombat) {
+            if (this.combatSystem?.isBowRangerKit && this.combatSystem?.bowRangerCombat) {
+                this.combatSystem.bowRangerCombat.executeDamageZone();
+            } else if (this.combatSystem?.isDaggerKit && this.combatSystem?.daggerCombat) {
                 this.combatSystem.daggerCombat.executeVanish();
             } else {
                 this.gameState.activateShield(this.combatSystem.shieldDuration);
             }
         }
 
-        // X = Toxic Focus (dagger): consume poison charges for +15% damage per charge, 8s
+        // X = Multi Shot (bow) / Toxic Focus (dagger)
+        if (input.bloodNova && this.combatSystem?.isBowRangerKit && this.combatSystem?.bowRangerCombat) {
+            this.combatSystem.bowRangerCombat.executeMultiShot();
+        }
         if (input.bloodNova && this.combatSystem?.isDaggerKit && this.combatSystem?.daggerCombat) {
             this.combatSystem.daggerCombat.executeToxicFocus();
         }
@@ -370,7 +387,9 @@ export class Game {
             if (this.pendingUltimateSlash <= 0) {
                 const dir = this.pendingUltimateDir || this.character.getForwardDirection().clone().normalize();
                 const pos = this.character.getWeaponPosition().clone().add(dir.clone().multiplyScalar(0.5));
-                if (this.combatSystem.isDaggerKit && this.combatSystem.daggerCombat) {
+                if (this.combatSystem.isBowRangerKit && this.combatSystem.bowRangerCombat) {
+                    this.combatSystem.bowRangerCombat.spawnUltimateArrow();
+                } else if (this.combatSystem.isDaggerKit && this.combatSystem.daggerCombat) {
                     this.combatSystem.daggerCombat.spawnTwinDaggersUltimate();
                 } else if (this.combatSystem.isFrostKit && this.combatSystem.frostCombat) {
                     this.combatSystem.frostCombat.beginBlizzardTargeting();
@@ -434,7 +453,7 @@ export class Game {
             input.crimsonEruption = false;
         }
         if (this.combatSystem && typeof this.combatSystem.updateCrimsonEruptionPreview === 'function') {
-            if (input.crimsonEruption && !this.combatSystem.isDaggerKit && this.combatSystem.crimsonEruptionCooldown <= 0) {
+            if (input.crimsonEruption && !this.combatSystem.isDaggerKit && !this.combatSystem.isBowRangerKit && this.combatSystem.crimsonEruptionCooldown <= 0) {
                 this.crimsonEruptionTargeting = true;
                 const w = this.canvas?.clientWidth || 1;
                 const h = this.canvas?.clientHeight || 1;
@@ -704,7 +723,7 @@ export class Game {
         this.hitStopTime = Math.max(this.hitStopTime, duration);
     }
     onProjectileHit(payload = {}) {
-        const { charged, isBoss, isUltimate, whipHit, whipWindup, bloodflailCharges, punchFinish, bloodNova, crimsonEruption, daggerSlashImpact, vanishActivated, shadowStepLand } = payload;
+        const { charged, isBoss, isUltimate, whipHit, whipWindup, bloodflailCharges, punchFinish, bloodNova, crimsonEruption, daggerSlashImpact, vanishActivated, shadowStepLand, bowRecoilShot, bowDamageZone, bowMultiShot, bowJudgmentArrow } = payload;
         if (vanishActivated) {
             this.shakeIntensity = 0.025;
             this.shakeDuration = 0.15;
@@ -720,6 +739,37 @@ export class Game {
             this.triggerHitStop(0.04);
             this.ultimateBloomTime = 0.25;
             this.ultimateBloomDuration = 0.25;
+        }
+        if (bowRecoilShot) {
+            this.shakeIntensity = 0.035;
+            this.shakeDuration = 0.15;
+            this.shakeTime = this.shakeDuration;
+            this.lastPunchOffset.copy(this.character.getForwardDirection()).multiplyScalar(-0.25);
+            this.triggerHitStop(0.03);
+            this.ultimateBloomTime = 0.2;
+            this.ultimateBloomDuration = 0.2;
+        }
+        if (bowDamageZone) {
+            this.shakeIntensity = 0.02;
+            this.shakeDuration = 0.12;
+            this.shakeTime = this.shakeDuration;
+            this.ultimateBloomTime = 0.3;
+            this.ultimateBloomDuration = 0.3;
+        }
+        if (bowMultiShot) {
+            this.shakeIntensity = 0.015;
+            this.shakeDuration = 0.1;
+            this.shakeTime = this.shakeDuration;
+        }
+        if (bowJudgmentArrow) {
+            const stacks = payload.stacks ?? 1;
+            this.shakeIntensity = 0.025 + stacks * 0.005;
+            this.shakeDuration = 0.15 + stacks * 0.02;
+            this.shakeTime = this.shakeDuration;
+            this.lastPunchOffset.copy(this.character.getForwardDirection()).multiplyScalar(0.15 + stacks * 0.02);
+            this.triggerHitStop(0.03 + stacks * 0.005);
+            this.ultimateBloomTime = 0.2 + stacks * 0.04;
+            this.ultimateBloomDuration = 0.2 + stacks * 0.04;
         }
         if (daggerSlashImpact) {
             this.shakeIntensity = 0.018;
