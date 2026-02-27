@@ -16,6 +16,7 @@ import { CombatSystem } from '../combat/CombatSystem.js';
 import { ParticleSystem } from '../effects/ParticleSystem.js';
 import { UIManager } from '../ui/UIManager.js';
 import { Boss } from '../entities/Boss.js';
+import { RunProgress } from './RunProgress.js';
 
 export class Game {
     constructor(canvas, assetLoader, kitId = 'blood_mage') {
@@ -160,8 +161,10 @@ export class Game {
         this.uiManager = new UIManager(this.gameState, this.camera, this.combatSystem, this.character);
         this.uiManager.applyKitToHud();
 
-        // Spawn one random boss in the arena
+        // Boss tracking
         this.boss = null;
+        this.bossNumber = 0;           // index of current boss in this run
+        this.pendingNextBoss = 0;      // countdown before next boss spawns
         this.pendingUltimateSlash = 0; // delay before spawning ultimate crescent (sync with anim)
         this.spawnBoss();
 
@@ -222,10 +225,18 @@ export class Game {
             new THREE.Vector3(-3, 0, -9)
         ];
         const pos = spawns[Math.floor(Math.random() * spawns.length)];
-        this.boss = new Boss(this.scene, pos, { assets: this.assetLoader.assets });
+        const scaled = RunProgress.getBossConfig(this.bossNumber);
+        this.boss = new Boss(this.scene, pos, {
+            assets: this.assetLoader.assets,
+            health: scaled.health,
+            damage: scaled.damage
+        });
         this.boss.setGameState(this.gameState);
         this.combatSystem.addEnemy(this.boss);
-        this.uiManager.showBossHealth(this.boss.name, this.boss.health, this.boss.maxHealth);
+        const label = this.bossNumber > 0
+            ? `${this.boss.name}  (Boss ${this.bossNumber + 1})`
+            : this.boss.name;
+        this.uiManager.showBossHealth(label, this.boss.health, this.boss.maxHealth);
     }
     
     start() {
@@ -269,7 +280,20 @@ export class Game {
     stop() {
         this.isRunning = false;
         this.clock.stop();
+        RunProgress.saveRunState(this.gameState);
         this.gameState.reset();
+    }
+
+    /** Restore a saved run (called from main.js when player clicks "Continue"). */
+    restoreRun(savedRun) {
+        this.bossNumber = savedRun.bossesDefeated;
+        if (savedRun.health != null) {
+            this.gameState.player.health = Math.min(savedRun.health, this.gameState.player.maxHealth);
+            this.gameState.emit('healthChanged', this.gameState.player.health);
+        }
+        if (savedRun.potions != null) {
+            this.gameState.player.healthPotions = savedRun.potions;
+        }
     }
     
     gameLoop() {
@@ -614,7 +638,21 @@ export class Game {
             } else {
                 this.uiManager.hideBossHealth();
                 this.gameState.flags.bossDefeated = true;
+                RunProgress.onBossDefeated(this.gameState);
                 this.boss = null;
+                // Next boss spawns after 5 s
+                this.pendingNextBoss = 5.0;
+            }
+        }
+
+        // Countdown to next boss spawn
+        if (this.pendingNextBoss > 0) {
+            this.pendingNextBoss -= this.deltaTime;
+            if (this.pendingNextBoss <= 0) {
+                this.pendingNextBoss = 0;
+                this.bossNumber++;
+                this.gameState.flags.bossDefeated = false;
+                this.spawnBoss();
             }
         }
         

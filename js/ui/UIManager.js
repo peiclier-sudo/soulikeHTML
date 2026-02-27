@@ -366,12 +366,22 @@ export class UIManager {
     showDeathScreen() {
         if (this.elements.deathScreen) {
             this.elements.deathScreen.style.display = 'flex';
-            
-            // Hide after animation and reset
+
+            // After "YOU DIED" animation, return to main menu (roguelike: run ends on death)
             setTimeout(() => {
                 this.elements.deathScreen.style.display = 'none';
-                this.gameState.reset();
-                // Could trigger respawn here
+                document.getElementById('hud').style.display = 'none';
+                document.getElementById('start-screen').style.display = 'flex';
+                document.exitPointerLock();
+                // Game stop + state reset is handled by main.js quit flow
+                if (window.game) {
+                    window.game.isRunning = false;
+                    window.game.clock.stop();
+                    window.game.gameState.reset();
+                }
+                // Refresh continue button (run was cleared on death)
+                const btn = document.getElementById('continue-button');
+                if (btn) btn.style.display = 'none';
             }, 4000);
         }
     }

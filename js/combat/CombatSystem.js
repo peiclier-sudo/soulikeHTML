@@ -1259,7 +1259,12 @@ export class CombatSystem {
                 if (!enemy || enemy.health <= 0 || p.hitSet.has(enemy)) continue;
                 const modelRadius = enemy.hitRadius ?? (enemy.isBoss ? 2.5 : 0.8);
                 const hitRadius = modelRadius + (p.isCharged ? 0.6 : 0.3);
-                if (fireballPos.distanceTo(this._enemyPos) < hitRadius) {
+                // Use XZ (horizontal) distance — prevents Y offset between
+                // projectile flight height and mesh root from shrinking the hitbox
+                const dx = fireballPos.x - this._enemyPos.x;
+                const dz = fireballPos.z - this._enemyPos.z;
+                const distXZ = Math.sqrt(dx * dx + dz * dz);
+                if (distXZ < hitRadius) {
                     p.hitSet.add(enemy);
                     const { damage: projDmg, isCritical: projCrit, isBackstab: projBack } = this._applyCritBackstab(p.damage, enemy, enemyMesh);
                     enemy.takeDamage(projDmg);
