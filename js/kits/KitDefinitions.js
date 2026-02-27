@@ -211,12 +211,12 @@ export const KIT_DEFINITIONS = {
         model: 'character_3k_mage'
     },
 
-    // ─── ROGUE 1: SHADOW ASSASSIN ─────────────────────────────────
+    // ─── ROGUE 1: SHADOW ASSASSIN (dagger CAC) ────────────────────
     shadow_assassin: {
         id: 'shadow_assassin',
         name: 'Shadow Assassin',
         className: CLASS_ROGUE,
-        description: 'Strikes from the shadows. Lightning-fast attacks and deadly precision.',
+        description: 'Strikes from the shadows. Build poison charges, pierce with venom, vanish and teleport.',
         icon: '\u{1F5E1}',
 
         stats: {
@@ -238,69 +238,80 @@ export const KIT_DEFINITIONS = {
 
         combat: {
             basicAttack: {
-                type: 'projectile',
-                damage: 14,
-                speed: 26,
-                radius: 0.15,
-                lifetime: 1.0,
-                staminaCost: 3
+                name: 'Green Slash',
+                type: 'melee',
+                damage: 22,
+                staminaCost: 3,
+                range: 2.2,
+                poisonChargeGain: 1
             },
             chargedAttack: {
-                type: 'projectile_charged',
-                damage: 40,
-                speed: 28,
-                radius: 0.35,
-                lifetime: 1.8,
-                chargeDuration: 0.7
+                name: 'Double Slash',
+                type: 'melee',
+                damage: 42,
+                staminaCost: 8,
+                range: 2.2,
+                chargeDuration: 0.5,
+                poisonChargeGain: 2
+            },
+            abilityA: {
+                name: 'Teleport Behind',
+                type: 'teleport_buff',
+                cooldown: 12,
+                damageBuffDuration: 3,
+                damageBuffMultiplier: 2.0
             },
             abilityQ: {
                 name: 'Shadow Step',
                 type: 'ground_aoe',
                 damage: 35,
                 radius: 2.5,
-                cooldown: 6,
-                bloodChargeGain: 1
+                cooldown: 6
             },
             abilityE: {
-                name: 'Backstab',
+                name: 'Poison Pierce',
                 type: 'melee_finisher',
-                baseDamage: 60,
-                range: 2.5,
-                requiresBloodCharges: true
+                baseDamage: 40,
+                damagePerCharge: 18,
+                range: 2.8,
+                requiresPoisonCharges: true,
+                poisonDurationPerCharge: 2
             },
             abilityX: {
-                name: 'Smoke Bomb',
-                type: 'nova_aoe',
-                damage: 20,
-                radius: 8,
-                cooldown: 14,
-                freezeDuration: 1.8
+                name: 'Toxic Focus',
+                type: 'consume_charges_buff',
+                cooldown: 20,
+                damagePercentPerCharge: 15,
+                buffDuration: 8
             },
             abilityC: {
-                name: 'Evasion',
-                type: 'shield',
-                duration: 4
+                name: 'Vanish',
+                type: 'vanish',
+                duration: 5,
+                speedMultiplier: 1.6
             },
             abilityF: {
-                name: 'Death Mark',
-                type: 'ultimate_projectile',
-                damage: 150,
-                chargeNeeded: 100
+                name: 'Twin Daggers',
+                type: 'ultimate_hold_release',
+                damage: 180,
+                chargeNeeded: 100,
+                range: 14
             }
         },
 
         theme: {
-            primary: 0x1a0a2e,    // deep purple
-            secondary: 0x8844cc,  // shadow purple
-            accent: 0xcc88ff,     // light purple
+            primary: 0x1a0a2e,
+            secondary: 0x8844cc,
+            accent: 0xcc88ff,
             particleColor: 0x9955ff,
             uiClass: 'kit-shadow-assassin'
         },
 
-        model: 'character_3k_mage'  // reuse model until rogue model exists
+        model: 'character_3k_rogue',
+        animationKey: 'character_3k_rogue_dagger'
     },
 
-    // ─── ROGUE 2: VENOM STALKER ───────────────────────────────────
+    // ─── ROGUE 2: VENOM STALKER (bow) ──────────────────────────────
     venom_stalker: {
         id: 'venom_stalker',
         name: 'Venom Stalker',
@@ -386,7 +397,8 @@ export const KIT_DEFINITIONS = {
             uiClass: 'kit-venom-stalker'
         },
 
-        model: 'character_3k_mage'
+        model: 'character_3k_rogue',
+        animationKey: 'character_3k_rogue_bow'
     },
 
     // ─── WARRIOR 1: BERSERKER ─────────────────────────────────────

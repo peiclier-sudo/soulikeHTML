@@ -29,7 +29,7 @@ export class AssetLoader {
     }
     
     async loadAll() {
-        const totalSteps = 7;
+        const totalSteps = 8;
         let currentStep = 0;
 
         const updateProgress = (message) => {
@@ -43,10 +43,12 @@ export class AssetLoader {
             await this.generateProceduralTextures();
             updateProgress('Textures ready');
 
-            // Step 2: Load real character model from Three.js examples
+            // Step 2: Load character models (mage + rogue)
             this.onProgress(currentStep / totalSteps, 'Summoning warrior...');
             await this.loadCharacterModel();
             updateProgress('Warrior ready');
+            await this.loadRogueModel();
+            updateProgress('Rogue ready');
 
             // Step 3: Load boss model (Boss1_3k.glb)
             this.onProgress(currentStep / totalSteps, 'Loading boss...');
@@ -91,8 +93,7 @@ export class AssetLoader {
             const characterGltf = await this.loadGLTF(characterUrl);
             const model = characterGltf.scene;
 
-            // User-requested upscale for the 3k mage asset.
-            model.scale.setScalar(10.0);
+            model.scale.setScalar(1.0);
 
             // Enable shadows on all meshes
             model.traverse((child) => {
@@ -144,6 +145,7 @@ export class AssetLoader {
             });
 
             this.assets.models.character = model;
+            this.assets.models.character_3k_mage = model;
 
             // Use animations embedded in the character GLB
             const clips = characterGltf.animations || [];
@@ -181,12 +183,13 @@ export class AssetLoader {
                 animMap['Walk'] = animMap['Walk'] || animMap['Run'] || animMap['Idle'];
                 animMap['Idle'] = animMap['Idle'] || clips[0];
 
-                this.assets.animations.character = {
-                    clips,
-                    map: animMap
-                };
+                const animData = { clips, map: animMap };
+                this.assets.animations.character = animData;
+                this.assets.animations.character_3k_mage = animData;
             } else {
-                this.assets.animations.character = { clips: [], map: {} };
+                const empty = { clips: [], map: {} };
+                this.assets.animations.character = empty;
+                this.assets.animations.character_3k_mage = empty;
             }
 
             console.log('Character loaded successfully');
@@ -196,6 +199,133 @@ export class AssetLoader {
             console.error('Failed to load character model:', error);
             console.log('Falling back to procedural character...');
             await this.createProceduralCharacter();
+        }
+    }
+
+    /**
+     * Load rogue character model (character_3k_rogue.glb) with embedded animations.
+     * Rogue clips: Idle, Walking, Running, RunFast, Run left, Run right, Basic attack Dagger/Bow, Charged attack Bow, special attack 1 Dagger, Sword_Judgment.
+     */
+    async loadRogueModel() {
+        const rogueUrl = './models/character_3k_rogue.glb?v=20260226-1';
+        try {
+            const gltf = await this.loadGLTF(rogueUrl);
+            const model = gltf.scene;
+            model.scale.setScalar(1.0);
+
+            model.traverse((child) => {
+                if (child.isMesh) {
+                    if (child.geometry?.isBufferGeometry) {
+                        child.geometry.computeVertexNormals();
+                        if (typeof child.geometry.normalizeNormals === 'function') child.geometry.normalizeNormals();
+                    }
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                    if (child.material) {
+                        const wasArrayMaterial = Array.isArray(child.material);
+                        const materials = wasArrayMaterial ? child.material : [child.material];
+                        child.material = materials.map((m) => {
+                            const mat = m.clone();
+                            mat.transparent = false;
+                            mat.opacity = 1.0;
+                            mat.alphaTest = 0.0;
+                            if ('alphaMap' in mat) mat.alphaMap = null;
+                            if ('transmission' in mat) mat.transmission = 0;
+                            if ('thickness' in mat) mat.thickness = 0;
+                            if ('premultipliedAlpha' in mat) mat.premultipliedAlpha = false;
+                            if ('blending' in mat) mat.blending = THREE.NormalBlending;
+                            if ('side' in mat) mat.side = THREE.FrontSide;
+                            mat.depthWrite = true;
+                            mat.depthTest = true;
+                            mat.flatShading = false;
+                            if ('metalness' in mat) mat.metalness = 0.02;
+                            if ('roughness' in mat) mat.roughness = 0.97;
+                            if ('envMapIntensity' in mat) mat.envMapIntensity = 0.0;
+                            if ('specularIntensity' in mat) mat.specularIntensity = 0.05;
+                            if ('clearcoat' in mat) mat.clearcoat = 0.0;
+                            if ('sheen' in mat) mat.sheen = 0.0;
+                            if (mat.color) mat.color.multiplyScalar(0.32);
+                            if (mat.map) { mat.map.premultiplyAlpha = false; mat.map.needsUpdate = true; }
+                            mat.needsUpdate = true;
+                            return mat;
+                        });
+                        if (!wasArrayMaterial) child.material = child.material[0];
+                    }
+                }
+            });
+
+            this.assets.models.character_3k_rogue = model;
+
+            const clips = gltf.animations || [];
+            if (clips.length > 0) {
+                console.log('Rogue animations:', clips.map(a => a.name));
+
+                const byName = {};
+                clips.forEach(clip => { byName[clip.name] = clip; });
+
+                const getIdle = () => byName['Idle'] || clips[0];
+                const getWalk = () => byName['Walking'] || clips[0];
+                const getRunFast = () => byName['Running fast'] || byName['RunFast'] || byName['Running'] || getWalk();
+                const getRunLeft = () => byName['Run left'] || getRunFast();
+                const getRunRight = () => byName['Run right'] || getRunFast();
+                const basicDagger = () => byName['Basic attack Dagger'] || clips[0];
+                const basicBow = () => byName['Basic attack Bow'] || clips[0];
+                const chargedBow = () => byName['Charged attack Bow'] || basicBow();
+                const special1Dagger = () => byName['special attack 1 Dagger'] || basicDagger();
+                const swordJudgment = () => byName['Sword_Judgment'] || basicBow();
+
+                // Shared locomotion for both kits: Idle, Run left, Run right, Running fast
+                const loco = {
+                    Idle: getIdle(),
+                    Walk: getWalk(),
+                    'Run': getRunFast(),
+                    'Fast running': getRunFast(),
+                    'Run left': getRunLeft(),
+                    'Run right': getRunRight(),
+                    Drink: getIdle(),
+                    'Roll dodge': basicDagger()
+                };
+
+                // Dagger kit (CAC): all attacks use Basic attack Dagger except Ultimate → Special attack 1 Dagger
+                const mapDagger = { ...loco };
+                mapDagger['Basic attack'] = basicDagger();
+                mapDagger['Charged attack'] = basicDagger();
+                mapDagger['Special attack 1'] = basicDagger();
+                mapDagger['Special attack 2'] = basicDagger();
+                mapDagger['Special attack 3'] = basicDagger();
+                mapDagger['Ultimate'] = special1Dagger();
+                mapDagger['Whip'] = basicDagger();
+
+                // Bow kit: Basic attack Bow for basic/specials/ultimate, Charged attack Bow for charged
+                const mapBow = { ...loco };
+                mapBow['Basic attack'] = basicBow();
+                mapBow['Charged attack'] = chargedBow();
+                mapBow['Special attack 1'] = basicBow();
+                mapBow['Special attack 2'] = basicBow();
+                mapBow['Special attack 3'] = basicBow();
+                mapBow['Ultimate'] = swordJudgment();
+                mapBow['Whip'] = basicBow();
+
+                this.assets.animations.character_3k_rogue_dagger = { clips, map: mapDagger };
+                this.assets.animations.character_3k_rogue_bow = { clips, map: mapBow };
+                this.assets.animations.character_3k_rogue = { clips, map: mapDagger };
+            } else {
+                const empty = { clips: [], map: {} };
+                this.assets.animations.character_3k_rogue_dagger = empty;
+                this.assets.animations.character_3k_rogue_bow = empty;
+                this.assets.animations.character_3k_rogue = empty;
+            }
+
+            console.log('Rogue loaded successfully');
+            return model;
+        } catch (error) {
+            console.warn('Rogue model not found, rogue kits will fall back to mage model:', error.message);
+            this.assets.models.character_3k_rogue = null;
+            const empty = { clips: [], map: {} };
+            this.assets.animations.character_3k_rogue_dagger = empty;
+            this.assets.animations.character_3k_rogue_bow = empty;
+            this.assets.animations.character_3k_rogue = empty;
+            return null;
         }
     }
 
@@ -819,11 +949,9 @@ export class AssetLoader {
             console.warn(`Model '${name}' not found in assets`);
             return null;
         }
-        // For character model, return directly (skeletal mesh needs original)
-        // For other models (weapons, environment), clone
-        if (name === 'character') {
-            return model;
-        }
+        // Character models: return directly (skeletal mesh needs original)
+        const isCharacter = name === 'character' || name === 'character_3k_mage' || name === 'character_3k_rogue';
+        if (isCharacter) return model;
         return model.clone();
     }
 

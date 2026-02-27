@@ -302,10 +302,29 @@ export class Game {
         // Blood Essence: decay all charges if 8s without adding
         this.gameState.updateBloodEssence();
 
-        // E = Finisher ability: Blood Crescend (blood mage) / Frost Beam (frost mage)
+        // Dagger kit: update buff timers (teleport/poison damage applied in CombatSystem.onHit)
+        const combat = this.gameState.combat;
+        if (combat.teleportDamageBuffRemaining > 0) {
+            combat.teleportDamageBuffRemaining = Math.max(0, combat.teleportDamageBuffRemaining - this.deltaTime);
+        }
+        if (combat.vanishRemaining > 0) {
+            combat.vanishRemaining = Math.max(0, combat.vanishRemaining - this.deltaTime);
+            if (combat.vanishRemaining <= 0) this.gameState.emit('vanishChanged', false);
+        }
+        if (combat.poisonDamageBuffRemaining > 0) {
+            combat.poisonDamageBuffRemaining = Math.max(0, combat.poisonDamageBuffRemaining - this.deltaTime);
+        }
+
+        // E = Finisher: Blood Crescend (blood mage) / Frost Beam (frost mage) / Poison Pierce (dagger)
         if (input.whipAttack) {
-            if (this.combatSystem?.isFrostKit) {
-                // Frost Mage: E always fires, power scales with frost stacks on enemies
+            if (this.combatSystem?.isDaggerKit && this.combatSystem?.daggerCombat) {
+                const result = this.gameState.tryPoisonPierce();
+                if (result.success) {
+                    this.combatSystem.daggerCombat.executePoisonPierce(result.chargesUsed);
+                } else {
+                    this.uiManager.showNoBloodEssenceFeedback();
+                }
+            } else if (this.combatSystem?.isFrostKit) {
                 this.combatSystem.executeBloodflail(0, 1);
             } else {
                 const result = this.gameState.tryBloodflail();
@@ -315,6 +334,25 @@ export class Game {
                     this.uiManager.showNoBloodEssenceFeedback();
                 }
             }
+        }
+
+        // V = Teleport Behind (dagger kit)
+        if (input.teleport && this.combatSystem?.isDaggerKit && this.combatSystem?.daggerCombat) {
+            this.combatSystem.daggerCombat.executeTeleportBehind();
+        }
+
+        // C = Vanish (dagger) or Shield (others)
+        if (input.shield && !this.gameState.combat.shieldActive) {
+            if (this.combatSystem?.isDaggerKit && this.combatSystem?.daggerCombat) {
+                this.combatSystem.daggerCombat.executeVanish();
+            } else {
+                this.gameState.activateShield(this.combatSystem.shieldDuration);
+            }
+        }
+
+        // X = Toxic Focus (dagger): consume poison charges for +15% damage per charge, 8s
+        if (input.bloodNova && this.combatSystem?.isDaggerKit && this.combatSystem?.daggerCombat) {
+            this.combatSystem.daggerCombat.executeToxicFocus();
         }
 
         // Ultimate slash spawn (after short delay when F is pressed)
@@ -331,8 +369,9 @@ export class Game {
             if (this.pendingUltimateSlash <= 0) {
                 const dir = this.pendingUltimateDir || this.character.getForwardDirection().clone().normalize();
                 const pos = this.character.getWeaponPosition().clone().add(dir.clone().multiplyScalar(0.5));
-                if (this.combatSystem.isFrostKit && this.combatSystem.frostCombat) {
-                    // Frost: enter blizzard targeting mode instead of instant cast
+                if (this.combatSystem.isDaggerKit && this.combatSystem.daggerCombat) {
+                    this.combatSystem.daggerCombat.spawnTwinDaggersUltimate();
+                } else if (this.combatSystem.isFrostKit && this.combatSystem.frostCombat) {
                     this.combatSystem.frostCombat.beginBlizzardTargeting();
                 } else {
                     this.combatSystem.spawnUltimateSlash(pos, dir);
@@ -478,10 +517,7 @@ export class Game {
             this._stalactiteMouseX = null;
         }
 
-        // Blood shield (C): activate and timer
-        if (input.shield && !this.gameState.combat.shieldActive) {
-            this.gameState.activateShield(this.combatSystem.shieldDuration);
-        }
+        // Shield (C) / Vanish (dagger) handled above with teleport
         if (this.gameState.combat.shieldActive) {
             this.gameState.combat.shieldTimeRemaining -= this.deltaTime;
             if (this.gameState.combat.shieldTimeRemaining <= 0) {

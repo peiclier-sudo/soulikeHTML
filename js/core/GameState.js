@@ -71,7 +71,12 @@ export class GameState {
             shieldTimeRemaining: 0,
             isDrinkingPotion: false,
             drinkingPotionTimer: 0,
-            nextAttackDamageMultiplier: 1.0
+            nextAttackDamageMultiplier: 1.0,
+            // Dagger kit (shadow_assassin): teleport = +100% damage 3s, vanish = invisible + 60% speed, X = 15% per charge 8s
+            teleportDamageBuffRemaining: 0,
+            vanishRemaining: 0,
+            poisonDamageBuffMultiplier: 1.0,
+            poisonDamageBuffRemaining: 0
         };
 
         // Movement state
@@ -103,6 +108,9 @@ export class GameState {
         this.enemies = [];
         this.bloodCharges = 0;
         this.bloodLastChargeTime = 0;
+
+        // Dagger kit: poison charges (max 6), gained on basic/charged hit
+        this.poisonCharges = 0;
 
         // Game flags
         this.flags = {
@@ -221,6 +229,58 @@ export class GameState {
             this.bloodCharges = 0;
             this.emit('bloodChargesChanged', 0);
         }
+    }
+
+    // ─── Dagger kit: poison charges (max 6) ───────────────────────
+    addPoisonCharge(amount = 1) {
+        if (this.selectedKitId !== 'shadow_assassin') return;
+        const newCharges = Math.min(6, (this.poisonCharges ?? 0) + amount);
+        this.poisonCharges = newCharges;
+        this.emit('poisonChargesChanged', this.poisonCharges);
+    }
+
+    getPoisonCharges() {
+        return this.selectedKitId === 'shadow_assassin' ? (this.poisonCharges ?? 0) : 0;
+    }
+
+    /** Consume up to maxCharges poison charges; returns { consumed, remaining }. */
+    tryConsumePoisonCharges(maxCharges = 6) {
+        const have = this.poisonCharges ?? 0;
+        const consumed = Math.min(maxCharges, have);
+        if (consumed <= 0) return { consumed: 0, remaining: have };
+        this.poisonCharges = Math.max(0, have - consumed);
+        this.emit('poisonChargesChanged', this.poisonCharges);
+        return { consumed, remaining: this.poisonCharges };
+    }
+
+    /** E = Poison Pierce: consume charges, apply damage + poison. Returns { success, chargesUsed }. */
+    tryPoisonPierce() {
+        const have = this.getPoisonCharges();
+        if (have < 1) return { success: false, chargesUsed: 0 };
+        const consumed = have;
+        this.poisonCharges = 0;
+        this.emit('poisonChargesChanged', 0);
+        return { success: true, chargesUsed: consumed };
+    }
+
+    /** Activate teleport-behind buff: +100% damage for 3 seconds. */
+    activateTeleportDamageBuff() {
+        this.combat.teleportDamageBuffRemaining = 3.0;
+    }
+
+    /** Activate vanish: invisible + 60% speed. Duration from kit abilityC or 5s. */
+    activateVanish(durationSeconds = 5) {
+        this.combat.vanishRemaining = durationSeconds;
+        this.emit('vanishChanged', true);
+    }
+
+    /** X: consume poison charges for damage buff; 15% per charge, 8s. Returns charges consumed. */
+    tryActivatePoisonDamageBuff() {
+        const { consumed } = this.tryConsumePoisonCharges(6);
+        if (consumed <= 0) return 0;
+        this.combat.poisonDamageBuffMultiplier = 1 + 0.15 * consumed;
+        this.combat.poisonDamageBuffRemaining = 8.0;
+        return consumed;
     }
 
     // E = Bloodflail. If 0 charges, does nothing (caller shows feedback). Else consumes all, returns multiplier.

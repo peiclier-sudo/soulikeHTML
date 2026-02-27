@@ -7,6 +7,7 @@ import { createBloodFireMaterial, updateBloodFireMaterial } from '../shaders/Blo
 import { createBloodFireVFX } from '../effects/BloodFireVFX.js';
 import { createIceMaterial, updateIceMaterial } from '../shaders/IceShader.js';
 import { FrostCombat } from './FrostCombat.js';
+import { DaggerCombat } from './DaggerCombat.js';
 
 export class CombatSystem {
     constructor(scene, character, gameState, particleSystem = null, onProjectileHit = null) {
@@ -140,6 +141,8 @@ export class CombatSystem {
         // Kit-specific combat module
         this.isFrostKit = (kit?.id === 'frost_mage');
         this.frostCombat = this.isFrostKit ? new FrostCombat(this) : null;
+        this.isDaggerKit = (kit?.id === 'shadow_assassin');
+        this.daggerCombat = this.isDaggerKit ? new DaggerCombat(this) : null;
     }
 
     /** Crescent / croissant shape for ultimate slash (arc shape) */
@@ -374,7 +377,7 @@ export class CombatSystem {
     update(deltaTime, input) {
         if (this.crimsonEruptionCooldown > 0) this.crimsonEruptionCooldown -= deltaTime;
         if (this.bloodNovaCooldown > 0) this.bloodNovaCooldown -= deltaTime;
-        if (input.bloodNova) {
+        if (input.bloodNova && !this.isDaggerKit) {
             if (this.isFrostKit && this.frostCombat) {
                 this.frostCombat.beginStalactiteTargeting();
             } else {
@@ -501,9 +504,12 @@ export class CombatSystem {
             }
         }
         if (this.gameState.combat.isChargedAttacking) {
+            if (this.isDaggerKit && this.chargedAttackTimer > 0 && this.chargedAttackTimer <= 0.2 && !this._meleeHitThisSwing) {
+                this.checkHits();
+            }
             this.chargedAttackTimer -= deltaTime;
             if (this.chargedAttackTimer <= 0) {
-                this.spawnFireball(true);
+                if (!this.isDaggerKit) this.spawnFireball(true);
                 this.gameState.combat.isChargedAttacking = false;
             }
         } else if (this.gameState.combat.isAttacking) {
@@ -512,9 +518,9 @@ export class CombatSystem {
             if (input.chargedAttackRelease) {
                 if (this.chargeTimer >= this.minChargeToRelease && this.gameState.useStamina(10)) {
                     this.gameState.combat.isChargedAttacking = true;
-                    // Projectile leaves when the charged attack animation finishes (one play, then release)
-                    this.chargedAttackTimer = (1 - this.chargeTimer / this.chargeDuration) * this.chargeDuration;
+                    this.chargedAttackTimer = this.isDaggerKit ? 0.45 : (1 - this.chargeTimer / this.chargeDuration) * this.chargeDuration;
                     this.gameState.combat.releasedCharge = this.chargeTimer;
+                    if (this.isDaggerKit) this._nextMeleeIsCharged = true;
                 }
                 this.chargeTimer = 0;
                 this.gameState.combat.isCharging = false;
@@ -546,6 +552,7 @@ export class CombatSystem {
         this.updateUltimateSlash(deltaTime);
         this.updateBloodCrescend(deltaTime);
         if (this.frostCombat) this.frostCombat.update(deltaTime);
+        if (this.daggerCombat) this.daggerCombat.update(deltaTime);
     }
 
     updateChargeOrb(deltaTime) {
@@ -642,7 +649,7 @@ export class CombatSystem {
             return;
         }
 
-        this.spawnFireball(false);
+        if (!this.isDaggerKit) this.spawnFireball(false);
 
         const basicClip = this.character.actions?.['Basic attack']?.getClip();
         const basicTimeScale = 3.8;
@@ -705,20 +712,32 @@ export class CombatSystem {
     }
 
     onHit(hitInfo) {
-        const baseDamage = this.gameState.equipment.weapon.damage;
+        const isCharged = this._nextMeleeIsCharged === true;
+        if (this._nextMeleeIsCharged) this._nextMeleeIsCharged = false;
+
+        let baseDamage = this.gameState.equipment.weapon.damage;
+        if (this.isDaggerKit && isCharged) {
+            const charged = this.gameState.selectedKit?.combat?.chargedAttack;
+            baseDamage = charged?.damage ?? baseDamage * 2;
+        }
         const comboMultiplier = 1 + (this.gameState.combat.comboCount - 1) * 0.2;
         const isCritical = Math.random() < 0.15;
 
-        const nextMult = this._consumeNextAttackMultiplier();
-        let damage = Math.floor(baseDamage * comboMultiplier * nextMult);
+        let mult = this._consumeNextAttackMultiplier();
+        const c = this.gameState.combat;
+        if (c.teleportDamageBuffRemaining > 0) mult *= 2.0;
+        if (c.poisonDamageBuffRemaining > 0) mult *= (c.poisonDamageBuffMultiplier ?? 1);
+        let damage = Math.floor(baseDamage * comboMultiplier * mult);
         if (isCritical) {
             damage = Math.floor(damage * 1.5);
         }
 
-        // Apply damage to enemy and charge ultimate (melee = basic)
         if (hitInfo.object.userData.enemy) {
             hitInfo.object.userData.enemy.takeDamage(damage);
-            this.gameState.addUltimateCharge('basic');
+            this.gameState.addUltimateCharge(isCharged ? 'charged' : 'basic');
+            if (this.isDaggerKit) {
+                this.gameState.addPoisonCharge(isCharged ? 2 : 1);
+            }
             const hitPos = hitInfo.point?.clone() ?? hitInfo.object.getWorldPosition?.(new THREE.Vector3()) ?? this.character.position.clone();
             this.gameState.emit('damageNumber', { position: hitPos, damage, isCritical, anchorId: this._getDamageAnchorId(hitInfo.object.userData.enemy) });
         }

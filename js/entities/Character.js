@@ -194,8 +194,8 @@ export class Character {
     }
 
     createCharacterMesh() {
-        // Get the loaded character model
-        const originalModel = this.assetLoader.getModel('character');
+        const modelKey = this.gameState?.selectedKit?.model || 'character_3k_mage';
+        const originalModel = this.assetLoader.getModel(modelKey);
 
         if (originalModel) {
             // Use the original model directly (don't clone for skeletal animation)
@@ -303,7 +303,8 @@ export class Character {
      * Setup the Three.js AnimationMixer and animation actions
      */
     setupAnimations() {
-        const animationData = this.assetLoader.assets.animations.character;
+        const animKey = this.gameState?.selectedKit?.animationKey || this.gameState?.selectedKit?.model || 'character_3k_mage';
+        const animationData = this.assetLoader.assets.animations[animKey];
 
         if (!animationData) {
             console.warn('No animation data available for character');
@@ -662,6 +663,9 @@ export class Character {
     }
     
     update(deltaTime, input, mouseSensitivity) {
+        // Vanish (dagger C): invisible while active
+        if (this.mesh) this.mesh.visible = (this.gameState?.combat?.vanishRemaining <= 0);
+
         // Ultimate (F): consume full bar and play Special attack 1 animation
         const ultimateAction = this.actions['Special attack 1'] || this.actions['Ultimate'];
         if (input.ultimate && (this.gameState.player.ultimateCharge >= 100 || this.gameState.ultimateTestMode) && !this.isPlayingUltimate && ultimateAction) {
@@ -816,9 +820,10 @@ export class Character {
         if (moveVector.length() > 0) {
             moveVector.normalize();
 
-            // Default fast run when moving
+            // Default fast run when moving; Vanish (dagger C) gives +60% speed
             const isRunning = this.gameState.player.stamina > 5;
-            const speed = isRunning ? this.runSpeed : this.walkSpeed;
+            const vanishMult = (this.gameState?.combat?.vanishRemaining > 0) ? 1.6 : 1;
+            const speed = (isRunning ? this.runSpeed : this.walkSpeed) * vanishMult;
 
             // Drain stamina while running
             if (isRunning) {
