@@ -449,9 +449,9 @@ export class Game {
             this._blizzardMouseX = null;
         }
 
-        // Q ability: Frost Mage → instant Frozen Orb, others → Crimson Eruption targeting
+        // Q ability: Frost Mage → Ice Claw, others → Crimson Eruption targeting
         if (this.combatSystem && input.crimsonEruption && !this.combatSystem.isDaggerKit && this.combatSystem.isFrostKit && this.combatSystem.frostCombat) {
-            this.combatSystem.frostCombat.castFrozenOrb();
+            this.combatSystem.frostCombat.castIceClaw();
             input.crimsonEruption = false;
         }
         if (this.combatSystem && typeof this.combatSystem.updateCrimsonEruptionPreview === 'function') {

@@ -2,7 +2,7 @@
  * FrostCombat - Frost Mage specific combat abilities.
  *
  * Manages: frost stacks on enemies, ice projectile creation,
- * Frozen Orb (Q), Frost Beam (E), Ice Block (X), Ice Barrier (C),
+ * Ice Claw (Q), Frost Beam (E), Ice Block (X), Ice Barrier (C),
  * Blizzard ultimate (F), and frost stack indicator visuals on enemies.
  *
  * Plugs into CombatSystem: CombatSystem delegates to this when kit is frost_mage.
@@ -31,13 +31,11 @@ export class FrostCombat {
         this.frostIndicators = new Map();    // enemy → THREE.Group (orbs)
         this._frostDecayCheckInterval = 0;
 
-        // ── Frozen Orb (Q) ──
-        this.frozenOrb = null;
-        this.frozenOrbCooldown = 0;
-        this.frozenOrbCooldownDuration = 9;
-        this.frozenOrbDamage = 40;           // per shard (fewer shards, more damage each)
-        this.frozenOrbShardInterval = 0.28;
-        this.frozenOrbRadius = 14;
+        // ── Ice Claw (Q) — 3 homing ice blades in a claw spread ──
+        this.iceClaws = [];          // active claw blade array
+        this.iceClawCooldown = 0;
+        this.iceClawCooldownDuration = 7;
+        this.iceClawDamage = 55;     // per blade
 
         // ── Frost Beam (E) - consumes frost stacks ──
         this.frostBeam = null;
@@ -310,183 +308,183 @@ export class FrostCombat {
     }
 
     // ═══════════════════════════════════════════════════════════
-    //  FROZEN ORB (Q) - surprise ability!
+    //  ICE CLAW (Q) — 3 homing ice blades in a claw spread
     // ═══════════════════════════════════════════════════════════
 
-    castFrozenOrb() {
-        if (this.frozenOrb || this.frozenOrbCooldown > 0) return false;
+    castIceClaw() {
+        if (this.iceClaws.length > 0 || this.iceClawCooldown > 0) return false;
 
         const startPos = this.character.getWeaponPosition();
-        const dir = this.character.getForwardDirection().clone();
-        dir.y = 0;
-        if (dir.lengthSq() < 0.0001) dir.set(0, 0, -1);
-        dir.normalize();
+        const forward = this.character.getForwardDirection().clone();
+        forward.y = 0;
+        if (forward.lengthSq() < 0.0001) forward.set(0, 0, -1);
+        forward.normalize();
 
-        const group = new THREE.Group();
-        group.position.copy(startPos).addScaledVector(dir, 0.5);
+        // Find nearest enemy for homing target
+        const target = this._findNearestEnemy(startPos, 20);
 
-        // Main orb (glowing ice sphere)
-        const orbGeo = new THREE.SphereGeometry(0.55, 12, 12);
-        const orbMat = createIceMaterial({
-            coreBrightness: 1.8,
-            iceSpeed: 5.0,
-            isCharged: 1.0,
-            layerScale: 0.7,
-            rimPower: 1.8,
-            displaceAmount: 0.8
-        });
-        orbMat.uniforms.alpha.value = 0.75;
-        group.add(new THREE.Mesh(orbGeo, orbMat));
+        // 3 blades: center + two side fangs at ±35°
+        const angles = [-0.61, 0, 0.61]; // radians (~35°)
+        const yAxis = new THREE.Vector3(0, 1, 0);
 
-        // Inner core
-        const coreGeo = new THREE.SphereGeometry(0.3, 10, 10);
-        const coreMat = createIceMaterial({
-            coreBrightness: 2.5,
-            iceSpeed: 8.0,
-            isCharged: 1.0,
-            layerScale: 1.4
-        });
-        group.add(new THREE.Mesh(coreGeo, coreMat));
+        for (let i = 0; i < 3; i++) {
+            const dir = forward.clone().applyAxisAngle(yAxis, angles[i]);
 
-        // Point light
-        const light = new THREE.PointLight(0x66ccff, 18, 20, 2);
-        group.add(light);
+            // Tapered blade shape — narrow, sharp, like a claw
+            const bladeGeo = new THREE.ConeGeometry(0.06, 0.7, 3);
+            bladeGeo.rotateX(-Math.PI / 2);
+            const bladeMat = createIceMaterial({
+                coreBrightness: 2.4,
+                iceSpeed: 7.0,
+                isCharged: 1.0,
+                layerScale: 1.3,
+                rimPower: 2.2
+            });
+            bladeMat.uniforms.alpha.value = 0.95;
 
-        this.scene.add(group);
+            const mesh = new THREE.Mesh(bladeGeo, bladeMat);
+            // Stagger spawn: center leads, sides slightly behind
+            const offset = i === 1 ? 0.6 : 0.3;
+            mesh.position.copy(startPos).addScaledVector(dir, offset);
+            const quat = new THREE.Quaternion().setFromUnitVectors(
+                new THREE.Vector3(0, 0, 1), dir
+            );
+            mesh.quaternion.copy(quat);
+            this.scene.add(mesh);
 
-        this.frozenOrb = {
-            mesh: group,
-            velocity: dir.clone().multiplyScalar(4.5), // slow-moving heavy orb
-            lifetime: 0,
-            maxLifetime: 4.0,
-            shardTimer: 0,
-            materials: [orbMat, coreMat],
-            geometries: [orbGeo, coreGeo],
-            light,
-            hitSet: new Set()
-        };
+            const blade = {
+                mesh,
+                dir: dir.clone(),
+                velocity: dir.clone().multiplyScalar(22),
+                lifetime: 0,
+                maxLifetime: 0.9,
+                damage: this.iceClawDamage,
+                hitSet: new Set(),
+                material: bladeMat,
+                geometry: bladeGeo,
+                target,           // enemy object or null
+                homing: !!target, // enable homing if we found a target
+                homingStrength: 8 + i * 2, // outer blades turn harder
+                index: i,
+                _trailTick: 0
+            };
+            this.iceClaws.push(blade);
+        }
 
-        this.frozenOrbCooldown = this.frozenOrbCooldownDuration;
+        this.iceClawCooldown = this.iceClawCooldownDuration;
 
+        // Launch VFX — crisp burst
         if (this.particleSystem) {
-            this.particleSystem.emitIceBurst(startPos, 20);
+            this.particleSystem.emitIceBurst(startPos, 10);
         }
         if (this.cs.onProjectileHit) this.cs.onProjectileHit({ whipWindup: true });
 
         return true;
     }
 
-    updateFrozenOrb(deltaTime) {
-        const orb = this.frozenOrb;
-        if (!orb) return;
-
-        orb.lifetime += deltaTime;
-        orb.mesh.position.addScaledVector(orb.velocity, deltaTime);
-        orb.mesh.rotation.y += deltaTime * 3;
-
-        const lifePct = 1 - orb.lifetime / orb.maxLifetime;
-        // Throttle shader updates to every 2nd frame
-        orb._shaderTick = (orb._shaderTick || 0) + 1;
-        if (orb._shaderTick % 2 === 0) {
-            orb.materials.forEach(mat => updateIceMaterial(mat, orb.lifetime * 6, 0.8 * lifePct));
-        }
-        if (orb.light) orb.light.intensity = (18 + 6 * Math.sin(orb.lifetime * 12)) * lifePct;
-
-        // Emit ice shards radially
-        orb.shardTimer -= deltaTime;
-        if (orb.shardTimer <= 0) {
-            orb.shardTimer = this.frozenOrbShardInterval;
-            this._emitFrozenOrbShard(orb);
-        }
-
-        // Particles - throttle to every 3rd frame for performance
-        if (this.particleSystem && orb.lifetime < orb.maxLifetime - 0.2) {
-            orb._trailTick = (orb._trailTick || 0) + 1;
-            if (orb._trailTick % 3 === 0) {
-                this.particleSystem.emitIceTrail(orb.mesh.position, 2);
-            }
-        }
-
-        // Check direct hits (orb itself)
-        const orbPos = orb.mesh.position;
+    /** Find the nearest living enemy within range. */
+    _findNearestEnemy(origin, maxDist) {
+        let best = null;
+        let bestDist = maxDist * maxDist;
         for (const enemyMesh of this.cs.enemies) {
             const enemy = enemyMesh.userData?.enemy;
             if (!enemy || enemy.health <= 0) continue;
             enemyMesh.getWorldPosition(this._enemyPos);
-            const hitRadius = (enemy.hitRadius ?? (enemy.isBoss ? 2.5 : 0.8)) + 0.8;
-            if (orbPos.distanceTo(this._enemyPos) < hitRadius && !orb.hitSet.has(enemy)) {
-                orb.hitSet.add(enemy);
-                const rawOrbDmg = this.frozenOrbDamage * 4;
-                const { damage: orbDmg, isCritical: orbCrit, isBackstab: orbBack } = this.cs._applyCritBackstab(rawOrbDmg, enemy, enemyMesh);
-                enemy.takeDamage(orbDmg);
-                this.addFrostStack(enemy, 3);
-                this.gameState.addUltimateCharge('charged');
-                this.gameState.emit('damageNumber', {
-                    position: this._enemyPos.clone(),
-                    damage: orbDmg,
-                    isCritical: orbCrit,
-                    isBackstab: orbBack,
-                    kind: 'ability',
-                    anchorId: this.cs._getDamageAnchorId(enemy)
-                });
+            const d2 = origin.distanceToSquared(this._enemyPos);
+            if (d2 < bestDist) {
+                bestDist = d2;
+                best = { enemy, mesh: enemyMesh };
             }
         }
-
-        if (orb.lifetime >= orb.maxLifetime) {
-            // Shatter explosion
-            if (this.particleSystem) {
-                this.particleSystem.emitIceShatter(orbPos, 18);
-                this.particleSystem.emitIceBurst(orbPos, 14);
-            }
-            this.scene.remove(orb.mesh);
-            orb.geometries.forEach(g => g.dispose());
-            orb.materials.forEach(m => m.dispose());
-            this.frozenOrb = null;
-        }
+        return best;
     }
 
-    /** Shoot an ice shard from the Frozen Orb in a radial direction */
-    _emitFrozenOrbShard(orb) {
-        // Pick a random horizontal direction
-        const angle = Math.random() * Math.PI * 2;
-        const dir = new THREE.Vector3(Math.cos(angle), 0.1 * (Math.random() - 0.5), Math.sin(angle));
-        dir.normalize();
+    updateIceClaws(deltaTime) {
+        for (let i = this.iceClaws.length - 1; i >= 0; i--) {
+            const b = this.iceClaws[i];
+            b.lifetime += deltaTime;
 
-        const startPos = orb.mesh.position.clone();
+            // Homing: steer velocity toward target
+            if (b.homing && b.target) {
+                const tEnemy = b.target.enemy;
+                const tMesh = b.target.mesh;
+                if (tEnemy && tEnemy.health > 0) {
+                    tMesh.getWorldPosition(this._tmpVec);
+                    const toTarget = this._tmpVec.sub(b.mesh.position);
+                    toTarget.y = 0;
+                    const dist = toTarget.length();
+                    if (dist > 0.1) {
+                        toTarget.divideScalar(dist); // normalize
+                        // Blend velocity direction toward target
+                        const speed = b.velocity.length();
+                        b.velocity.addScaledVector(toTarget, b.homingStrength * deltaTime);
+                        b.velocity.normalize().multiplyScalar(speed);
+                        // Rotate mesh to face travel direction
+                        const q = new THREE.Quaternion().setFromUnitVectors(
+                            new THREE.Vector3(0, 0, 1), b.velocity.clone().normalize()
+                        );
+                        b.mesh.quaternion.slerp(q, 0.3);
+                    }
+                } else {
+                    b.homing = false; // target died, keep flying straight
+                }
+            }
 
-        // Create small ice shard projectile
-        const shardGeo = new THREE.ConeGeometry(0.04, 0.25, 4);
-        shardGeo.rotateX(-Math.PI / 2);
-        const shardMat = createIceMaterial({
-            coreBrightness: 2.0,
-            iceSpeed: 6.0,
-            layerScale: 1.5
-        });
-        shardMat.uniforms.alpha.value = 0.9;
-        const shardMesh = new THREE.Mesh(shardGeo, shardMat);
-        shardMesh.position.copy(startPos);
-        const quat = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), dir);
-        shardMesh.quaternion.copy(quat);
-        this.scene.add(shardMesh);
+            // Move
+            b.mesh.position.addScaledVector(b.velocity, deltaTime);
 
-        // Add as a mini-projectile to CombatSystem's projectile list
-        const shard = {
-            mesh: shardMesh,
-            velocity: dir.clone().multiplyScalar(18),
-            lifetime: 0,
-            maxLifetime: 0.55,
-            damage: this.frozenOrbDamage,
-            releaseBurst: 0,
-            isCharged: false,
-            isFrost: true,
-            isShard: true,
-            skipShaderUpdate: true,
-            materials: [shardMat],
-            geometries: [shardGeo],
-            vfx: null
-        };
-        this.cs.projectiles.push(shard);
-        this.scene.add(shardMesh);
+            // Fade alpha over last 25% of lifetime
+            const lifePct = 1 - b.lifetime / b.maxLifetime;
+            const alpha = lifePct < 0.25 ? lifePct / 0.25 : 1;
+            if (b.material.uniforms?.alpha) b.material.uniforms.alpha.value = 0.95 * alpha;
+
+            // Trail particles — lightweight, every 3rd tick
+            b._trailTick++;
+            if (this.particleSystem && b._trailTick % 3 === 0 && lifePct > 0.1) {
+                this.particleSystem.emitIceTrail(b.mesh.position, 1);
+            }
+
+            // Hit detection
+            const bladePos = b.mesh.position;
+            for (const enemyMesh of this.cs.enemies) {
+                const enemy = enemyMesh.userData?.enemy;
+                if (!enemy || enemy.health <= 0 || b.hitSet.has(enemy)) continue;
+                enemyMesh.getWorldPosition(this._enemyPos);
+                const hitRadius = (enemy.hitRadius ?? (enemy.isBoss ? 2.5 : 0.8)) + 0.5;
+                if (bladePos.distanceTo(this._enemyPos) < hitRadius) {
+                    b.hitSet.add(enemy);
+                    const { damage, isCritical, isBackstab } = this.cs._applyCritBackstab(b.damage, enemy, enemyMesh);
+                    enemy.takeDamage(damage);
+                    this.addFrostStack(enemy, 2);
+                    this.gameState.addUltimateCharge('charged');
+                    this.gameState.emit('damageNumber', {
+                        position: this._enemyPos.clone(),
+                        damage,
+                        isCritical,
+                        isBackstab,
+                        kind: 'ability',
+                        anchorId: this.cs._getDamageAnchorId(enemy)
+                    });
+                    if (this.particleSystem) {
+                        this.particleSystem.emitIceShatter(this._enemyPos, 4);
+                    }
+                    if (this.cs.onProjectileHit) {
+                        this.cs.onProjectileHit({ charged: true, isBoss: !!enemy.isBoss });
+                    }
+                }
+            }
+
+            // Expired
+            if (b.lifetime >= b.maxLifetime) {
+                if (this.particleSystem) {
+                    this.particleSystem.emitIceShatter(bladePos, 3);
+                }
+                this.scene.remove(b.mesh);
+                b.geometry.dispose();
+                b.material.dispose();
+                this.iceClaws.splice(i, 1);
+            }
+        }
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -1046,10 +1044,10 @@ export class FrostCombat {
     // ═══════════════════════════════════════════════════════════
 
     update(deltaTime) {
-        if (this.frozenOrbCooldown > 0) this.frozenOrbCooldown -= deltaTime;
+        if (this.iceClawCooldown > 0) this.iceClawCooldown -= deltaTime;
         if (this.stalactiteCooldown > 0) this.stalactiteCooldown -= deltaTime;
 
-        this.updateFrozenOrb(deltaTime);
+        this.updateIceClaws(deltaTime);
         this.updateFrostBeam(deltaTime);
         this.updateStalactite(deltaTime);
         this.updateBlizzard(deltaTime);
