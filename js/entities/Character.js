@@ -401,7 +401,7 @@ export class Character {
 
             // Scale mage model up to match rogue model size
             if (modelKey === 'character_3k_mage') {
-                this.mesh.scale.setScalar(1.15);
+                this.mesh.scale.setScalar(1.22);
             }
 
             // Enable shadows
