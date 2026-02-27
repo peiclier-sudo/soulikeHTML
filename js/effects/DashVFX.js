@@ -15,12 +15,21 @@ const BLOOD_BRIGHT = 0xcc0c0c;
 const BLOOD_MID = 0x880808;
 const BLOOD_DARK = 0x2a0808;
 
+const ICE_BRIGHT = 0x88ddff;
+const ICE_MID = 0x44aaff;
+const ICE_DARK = 0x0a2a5a;
+
 /**
  * @param {THREE.Scene} scene
+ * @param {{ isFrost?: boolean }} opts
  * @returns {{ update: (dt: number, position: THREE.Vector3, direction: THREE.Vector3, progress: number, isDashing: boolean) => boolean, dispose: () => void }}
  * update returns true while VFX is active (keep calling); false when done and disposed.
  */
-export function createDashVFX(scene) {
+export function createDashVFX(scene, opts = {}) {
+    const isFrost = !!opts.isFrost;
+    const COL_BRIGHT = isFrost ? ICE_BRIGHT : BLOOD_BRIGHT;
+    const COL_MID = isFrost ? ICE_MID : BLOOD_MID;
+    const COL_DARK = isFrost ? ICE_DARK : BLOOD_DARK;
     let fadeOutTimer = -1;
 
     // —— Trail (world-space, blood red)
@@ -43,9 +52,9 @@ export function createDashVFX(scene) {
     const trailMesh = new THREE.Points(trailGeo, trailMat);
     trailMesh.frustumCulled = false;
     scene.add(trailMesh);
-    const colorCrimson = new THREE.Color(BLOOD_BRIGHT);
-    const colorDark = new THREE.Color(BLOOD_DARK);
-    const colorMid = new THREE.Color(BLOOD_MID);
+    const colorCrimson = new THREE.Color(COL_BRIGHT);
+    const colorDark = new THREE.Color(COL_DARK);
+    const colorMid = new THREE.Color(COL_MID);
     const _right = new THREE.Vector3();
     const _up = new THREE.Vector3();
     const _worldUp = new THREE.Vector3(0, 1, 0);
@@ -66,7 +75,7 @@ export function createDashVFX(scene) {
     vortexGeo.setAttribute('position', new THREE.BufferAttribute(vortexPositions, 3));
     const vortexMat = new THREE.PointsMaterial({
         size: 0.12,
-        color: BLOOD_BRIGHT,
+        color: COL_BRIGHT,
         transparent: true,
         opacity: 0.85,
         sizeAttenuation: true,
@@ -95,7 +104,7 @@ export function createDashVFX(scene) {
     sparkGeo.setAttribute('position', new THREE.BufferAttribute(sparkPositions, 3));
     const sparkMat = new THREE.PointsMaterial({
         size: 0.08,
-        color: BLOOD_BRIGHT,
+        color: COL_BRIGHT,
         transparent: true,
         opacity: 0.95,
         sizeAttenuation: true,

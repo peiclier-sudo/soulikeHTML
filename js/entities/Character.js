@@ -880,7 +880,7 @@ export class Character {
         if (isSuper) this.superDashCooldown = this.superDashCooldownDuration;
         this.gameState.combat.invulnerable = true;
         if (this.dashVfx) this.dashVfx.dispose();
-        this.dashVfx = createDashVFX(this.scene);
+        this.dashVfx = createDashVFX(this.scene, { isFrost: this.gameState.selectedKit?.id === 'frost_mage' });
     }
 
     updateDash(deltaTime) {
