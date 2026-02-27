@@ -509,10 +509,10 @@ export const KIT_DEFINITIONS = {
         },
 
         theme: {
-            primary: 0x1a3a6a,    // deep blue
-            secondary: 0x4488ff,  // bright blue
-            accent: 0xaaddff,     // ice white
-            particleColor: 0x4488ff,
+            primary: 0x2a1a5a,    // deep violet
+            secondary: 0x8844ff,  // bright violet
+            accent: 0xccaaff,     // lavender
+            particleColor: 0x8844ff,
             uiClass: 'kit-bow-ranger'
         },
 

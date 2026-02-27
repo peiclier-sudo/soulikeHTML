@@ -648,8 +648,8 @@ export class CombatSystem {
                     })
                     : (this.isBowRangerKit
                         ? new THREE.MeshStandardMaterial({
-                            color: 0x4488ff,
-                            emissive: 0x2244aa,
+                            color: 0x8844ff,
+                            emissive: 0x4422aa,
                             emissiveIntensity: 1.6,
                             roughness: 0.3,
                             metalness: 0.1,
@@ -684,7 +684,7 @@ export class CombatSystem {
                 ringGeo.setAttribute('position', new THREE.BufferAttribute(ringPos, 3));
                 const ringMat = new THREE.PointsMaterial({
                     size: 0.04,
-                    color: this.isFrostKit ? 0x44aaff : (this.isBowRangerKit ? 0x4488ff : (this.isVenomKit ? 0x66ff66 : 0xaa0a0a)),
+                    color: this.isFrostKit ? 0x44aaff : (this.isBowRangerKit ? 0x8844ff : (this.isVenomKit ? 0x66ff66 : 0xaa0a0a)),
                     transparent: true,
                     opacity: 0.9,
                     depthWrite: false,
@@ -1308,8 +1308,8 @@ export class CombatSystem {
                     this.gameState.emit('damageNumber', { position: this._enemyPos.clone(), damage: projDmg, isCritical: projCrit, isBackstab: projBack, anchorId: this._getDamageAnchorId(enemy) });
                     if (this.particleSystem) {
                         if (p.isBowArrow) {
-                            this.particleSystem.emitSparks(fireballPos.clone(), p.isCharged ? 10 : 5);
-                            if (this.particleSystem.emitIceBurst) this.particleSystem.emitIceBurst(fireballPos, p.isCharged ? 6 : 3);
+                            this.particleSystem.emitSparks(fireballPos.clone(), p.isCharged ? 8 : 4);
+                            if (this.particleSystem.emitVioletBurst) this.particleSystem.emitVioletBurst(fireballPos, p.isCharged ? 6 : 3);
                         } else if (p.isFrost) {
                             this.particleSystem.emitIceBurst(fireballPos, p.isCharged ? 12 : 6);
                             this.particleSystem.emitIceShatter(fireballPos, p.isCharged ? 8 : 4);
@@ -1615,8 +1615,8 @@ export class CombatSystem {
         mesh.castShadow = false;
         const group = new THREE.Group();
         group.frustumCulled = false;
-        const orbLight = new THREE.PointLight(0xc1081a, 0, 55, 2.5);
-        const outerGlow = new THREE.PointLight(0x7a0010, 0, 35, 1.2);
+        const orbLight = new THREE.PointLight(0xc1081a, 0, 25, 2.5);
+        const outerGlow = new THREE.PointLight(0x7a0010, 0, 16, 1.2);
         group.add(mesh); group.add(orbLight); group.add(outerGlow);
         return { group, orbMat, sphereGeo, orbLight, outerGlow, velocity: new THREE.Vector3() };
     }

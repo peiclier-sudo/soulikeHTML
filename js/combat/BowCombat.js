@@ -116,8 +116,8 @@ export class BowCombat {
     // Arrow creation
     // ═══════════════════════════════════════════════════════════════
 
-    /** Create a blue arrow mesh. scale controls overall size. */
-    createArrowMesh(scale = 1.0, color = 0x4488ff) {
+    /** Create a violet arrow mesh. scale controls overall size. */
+    createArrowMesh(scale = 1.0, color = 0x8844ff) {
         const group = new THREE.Group();
         const materials = [];
         const geometries = [];
@@ -142,7 +142,7 @@ export class BowCombat {
         const headRad = 0.035 * scale;
         const headGeo = new THREE.ConeGeometry(headRad, headLen, 4);
         const headMat = new THREE.MeshBasicMaterial({
-            color: 0xaaddff,
+            color: 0xccaaff,
             transparent: true,
             opacity: 1.0,
             blending: THREE.AdditiveBlending,
@@ -182,7 +182,7 @@ export class BowCombat {
         const scale = isCharged ? 1.3 : 1.0;
         const { group, materials, geometries } = this.createArrowMesh(
             extraFlags.scale ?? scale,
-            extraFlags.color ?? 0x4488ff
+            extraFlags.color ?? 0x8844ff
         );
 
         group.quaternion.setFromUnitVectors(_defaultDir, dir);
@@ -295,7 +295,7 @@ export class BowCombat {
         // Inner disc
         const discGeo = new THREE.CircleGeometry(radius, 48);
         const discMat = new THREE.MeshBasicMaterial({
-            color: 0x2266ff,
+            color: 0x6622ff,
             transparent: true,
             opacity: 0.18,
             side: THREE.DoubleSide,
@@ -311,7 +311,7 @@ export class BowCombat {
         // Bright ring border
         const ringGeo = new THREE.RingGeometry(radius - 0.1, radius, 48);
         const ringMat = new THREE.MeshBasicMaterial({
-            color: 0x88bbff,
+            color: 0xbb88ff,
             transparent: true,
             opacity: 0.65,
             side: THREE.DoubleSide,
@@ -327,7 +327,7 @@ export class BowCombat {
         // Inner pulsing ring
         const innerRingGeo = new THREE.RingGeometry(0, 0.12, 24);
         const innerRingMat = new THREE.MeshBasicMaterial({
-            color: 0xaaddff,
+            color: 0xccaaff,
             transparent: true,
             opacity: 0.6,
             side: THREE.DoubleSide,
@@ -485,7 +485,7 @@ export class BowCombat {
         const isMarked = chargesUsed >= 8;
 
         const arrowScale = 1.4 + chargesUsed * 0.15;
-        const arrowColor = chargesUsed >= 6 ? 0x66ccff : 0x4488ff;
+        const arrowColor = chargesUsed >= 6 ? 0xaa66ff : 0x8844ff;
 
         const { group, materials, geometries } = this.createArrowMesh(arrowScale, arrowColor);
 
@@ -493,7 +493,7 @@ export class BowCombat {
         if (chargesUsed >= 4) {
             const extraGlowGeo = new THREE.SphereGeometry(0.18 * arrowScale, 8, 8);
             const extraGlowMat = new THREE.MeshBasicMaterial({
-                color: 0x88ddff,
+                color: 0xcc88ff,
                 transparent: true,
                 opacity: 0.15 + chargesUsed * 0.025,
                 blending: THREE.AdditiveBlending,
@@ -533,8 +533,8 @@ export class BowCombat {
         // VFX
         if (this.particleSystem) {
             this.particleSystem.emitSparks(startPos, 18 + chargesUsed * 3);
-            if (chargesUsed >= 4 && this.particleSystem.emitIceBurst) {
-                this.particleSystem.emitIceBurst(startPos, 8);
+            if (chargesUsed >= 4 && this.particleSystem.emitVioletBurst) {
+                this.particleSystem.emitVioletBurst(startPos, 8);
             }
         }
 
@@ -553,14 +553,14 @@ export class BowCombat {
 
         const damage = this.gameState.selectedKit?.combat?.abilityF?.damage ?? 200;
 
-        const { group, materials, geometries } = this.createArrowMesh(4.5, 0x3399ff);
+        const { group, materials, geometries } = this.createArrowMesh(4.5, 0x7733ff);
 
         // Extra glow layers
         for (let i = 0; i < 3; i++) {
             const gRad = 0.25 + i * 0.12;
             const gGeo = new THREE.SphereGeometry(gRad, 8, 8);
             const gMat = new THREE.MeshBasicMaterial({
-                color: [0x4488ff, 0x88ccff, 0xaaddff][i],
+                color: [0x8844ff, 0xaa88ff, 0xccaaff][i],
                 transparent: true,
                 opacity: 0.2 - i * 0.05,
                 blending: THREE.AdditiveBlending,
@@ -577,7 +577,7 @@ export class BowCombat {
         for (let side = -1; side <= 1; side += 2) {
             const wingGeo = new THREE.PlaneGeometry(0.5, 1.0);
             const wingMat = new THREE.MeshBasicMaterial({
-                color: 0x4488ff,
+                color: 0x8844ff,
                 transparent: true,
                 opacity: 0.15,
                 side: THREE.DoubleSide,

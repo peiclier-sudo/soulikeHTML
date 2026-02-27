@@ -308,7 +308,7 @@ export class FrostCombat {
     }
 
     // ═══════════════════════════════════════════════════════════
-    //  ICE CLAW (Q) — 3 homing ice blades in a claw spread
+    //  ICE CLAW (Q) — 3 sweeping crescent arcs: ━ ╲ ╱
     // ═══════════════════════════════════════════════════════════
 
     castIceClaw() {
@@ -320,69 +320,76 @@ export class FrostCombat {
         if (forward.lengthSq() < 0.0001) forward.set(0, 0, -1);
         forward.normalize();
 
-        // Find nearest enemy for homing target
-        const target = this._findNearestEnemy(startPos, 20);
+        const target = this._findNearestEnemy(startPos, 22);
 
-        // 3 blades: center + two side fangs at ±35°
-        const angles = [-0.61, 0, 0.61]; // radians (~35°)
-        const yAxis = new THREE.Vector3(0, 1, 0);
+        // 3 crescent arcs in a claw pattern:
+        //   ━━━  horizontal center slash
+        //    ╲   diagonal right (tilted +40°)
+        //    ╱   diagonal left  (tilted -40°)
+        // Staggered spawn for a raking swipe feel
+        const bladeConfigs = [
+            { rotZ: 0,     stagger: 0    },  // ━ horizontal
+            { rotZ:  0.70, stagger: 0.04 },  // ╲ diagonal
+            { rotZ: -0.70, stagger: 0.08 },  // ╱ diagonal
+        ];
 
         for (let i = 0; i < 3; i++) {
-            const dir = forward.clone().applyAxisAngle(yAxis, angles[i]);
+            const cfg = bladeConfigs[i];
 
-            // Tapered blade shape — narrow, sharp, like a claw
-            const bladeGeo = new THREE.ConeGeometry(0.06, 0.7, 3);
-            bladeGeo.rotateX(-Math.PI / 2);
-            const bladeMat = createIceMaterial({
-                coreBrightness: 2.4,
-                iceSpeed: 7.0,
-                isCharged: 1.0,
-                layerScale: 1.3,
-                rimPower: 2.2
+            // Wide crescent arc — looks like a slash mark
+            const bladeGeo = new THREE.RingGeometry(0.7, 1.5, 14, 1, -Math.PI * 0.35, Math.PI * 0.7);
+            const bladeMat = new THREE.MeshBasicMaterial({
+                color: 0x88ddff,
+                transparent: true,
+                opacity: 0.0,
+                side: THREE.DoubleSide,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false
             });
-            bladeMat.uniforms.alpha.value = 0.95;
 
             const mesh = new THREE.Mesh(bladeGeo, bladeMat);
-            // Stagger spawn: center leads, sides slightly behind
-            const offset = i === 1 ? 0.6 : 0.3;
-            mesh.position.copy(startPos).addScaledVector(dir, offset);
+            mesh.position.copy(startPos).addScaledVector(forward, 0.4);
+
+            // Orient crescent to face forward direction
             const quat = new THREE.Quaternion().setFromUnitVectors(
-                new THREE.Vector3(0, 0, 1), dir
+                new THREE.Vector3(0, 0, 1), forward
             );
             mesh.quaternion.copy(quat);
+            // Tilt for horizontal vs diagonal claw marks
+            const tilt = new THREE.Quaternion().setFromAxisAngle(forward, cfg.rotZ);
+            mesh.quaternion.premultiply(tilt);
+
+            mesh.scale.setScalar(0.15); // starts tiny, swipes up
             this.scene.add(mesh);
 
-            const blade = {
+            this.iceClaws.push({
                 mesh,
-                dir: dir.clone(),
-                velocity: dir.clone().multiplyScalar(22),
-                lifetime: 0,
-                maxLifetime: 0.9,
+                dir: forward.clone(),
+                velocity: forward.clone().multiplyScalar(20),
+                lifetime: -cfg.stagger,
+                maxLifetime: 0.75,
                 damage: this.iceClawDamage,
                 hitSet: new Set(),
                 material: bladeMat,
                 geometry: bladeGeo,
-                target,           // enemy object or null
-                homing: !!target, // enable homing if we found a target
-                homingStrength: 8 + i * 2, // outer blades turn harder
+                target,
+                homing: !!target,
+                homingStrength: 9 + i * 2,
                 index: i,
-                _trailTick: 0
-            };
-            this.iceClaws.push(blade);
+                _trailTick: 0,
+                swipeDur: 0.12,
+            });
         }
 
         this.iceClawCooldown = this.iceClawCooldownDuration;
 
-        // Launch VFX — crisp burst
         if (this.particleSystem) {
-            this.particleSystem.emitIceBurst(startPos, 10);
+            this.particleSystem.emitIceBurst(startPos, 8);
         }
         if (this.cs.onProjectileHit) this.cs.onProjectileHit({ whipWindup: true });
-
         return true;
     }
 
-    /** Find the nearest living enemy within range. */
     _findNearestEnemy(origin, maxDist) {
         let best = null;
         let bestDist = maxDist * maxDist;
@@ -391,10 +398,7 @@ export class FrostCombat {
             if (!enemy || enemy.health <= 0) continue;
             enemyMesh.getWorldPosition(this._enemyPos);
             const d2 = origin.distanceToSquared(this._enemyPos);
-            if (d2 < bestDist) {
-                bestDist = d2;
-                best = { enemy, mesh: enemyMesh };
-            }
+            if (d2 < bestDist) { bestDist = d2; best = { enemy, mesh: enemyMesh }; }
         }
         return best;
     }
@@ -403,54 +407,58 @@ export class FrostCombat {
         for (let i = this.iceClaws.length - 1; i >= 0; i--) {
             const b = this.iceClaws[i];
             b.lifetime += deltaTime;
+            if (b.lifetime < 0) continue; // stagger delay
 
-            // Homing: steer velocity toward target
+            const age = b.lifetime;
+
+            // Swipe-in: scale 0.15 → 1.0 with ease-out
+            const swipeT = Math.min(1, age / b.swipeDur);
+            const eased = 1 - (1 - swipeT) * (1 - swipeT);
+            const scale = 0.15 + 0.85 * eased;
+            b.mesh.scale.setScalar(scale);
+
+            // Opacity: fade in on swipe, hold, fade out in last 25%
+            const lifePct = 1 - age / b.maxLifetime;
+            const alpha = swipeT < 1 ? eased * 0.9
+                : lifePct < 0.25 ? (lifePct / 0.25) * 0.9
+                : 0.9;
+            b.material.opacity = alpha;
+
+            // Homing toward target
             if (b.homing && b.target) {
                 const tEnemy = b.target.enemy;
-                const tMesh = b.target.mesh;
                 if (tEnemy && tEnemy.health > 0) {
-                    tMesh.getWorldPosition(this._tmpVec);
+                    b.target.mesh.getWorldPosition(this._tmpVec);
                     const toTarget = this._tmpVec.sub(b.mesh.position);
                     toTarget.y = 0;
                     const dist = toTarget.length();
                     if (dist > 0.1) {
-                        toTarget.divideScalar(dist); // normalize
-                        // Blend velocity direction toward target
+                        toTarget.divideScalar(dist);
                         const speed = b.velocity.length();
                         b.velocity.addScaledVector(toTarget, b.homingStrength * deltaTime);
                         b.velocity.normalize().multiplyScalar(speed);
-                        // Rotate mesh to face travel direction
-                        const q = new THREE.Quaternion().setFromUnitVectors(
-                            new THREE.Vector3(0, 0, 1), b.velocity.clone().normalize()
-                        );
-                        b.mesh.quaternion.slerp(q, 0.3);
                     }
                 } else {
-                    b.homing = false; // target died, keep flying straight
+                    b.homing = false;
                 }
             }
 
-            // Move
             b.mesh.position.addScaledVector(b.velocity, deltaTime);
+            b.mesh.rotateZ(deltaTime * 2.5); // gentle spin for flair
 
-            // Fade alpha over last 25% of lifetime
-            const lifePct = 1 - b.lifetime / b.maxLifetime;
-            const alpha = lifePct < 0.25 ? lifePct / 0.25 : 1;
-            if (b.material.uniforms?.alpha) b.material.uniforms.alpha.value = 0.95 * alpha;
-
-            // Trail particles — lightweight, every 3rd tick
+            // Trail — lightweight
             b._trailTick++;
-            if (this.particleSystem && b._trailTick % 3 === 0 && lifePct > 0.1) {
+            if (this.particleSystem && b._trailTick % 4 === 0 && lifePct > 0.15) {
                 this.particleSystem.emitIceTrail(b.mesh.position, 1);
             }
 
-            // Hit detection
+            // Hit detection — wider radius matching the crescent size
             const bladePos = b.mesh.position;
             for (const enemyMesh of this.cs.enemies) {
                 const enemy = enemyMesh.userData?.enemy;
                 if (!enemy || enemy.health <= 0 || b.hitSet.has(enemy)) continue;
                 enemyMesh.getWorldPosition(this._enemyPos);
-                const hitRadius = (enemy.hitRadius ?? (enemy.isBoss ? 2.5 : 0.8)) + 0.5;
+                const hitRadius = (enemy.hitRadius ?? (enemy.isBoss ? 2.5 : 0.8)) + 1.2 * scale;
                 if (bladePos.distanceTo(this._enemyPos) < hitRadius) {
                     b.hitSet.add(enemy);
                     const { damage, isCritical, isBackstab } = this.cs._applyCritBackstab(b.damage, enemy, enemyMesh);
@@ -458,27 +466,16 @@ export class FrostCombat {
                     this.addFrostStack(enemy, 2);
                     this.gameState.addUltimateCharge('charged');
                     this.gameState.emit('damageNumber', {
-                        position: this._enemyPos.clone(),
-                        damage,
-                        isCritical,
-                        isBackstab,
-                        kind: 'ability',
-                        anchorId: this.cs._getDamageAnchorId(enemy)
+                        position: this._enemyPos.clone(), damage, isCritical, isBackstab,
+                        kind: 'ability', anchorId: this.cs._getDamageAnchorId(enemy)
                     });
-                    if (this.particleSystem) {
-                        this.particleSystem.emitIceShatter(this._enemyPos, 4);
-                    }
-                    if (this.cs.onProjectileHit) {
-                        this.cs.onProjectileHit({ charged: true, isBoss: !!enemy.isBoss });
-                    }
+                    if (this.particleSystem) this.particleSystem.emitIceShatter(this._enemyPos, 5);
+                    if (this.cs.onProjectileHit) this.cs.onProjectileHit({ charged: true, isBoss: !!enemy.isBoss });
                 }
             }
 
-            // Expired
-            if (b.lifetime >= b.maxLifetime) {
-                if (this.particleSystem) {
-                    this.particleSystem.emitIceShatter(bladePos, 3);
-                }
+            if (age >= b.maxLifetime) {
+                if (this.particleSystem) this.particleSystem.emitIceShatter(bladePos, 3);
                 this.scene.remove(b.mesh);
                 b.geometry.dispose();
                 b.material.dispose();
@@ -540,7 +537,7 @@ export class FrostCombat {
         coreMesh.quaternion.copy(quat);
         this.scene.add(coreMesh);
 
-        const light = new THREE.PointLight(0x66ccff, 30, 20, 2);
+        const light = new THREE.PointLight(0x66ccff, 12, 14, 2);
         light.position.copy(weaponPos);
         this.scene.add(light);
 
@@ -735,7 +732,7 @@ export class FrostCombat {
         this.scene.add(shadow);
 
         // Point light
-        const light = new THREE.PointLight(0x66ccff, 25, 25, 2);
+        const light = new THREE.PointLight(0x66ccff, 10, 16, 2);
         light.position.set(center.x, 10, center.z);
         this.scene.add(light);
 
@@ -952,7 +949,7 @@ export class FrostCombat {
         disc.position.y = 0.08;
         this.scene.add(disc);
 
-        const light = new THREE.PointLight(0x44aaff, 40, 30, 2);
+        const light = new THREE.PointLight(0x44aaff, 15, 18, 2);
         light.position.copy(center);
         light.position.y = 3;
         this.scene.add(light);
