@@ -1,11 +1,17 @@
 /**
  * Particle System - Object-pooled particle effects (optimized: zero per-frame allocation)
+ *
+ * Smooth ease-out fading, additive blending, larger/longer-lived particles for juicy feel.
  */
 
 import * as THREE from 'three';
 
 const BLEED_STACK_COLORS = [0x2a0808, 0x440a0a, 0x550c0c, 0x660e0e, 0x880808, 0xaa0a0a, 0xcc0c0c];
 function bleedColor() { return BLEED_STACK_COLORS[Math.floor(Math.random() * BLEED_STACK_COLORS.length)]; }
+
+/** Smooth ease-out: particles decelerate and fade gracefully instead of linearly */
+function easeOut(t) { return 1 - (1 - t) * (1 - t); }
+function easeOutCubic(t) { return 1 - (1 - t) * (1 - t) * (1 - t); }
 
 export class ParticleSystem {
     constructor(scene) {
@@ -21,11 +27,11 @@ export class ParticleSystem {
     }
 
     addTemporaryLight(position, color, intensity, duration) {
-        if (this.temporaryLights.length >= 3) {
+        if (this.temporaryLights.length >= 4) {
             const oldest = this.temporaryLights.shift();
             this.scene.remove(oldest.light);
         }
-        const light = new THREE.PointLight(color, intensity, 35, 2.2);
+        const light = new THREE.PointLight(color, intensity, 40, 2.0);
         light.position.copy(position);
         light.userData.initialIntensity = intensity;
         light.userData.duration = duration;
@@ -34,25 +40,25 @@ export class ParticleSystem {
     }
 
     initializePools() {
-        for (let i = 0; i < 200; i++) this.pools.spark.push(this.createSparkParticle());
-        for (let i = 0; i < 80; i++) this.pools.smoke.push(this.createSmokeParticle());
-        for (let i = 0; i < 180; i++) this.pools.ember.push(this.createEmberParticle());
+        for (let i = 0; i < 300; i++) this.pools.spark.push(this.createSparkParticle());
+        for (let i = 0; i < 120; i++) this.pools.smoke.push(this.createSmokeParticle());
+        for (let i = 0; i < 250; i++) this.pools.ember.push(this.createEmberParticle());
         for (let i = 0; i < 120; i++) this.pools.shieldAura.push(this.createShieldAuraParticle());
-        for (let i = 0; i < 30; i++) this.pools.heal.push(this.createHealParticle());
+        for (let i = 0; i < 40; i++) this.pools.heal.push(this.createHealParticle());
     }
 
     createHealParticle() {
-        const geo = new THREE.SphereGeometry(0.06, 4, 4);
+        const geo = new THREE.SphereGeometry(0.07, 4, 4);
         const mat = new THREE.MeshBasicMaterial({ color: 0x22cc44, transparent: true, opacity: 0.9, depthWrite: false, blending: THREE.AdditiveBlending });
         const p = new THREE.Mesh(geo, mat);
         p.visible = false;
-        p.userData = { type: 'heal', active: false, velocity: new THREE.Vector3(), lifetime: 0, maxLifetime: 0.9 };
+        p.userData = { type: 'heal', active: false, velocity: new THREE.Vector3(), lifetime: 0, maxLifetime: 1.1 };
         this.scene.add(p);
         return p;
     }
 
     createShieldAuraParticle() {
-        const geo = new THREE.SphereGeometry(0.02, 4, 4);
+        const geo = new THREE.SphereGeometry(0.025, 4, 4);
         const mat = new THREE.MeshBasicMaterial({ color: 0x660000, transparent: true, opacity: 0.7, depthWrite: false, blending: THREE.NormalBlending });
         const p = new THREE.Mesh(geo, mat);
         p.visible = false;
@@ -62,8 +68,8 @@ export class ParticleSystem {
     }
 
     createSparkParticle() {
-        const geo = new THREE.PlaneGeometry(0.1, 0.1);
-        const mat = new THREE.MeshBasicMaterial({ color: 0xffaa44, transparent: true, opacity: 1, side: THREE.DoubleSide, blending: THREE.AdditiveBlending });
+        const geo = new THREE.PlaneGeometry(0.13, 0.13);
+        const mat = new THREE.MeshBasicMaterial({ color: 0xffaa44, transparent: true, opacity: 1, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false });
         const p = new THREE.Mesh(geo, mat);
         p.visible = false;
         p.userData = { type: 'spark', velocity: new THREE.Vector3(), lifetime: 0, maxLifetime: 0.5, active: false };
@@ -72,21 +78,21 @@ export class ParticleSystem {
     }
 
     createSmokeParticle() {
-        const geo = new THREE.PlaneGeometry(0.3, 0.3);
+        const geo = new THREE.PlaneGeometry(0.4, 0.4);
         const mat = new THREE.MeshBasicMaterial({ color: 0x888888, transparent: true, opacity: 0.5, side: THREE.DoubleSide });
         const p = new THREE.Mesh(geo, mat);
         p.visible = false;
-        p.userData = { type: 'smoke', velocity: new THREE.Vector3(), lifetime: 0, maxLifetime: 1.5, active: false };
+        p.userData = { type: 'smoke', velocity: new THREE.Vector3(), lifetime: 0, maxLifetime: 1.8, active: false };
         this.scene.add(p);
         return p;
     }
 
     createEmberParticle() {
-        const geo = new THREE.SphereGeometry(0.02, 3, 3);
-        const mat = new THREE.MeshBasicMaterial({ color: 0xff6600, transparent: true, opacity: 1 });
+        const geo = new THREE.SphereGeometry(0.03, 4, 4);
+        const mat = new THREE.MeshBasicMaterial({ color: 0xff6600, transparent: true, opacity: 1, blending: THREE.AdditiveBlending, depthWrite: false });
         const p = new THREE.Mesh(geo, mat);
         p.visible = false;
-        p.userData = { type: 'ember', velocity: new THREE.Vector3(), lifetime: 0, maxLifetime: 2, active: false };
+        p.userData = { type: 'ember', velocity: new THREE.Vector3(), lifetime: 0, maxLifetime: 2.2, active: false };
         this.scene.add(p);
         return p;
     }
@@ -108,10 +114,13 @@ export class ParticleSystem {
             p.position.copy(position);
             p.userData.active = true;
             p.userData.lifetime = 0;
-            p.userData.maxLifetime = 0.3 + Math.random() * 0.3;
+            p.userData.maxLifetime = 0.35 + Math.random() * 0.35;
             p.visible = true;
-            p.userData.velocity.set((Math.random() - 0.5) * 5, Math.random() * 3 + 2, (Math.random() - 0.5) * 5);
+            const theta = Math.random() * Math.PI * 2;
+            const speed = 4 + Math.random() * 5;
+            p.userData.velocity.set(Math.cos(theta) * speed, Math.random() * 4 + 2.5, Math.sin(theta) * speed);
             p.material.opacity = 1;
+            p.scale.setScalar(0.8 + Math.random() * 0.5);
             this.activeParticles.push(p);
         }
     }
@@ -125,9 +134,9 @@ export class ParticleSystem {
             p.userData.active = true;
             p.userData.lifetime = 0;
             p.visible = true;
-            p.userData.velocity.set((Math.random() - 0.5) * 0.5, Math.random() + 0.5, (Math.random() - 0.5) * 0.5);
-            p.material.opacity = 0.5;
-            p.scale.setScalar(0.3 + Math.random() * 0.3);
+            p.userData.velocity.set((Math.random() - 0.5) * 0.8, Math.random() * 1.2 + 0.6, (Math.random() - 0.5) * 0.8);
+            p.material.opacity = 0.55;
+            p.scale.setScalar(0.35 + Math.random() * 0.4);
             this.activeParticles.push(p);
         }
     }
@@ -137,12 +146,13 @@ export class ParticleSystem {
         for (let i = 0; i < n; i++) {
             const p = this.getFromPool('ember');
             if (!p) return;
-            p.position.set(position.x + (Math.random() - 0.5) * 2, position.y, position.z + (Math.random() - 0.5) * 2);
+            p.position.set(position.x + (Math.random() - 0.5) * 2.5, position.y, position.z + (Math.random() - 0.5) * 2.5);
             p.userData.active = true;
             p.userData.lifetime = 0;
             p.visible = true;
-            p.userData.velocity.set((Math.random() - 0.5) * 0.3, Math.random() * 2 + 1, (Math.random() - 0.5) * 0.3);
+            p.userData.velocity.set((Math.random() - 0.5) * 0.5, Math.random() * 2.5 + 1.2, (Math.random() - 0.5) * 0.5);
             p.material.opacity = 1;
+            p.scale.setScalar(0.8 + Math.random() * 0.6);
             this.activeParticles.push(p);
         }
     }
@@ -167,13 +177,29 @@ export class ParticleSystem {
             p.position.y += v.y * deltaTime;
             p.position.z += v.z * deltaTime;
 
-            if (d.type === 'spark') v.y -= 10 * deltaTime;
-            else if (d.type === 'smoke') { v.x *= 0.98; v.y *= 0.98; v.z *= 0.98; p.scale.addScalar(deltaTime * 0.5); }
-            else if (d.type === 'ember') { v.y -= 0.5 * deltaTime; p.material.opacity = 1 - (d.lifetime / d.maxLifetime) * 0.5; }
-            else if (d.type === 'heal') { v.y *= 0.97; p.material.opacity = 0.9 * (1 - d.lifetime / d.maxLifetime); }
+            const lifeRatio = d.lifetime / d.maxLifetime;
+            // Smooth ease-out fade for all particle types
+            const fadeAlpha = 1 - easeOutCubic(lifeRatio);
 
-            if (d.type !== 'heal') {
-                p.material.opacity *= (1 - (d.lifetime / d.maxLifetime) * 0.5);
+            if (d.type === 'spark') {
+                v.y -= 12 * deltaTime;
+                p.material.opacity = fadeAlpha;
+                // Slight scale-down as spark fades
+                p.scale.setScalar(Math.max(0.1, (1 - lifeRatio * 0.6)) * (0.8 + Math.random() * 0.01));
+            } else if (d.type === 'smoke') {
+                v.x *= 0.97;
+                v.y *= 0.97;
+                v.z *= 0.97;
+                p.scale.addScalar(deltaTime * 0.7);
+                p.material.opacity = 0.55 * fadeAlpha;
+            } else if (d.type === 'ember') {
+                v.y -= 0.6 * deltaTime;
+                // Pulsing glow effect on embers
+                const pulse = 0.7 + 0.3 * Math.sin(d.lifetime * 12 + i * 0.5);
+                p.material.opacity = fadeAlpha * pulse;
+            } else if (d.type === 'heal') {
+                v.y *= 0.96;
+                p.material.opacity = 0.95 * fadeAlpha;
             }
 
             this.activeParticles[writeIdx++] = p;
@@ -184,7 +210,11 @@ export class ParticleSystem {
             const e = this.temporaryLights[i];
             e.remaining -= deltaTime;
             if (e.remaining <= 0) { this.scene.remove(e.light); this.temporaryLights.splice(i, 1); }
-            else e.light.intensity = e.light.userData.initialIntensity * (e.remaining / e.light.userData.duration);
+            else {
+                // Smooth ease-out for light fade
+                const t = e.remaining / e.light.userData.duration;
+                e.light.intensity = e.light.userData.initialIntensity * easeOut(t);
+            }
         }
     }
 
@@ -210,23 +240,22 @@ export class ParticleSystem {
             }
             this.activeShieldAuraParticles.push(p);
         }
-        const radius = 0.95;
+        const radius = 1.0;
         const t = this.shieldAuraTime;
         for (let i = 0; i < this.activeShieldAuraParticles.length; i++) {
             const p = this.activeShieldAuraParticles[i];
             const dd = p.userData;
-            const theta = dd.baseTheta + t * dd.orbitSpeed + Math.sin(t * 2 + dd.phase) * 0.15;
-            const phi = dd.basePhi + Math.sin(t * 1.5 + dd.phase * 0.7) * 0.12;
-            const r = radius + Math.sin(t * 3 + dd.pulsePhase) * 0.06;
+            const theta = dd.baseTheta + t * dd.orbitSpeed + Math.sin(t * 2.5 + dd.phase) * 0.2;
+            const phi = dd.basePhi + Math.sin(t * 1.8 + dd.phase * 0.7) * 0.15;
+            const r = radius + Math.sin(t * 3.5 + dd.pulsePhase) * 0.08;
             const sinPhi = Math.sin(phi);
             p.position.x = center.x + r * sinPhi * Math.cos(theta);
             p.position.y = center.y + r * Math.cos(phi);
             p.position.z = center.z + r * sinPhi * Math.sin(theta);
             p.visible = true;
-            p.material.opacity = Math.max(0.25, Math.min(0.8, 0.5 + 0.35 * Math.sin(t * 4 + dd.pulsePhase)));
+            p.material.opacity = Math.max(0.3, Math.min(0.85, 0.55 + 0.4 * Math.sin(t * 4.5 + dd.pulsePhase)));
             const blend = Math.sin(t * 2 + dd.phase) * 0.5 + 0.5;
             if (isFrost) {
-                // Ice barrier: cyan/blue frost particles
                 const r255 = (0x22 + Math.floor(blend * (0x66 - 0x22))) / 255;
                 const g255 = (0x66 + Math.floor(blend * (0xcc - 0x66))) / 255;
                 const b255 = (0xaa + Math.floor(blend * (0xff - 0xaa))) / 255;
@@ -243,7 +272,11 @@ export class ParticleSystem {
         this.qualityMultiplier = ({ low: 0.3, medium: 0.7, high: 1.0 })[quality] || 0.7;
     }
 
-    emitHitEffect(position) { this.emitSparks(position, 8); this.emitSmoke(position, 2); }
+    emitHitEffect(position) {
+        this.emitSparks(position, 12);
+        this.emitSmoke(position, 3);
+        this.addTemporaryLight(position.clone(), 0xff6622, 30, 0.2);
+    }
 
     emitOrbTrail(position, direction, count = 16) {
         const n = Math.floor(count * this.qualityMultiplier);
@@ -252,38 +285,12 @@ export class ParticleSystem {
             const p = this.getFromPool('ember');
             if (!p) return;
             p.position.copy(position);
-            p.userData.active = true; p.userData.lifetime = 0; p.userData.maxLifetime = 0.35 + Math.random() * 0.3; p.visible = true;
+            p.userData.active = true; p.userData.lifetime = 0; p.userData.maxLifetime = 0.4 + Math.random() * 0.35; p.visible = true;
             p.material.color.setHex(bleedColor());
-            p.userData.velocity.set(dir.x * (-0.8 - Math.random() * 1.2) + (Math.random() - 0.5) * 2.5, (Math.random() - 0.5) * 1.5, dir.z * (-0.8 - Math.random() * 1.2) + (Math.random() - 0.5) * 2.5);
-            p.material.opacity = 0.85;
-            this.activeParticles.push(p);
-        }
-        const halfN = Math.floor(n * 0.4);
-        for (let i = 0; i < halfN; i++) {
-            const p = this.getFromPool('spark');
-            if (!p) return;
-            p.position.copy(position);
-            p.userData.active = true; p.userData.lifetime = 0; p.userData.maxLifetime = 0.2 + Math.random() * 0.15; p.visible = true;
-            p.material.color.setHex(bleedColor());
-            p.userData.velocity.set(dir.x * (-1 - Math.random() * 1.5) + (Math.random() - 0.5) * 3, (Math.random() - 0.5) * 3, dir.z * (-1 - Math.random() * 1.5) + (Math.random() - 0.5) * 3);
-            p.material.opacity = 1;
-            this.activeParticles.push(p);
-        }
-    }
-
-    emitSlashTrail(position, direction, count = 12) {
-        const n = Math.floor(count * this.qualityMultiplier);
-        const dir = this._tmpVec.copy(direction).normalize();
-        for (let i = 0; i < n; i++) {
-            const p = this.getFromPool('ember');
-            if (!p) return;
-            p.position.copy(position);
-            p.position.x += (Math.random() - 0.5) * 1.5;
-            p.position.z += (Math.random() - 0.5) * 0.8;
-            p.userData.active = true; p.userData.lifetime = 0; p.userData.maxLifetime = 0.4 + Math.random() * 0.4; p.visible = true;
-            p.material.color.setHex(bleedColor());
-            p.userData.velocity.set(dir.x * (-0.5 - Math.random() * 1.5) + (Math.random() - 0.5) * 3, (Math.random() - 0.5) * 2, dir.z * (-0.5 - Math.random() * 1.5) + (Math.random() - 0.5) * 3);
-            p.material.opacity = 1;
+            p.userData.velocity.set(dir.x * (-1 - Math.random() * 1.5) + (Math.random() - 0.5) * 3, (Math.random() - 0.5) * 2, dir.z * (-1 - Math.random() * 1.5) + (Math.random() - 0.5) * 3);
+            p.material.opacity = 0.9;
+            p.material.blending = THREE.AdditiveBlending;
+            p.material.depthWrite = false;
             this.activeParticles.push(p);
         }
         const halfN = Math.floor(n * 0.5);
@@ -293,7 +300,37 @@ export class ParticleSystem {
             p.position.copy(position);
             p.userData.active = true; p.userData.lifetime = 0; p.userData.maxLifetime = 0.25 + Math.random() * 0.2; p.visible = true;
             p.material.color.setHex(bleedColor());
-            p.userData.velocity.set(dir.x * (-1 - Math.random() * 2) + (Math.random() - 0.5) * 4, (Math.random() - 0.5) * 4, dir.z * (-1 - Math.random() * 2) + (Math.random() - 0.5) * 4);
+            p.userData.velocity.set(dir.x * (-1.2 - Math.random() * 2) + (Math.random() - 0.5) * 3.5, (Math.random() - 0.5) * 3.5, dir.z * (-1.2 - Math.random() * 2) + (Math.random() - 0.5) * 3.5);
+            p.material.opacity = 1;
+            this.activeParticles.push(p);
+        }
+    }
+
+    emitSlashTrail(position, direction, count = 16) {
+        const n = Math.floor(count * this.qualityMultiplier);
+        const dir = this._tmpVec.copy(direction).normalize();
+        for (let i = 0; i < n; i++) {
+            const p = this.getFromPool('ember');
+            if (!p) return;
+            p.position.copy(position);
+            p.position.x += (Math.random() - 0.5) * 1.8;
+            p.position.z += (Math.random() - 0.5) * 1.0;
+            p.userData.active = true; p.userData.lifetime = 0; p.userData.maxLifetime = 0.5 + Math.random() * 0.45; p.visible = true;
+            p.material.color.setHex(bleedColor());
+            p.userData.velocity.set(dir.x * (-0.6 - Math.random() * 2) + (Math.random() - 0.5) * 3.5, (Math.random() - 0.5) * 2.5, dir.z * (-0.6 - Math.random() * 2) + (Math.random() - 0.5) * 3.5);
+            p.material.opacity = 1;
+            p.material.blending = THREE.AdditiveBlending;
+            p.material.depthWrite = false;
+            this.activeParticles.push(p);
+        }
+        const halfN = Math.floor(n * 0.6);
+        for (let i = 0; i < halfN; i++) {
+            const p = this.getFromPool('spark');
+            if (!p) return;
+            p.position.copy(position);
+            p.userData.active = true; p.userData.lifetime = 0; p.userData.maxLifetime = 0.3 + Math.random() * 0.25; p.visible = true;
+            p.material.color.setHex(bleedColor());
+            p.userData.velocity.set(dir.x * (-1.2 - Math.random() * 2.5) + (Math.random() - 0.5) * 5, (Math.random() - 0.5) * 5, dir.z * (-1.2 - Math.random() * 2.5) + (Math.random() - 0.5) * 5);
             p.material.opacity = 1;
             this.activeParticles.push(p);
         }
@@ -301,116 +338,120 @@ export class ParticleSystem {
 
     emitUltimateLaunch(position) {
         const m = Math.max(0.5, this.qualityMultiplier);
-        const nS = Math.floor(12 * m);
+        const nS = Math.floor(18 * m);
         for (let i = 0; i < nS; i++) {
             const p = this.getFromPool('spark');
             if (!p) break;
-            p.position.set(position.x + (Math.random() - 0.5) * 2.5, position.y, position.z + (Math.random() - 0.5) * 2.5);
-            p.userData.active = true; p.userData.lifetime = 0; p.userData.maxLifetime = 0.4 + Math.random() * 0.3; p.visible = true;
+            p.position.set(position.x + (Math.random() - 0.5) * 3, position.y, position.z + (Math.random() - 0.5) * 3);
+            p.userData.active = true; p.userData.lifetime = 0; p.userData.maxLifetime = 0.5 + Math.random() * 0.4; p.visible = true;
             p.material.color.setHex(bleedColor()); p.material.opacity = 1;
-            p.userData.velocity.set((Math.random() - 0.5) * 18, Math.random() * 12 + 4, (Math.random() - 0.5) * 18);
+            p.userData.velocity.set((Math.random() - 0.5) * 22, Math.random() * 14 + 5, (Math.random() - 0.5) * 22);
             this.activeParticles.push(p);
         }
-        const nE = Math.floor(8 * m);
+        const nE = Math.floor(12 * m);
         for (let i = 0; i < nE; i++) {
             const p = this.getFromPool('ember');
             if (!p) break;
             p.position.copy(position);
-            p.userData.active = true; p.userData.lifetime = 0; p.userData.maxLifetime = 0.55 + Math.random() * 0.35; p.visible = true;
+            p.userData.active = true; p.userData.lifetime = 0; p.userData.maxLifetime = 0.65 + Math.random() * 0.4; p.visible = true;
             p.material.color.setHex(bleedColor());
-            p.userData.velocity.set((Math.random() - 0.5) * 10, Math.random() * 6 + 2, (Math.random() - 0.5) * 10);
+            p.userData.velocity.set((Math.random() - 0.5) * 14, Math.random() * 8 + 3, (Math.random() - 0.5) * 14);
             this.activeParticles.push(p);
         }
+        this.addTemporaryLight(position.clone(), 0xcc2200, 80, 0.5);
     }
 
     emitUltimateImpact(position) {
         const m = Math.max(0.5, this.qualityMultiplier);
-        this.emitSparks(position, Math.floor(15 * m));
-        this.emitSmoke(position, Math.floor(4 * m));
-        this.emitEmbers(position, Math.floor(10 * m));
+        this.emitSparks(position, Math.floor(20 * m));
+        this.emitSmoke(position, Math.floor(5 * m));
+        this.emitEmbers(position, Math.floor(14 * m));
+        this.addTemporaryLight(position.clone(), 0xff4400, 60, 0.4);
     }
 
     emitUltimateExplosion(position) {
         const m = Math.max(0.5, this.qualityMultiplier);
-        this.emitSparks(position, Math.floor(20 * m));
-        this.emitSmoke(position, Math.floor(5 * m));
-        this.emitEmbers(position, Math.floor(15 * m));
+        this.emitSparks(position, Math.floor(28 * m));
+        this.emitSmoke(position, Math.floor(6 * m));
+        this.emitEmbers(position, Math.floor(20 * m));
+        this.addTemporaryLight(position.clone(), 0xff2200, 90, 0.55);
     }
 
     emitUltimateEndExplosion(position) {
         const m = Math.max(0.5, this.qualityMultiplier);
-        const speed = 38;
-        const spread = 4;
-        const sz = 0.18;
-        const nS = Math.floor(25 * m);
+        const speed = 42;
+        const spread = 5;
+        const sz = 0.22;
+        const nS = Math.floor(35 * m);
         for (let i = 0; i < nS; i++) {
             const p = this.getFromPool('spark');
             if (!p) break;
             p.position.set(position.x + (Math.random() - 0.5) * spread, position.y + (Math.random() - 0.5) * spread, position.z + (Math.random() - 0.5) * spread);
-            p.userData.active = true; p.userData.lifetime = 0; p.userData.maxLifetime = 0.5 + Math.random() * 0.4; p.visible = true;
-            p.scale.setScalar(sz * (0.7 + Math.random() * 0.6));
-            p.material.color.setHex(bleedColor()); p.material.opacity = 0.95;
+            p.userData.active = true; p.userData.lifetime = 0; p.userData.maxLifetime = 0.55 + Math.random() * 0.45; p.visible = true;
+            p.scale.setScalar(sz * (0.7 + Math.random() * 0.8));
+            p.material.color.setHex(bleedColor()); p.material.opacity = 1;
             p.material.blending = THREE.AdditiveBlending; p.material.depthWrite = false;
             p.userData.velocity.set((Math.random() - 0.5) * speed, Math.random() * speed * 0.6 + speed * 0.2, (Math.random() - 0.5) * speed);
             this.activeParticles.push(p);
         }
-        const nSm = Math.floor(8 * m);
+        const nSm = Math.floor(10 * m);
         for (let i = 0; i < nSm; i++) {
             const p = this.getFromPool('smoke');
             if (!p) break;
             p.position.set(position.x + (Math.random() - 0.5) * spread, position.y, position.z + (Math.random() - 0.5) * spread);
-            p.userData.active = true; p.userData.lifetime = 0; p.userData.maxLifetime = 2.2 + Math.random() * 0.8; p.visible = true;
-            p.scale.setScalar(sz * 0.5 * (0.6 + Math.random() * 0.5));
-            p.material.color.setHex(bleedColor()); p.material.opacity = 0.85;
+            p.userData.active = true; p.userData.lifetime = 0; p.userData.maxLifetime = 2.5 + Math.random() * 1.0; p.visible = true;
+            p.scale.setScalar(sz * 0.6 * (0.6 + Math.random() * 0.6));
+            p.material.color.setHex(bleedColor()); p.material.opacity = 0.9;
             p.material.blending = THREE.AdditiveBlending; p.material.depthWrite = false;
             p.userData.velocity.set((Math.random() - 0.5) * speed * 0.5, Math.random() * speed * 0.35 + speed * 0.15, (Math.random() - 0.5) * speed * 0.5);
             this.activeParticles.push(p);
         }
-        const nE = Math.floor(15 * m);
+        const nE = Math.floor(20 * m);
         for (let i = 0; i < nE; i++) {
             const p = this.getFromPool('ember');
             if (!p) break;
             p.position.set(position.x + (Math.random() - 0.5) * spread, position.y + (Math.random() - 0.5) * spread, position.z + (Math.random() - 0.5) * spread);
-            p.userData.active = true; p.userData.lifetime = 0; p.userData.maxLifetime = 1.2 + Math.random() * 0.8; p.visible = true;
-            p.scale.setScalar(sz * (0.5 + Math.random() * 0.5));
-            p.material.color.setHex(bleedColor()); p.material.opacity = 0.9;
+            p.userData.active = true; p.userData.lifetime = 0; p.userData.maxLifetime = 1.4 + Math.random() * 0.9; p.visible = true;
+            p.scale.setScalar(sz * (0.5 + Math.random() * 0.6));
+            p.material.color.setHex(bleedColor()); p.material.opacity = 1;
             p.material.blending = THREE.AdditiveBlending; p.material.depthWrite = false;
             p.userData.velocity.set((Math.random() - 0.5) * speed * 0.7, Math.random() * speed * 0.5 + speed * 0.25, (Math.random() - 0.5) * speed * 0.7);
             this.activeParticles.push(p);
         }
+        this.addTemporaryLight(position.clone(), 0xcc0a0a, 120, 0.7);
     }
 
     emitBloodMatterExplosion(position) {
         const m = Math.max(0.5, this.qualityMultiplier);
-        const spread = 6; const speed = 44;
-        this.addTemporaryLight(position.clone(), 0xaa0a0a, 90, 0.55);
-        const nS = Math.floor(60 * m);
+        const spread = 7; const speed = 48;
+        this.addTemporaryLight(position.clone(), 0xaa0a0a, 110, 0.65);
+        const nS = Math.floor(70 * m);
         for (let i = 0; i < nS; i++) {
             const p = this.getFromPool('spark');
             if (!p) break;
             p.position.set(position.x + (Math.random() - 0.5) * spread, position.y + (Math.random() - 0.5) * spread, position.z + (Math.random() - 0.5) * spread);
-            p.userData.active = true; p.userData.lifetime = 0; p.userData.maxLifetime = 0.6 + Math.random() * 0.5; p.visible = true;
+            p.userData.active = true; p.userData.lifetime = 0; p.userData.maxLifetime = 0.7 + Math.random() * 0.5; p.visible = true;
             p.material.color.setHex(bleedColor()); p.material.opacity = 1;
             p.userData.velocity.set((Math.random() - 0.5) * speed, Math.random() * speed * 0.6 + speed * 0.2, (Math.random() - 0.5) * speed);
             this.activeParticles.push(p);
         }
-        const nSm = Math.floor(20 * m);
+        const nSm = Math.floor(24 * m);
         for (let i = 0; i < nSm; i++) {
             const p = this.getFromPool('smoke');
             if (!p) break;
             p.position.set(position.x + (Math.random() - 0.5) * spread, position.y, position.z + (Math.random() - 0.5) * spread);
-            p.userData.active = true; p.userData.lifetime = 0; p.userData.maxLifetime = 2.8 + Math.random(); p.visible = true;
+            p.userData.active = true; p.userData.lifetime = 0; p.userData.maxLifetime = 3.0 + Math.random(); p.visible = true;
             p.material.color.setHex(bleedColor()); p.material.opacity = 0.9;
             p.material.blending = THREE.AdditiveBlending; p.material.depthWrite = false;
             p.userData.velocity.set((Math.random() - 0.5) * speed * 0.5, Math.random() * speed * 0.35 + speed * 0.15, (Math.random() - 0.5) * speed * 0.5);
             this.activeParticles.push(p);
         }
-        const nE = Math.floor(50 * m);
+        const nE = Math.floor(55 * m);
         for (let i = 0; i < nE; i++) {
             const p = this.getFromPool('ember');
             if (!p) break;
             p.position.set(position.x + (Math.random() - 0.5) * spread, position.y + (Math.random() - 0.5) * spread, position.z + (Math.random() - 0.5) * spread);
-            p.userData.active = true; p.userData.lifetime = 0; p.userData.maxLifetime = 1.5 + Math.random(); p.visible = true;
+            p.userData.active = true; p.userData.lifetime = 0; p.userData.maxLifetime = 1.6 + Math.random(); p.visible = true;
             p.material.color.setHex(bleedColor()); p.material.opacity = 1;
             p.material.blending = THREE.AdditiveBlending; p.material.depthWrite = false;
             p.userData.velocity.set((Math.random() - 0.5) * speed * 0.7, Math.random() * speed * 0.5 + speed * 0.25, (Math.random() - 0.5) * speed * 0.7);
@@ -421,55 +462,53 @@ export class ParticleSystem {
     emitCrimsonEruptionRing(center, radius) {
         if (!center || typeof radius !== 'number') return;
         const m = Math.max(0.5, this.qualityMultiplier);
-        const points = Math.floor(18 * m);
-        const upSpeed = 24;
+        const points = Math.floor(22 * m);
+        const upSpeed = 28;
         for (let i = 0; i < points; i++) {
             const angle = (i / points) * Math.PI * 2;
-            const px = center.x + Math.cos(angle) * radius + (Math.random() - 0.5) * 0.7;
-            const pz = center.z + Math.sin(angle) * radius + (Math.random() - 0.5) * 0.7;
-            for (let s = 0; s < 6; s++) {
+            const px = center.x + Math.cos(angle) * radius + (Math.random() - 0.5) * 0.8;
+            const pz = center.z + Math.sin(angle) * radius + (Math.random() - 0.5) * 0.8;
+            for (let s = 0; s < 7; s++) {
                 const p = this.getFromPool('spark');
                 if (!p) break;
                 p.position.set(px, center.y, pz);
-                p.userData.active = true; p.userData.lifetime = 0; p.userData.maxLifetime = 0.7 + Math.random() * 0.5; p.visible = true;
+                p.userData.active = true; p.userData.lifetime = 0; p.userData.maxLifetime = 0.8 + Math.random() * 0.5; p.visible = true;
                 p.material.color.setHex(bleedColor()); p.material.opacity = 1;
-                p.userData.velocity.set((Math.random() - 0.5) * 10, upSpeed * (0.7 + Math.random() * 0.8), (Math.random() - 0.5) * 10);
+                p.userData.velocity.set((Math.random() - 0.5) * 12, upSpeed * (0.7 + Math.random() * 0.9), (Math.random() - 0.5) * 12);
                 this.activeParticles.push(p);
             }
-            for (let e = 0; e < 4; e++) {
+            for (let e = 0; e < 5; e++) {
                 const p = this.getFromPool('ember');
                 if (!p) break;
                 p.position.set(px, center.y, pz);
-                p.userData.active = true; p.userData.lifetime = 0; p.userData.maxLifetime = 1.1 + Math.random() * 0.6; p.visible = true;
+                p.userData.active = true; p.userData.lifetime = 0; p.userData.maxLifetime = 1.2 + Math.random() * 0.7; p.visible = true;
                 p.material.color.setHex(bleedColor()); p.material.opacity = 1;
                 p.material.blending = THREE.AdditiveBlending; p.material.depthWrite = false;
-                p.userData.velocity.set((Math.random() - 0.5) * 7, upSpeed * 0.5 * (0.6 + Math.random()), (Math.random() - 0.5) * 7);
+                p.userData.velocity.set((Math.random() - 0.5) * 8, upSpeed * 0.5 * (0.6 + Math.random()), (Math.random() - 0.5) * 8);
                 this.activeParticles.push(p);
             }
         }
-        const cS = Math.floor(30 * m);
+        const cS = Math.floor(40 * m);
         for (let i = 0; i < cS; i++) {
             const p = this.getFromPool('spark');
             if (!p) break;
-            p.position.set(center.x + (Math.random() - 0.5) * 1.2, center.y, center.z + (Math.random() - 0.5) * 1.2);
-            p.userData.active = true; p.userData.lifetime = 0; p.userData.maxLifetime = 0.8 + Math.random() * 0.6; p.visible = true;
+            p.position.set(center.x + (Math.random() - 0.5) * 1.5, center.y, center.z + (Math.random() - 0.5) * 1.5);
+            p.userData.active = true; p.userData.lifetime = 0; p.userData.maxLifetime = 0.9 + Math.random() * 0.6; p.visible = true;
             p.material.color.setHex(bleedColor()); p.material.opacity = 1;
-            p.userData.velocity.set((Math.random() - 0.5) * 14, upSpeed * (0.8 + Math.random()), (Math.random() - 0.5) * 14);
+            p.userData.velocity.set((Math.random() - 0.5) * 16, upSpeed * (0.8 + Math.random()), (Math.random() - 0.5) * 16);
             this.activeParticles.push(p);
         }
-        this.addTemporaryLight(center.clone(), 0xaa0a0a, 95, 1);
+        this.addTemporaryLight(center.clone(), 0xcc0a0a, 110, 1.1);
     }
-
-
 
     emitBloodNovaBurst(center, radius = 10) {
         if (!center) return;
         const m = Math.max(0.5, this.qualityMultiplier);
-        const ringPts = Math.floor(34 * m);
-        const swirlLayers = 4;
+        const ringPts = Math.floor(40 * m);
+        const swirlLayers = 5;
         for (let layer = 0; layer < swirlLayers; layer++) {
-            const yOff = 0.08 + layer * 0.16;
-            const rMul = 0.55 + layer * 0.28;
+            const yOff = 0.08 + layer * 0.18;
+            const rMul = 0.5 + layer * 0.25;
             for (let i = 0; i < ringPts; i++) {
                 const t = (i / ringPts) * Math.PI * 2;
                 const px = center.x + Math.cos(t) * radius * rMul;
@@ -477,110 +516,47 @@ export class ParticleSystem {
                 const p = this.getFromPool('spark');
                 if (!p) break;
                 p.position.set(px, center.y + yOff, pz);
-                p.userData.active = true; p.userData.lifetime = 0; p.userData.maxLifetime = 0.55 + Math.random() * 0.45; p.visible = true;
+                p.userData.active = true; p.userData.lifetime = 0; p.userData.maxLifetime = 0.6 + Math.random() * 0.5; p.visible = true;
                 p.material.color.setHex(bleedColor()); p.material.opacity = 1;
-                const tangential = 18 + layer * 5;
-                p.userData.velocity.set(-Math.sin(t) * tangential + (Math.random() - 0.5) * 2, 8 + Math.random() * 9, Math.cos(t) * tangential + (Math.random() - 0.5) * 2);
+                const tangential = 20 + layer * 6;
+                p.userData.velocity.set(-Math.sin(t) * tangential + (Math.random() - 0.5) * 3, 10 + Math.random() * 10, Math.cos(t) * tangential + (Math.random() - 0.5) * 3);
                 this.activeParticles.push(p);
             }
         }
-        const core = Math.floor(70 * m);
+        const core = Math.floor(80 * m);
         for (let i = 0; i < core; i++) {
             const p = this.getFromPool('ember');
             if (!p) break;
-            p.position.set(center.x + (Math.random() - 0.5) * 1.4, center.y + Math.random() * 0.4, center.z + (Math.random() - 0.5) * 1.4);
-            p.userData.active = true; p.userData.lifetime = 0; p.userData.maxLifetime = 1.0 + Math.random() * 0.8; p.visible = true;
+            p.position.set(center.x + (Math.random() - 0.5) * 1.6, center.y + Math.random() * 0.5, center.z + (Math.random() - 0.5) * 1.6);
+            p.userData.active = true; p.userData.lifetime = 0; p.userData.maxLifetime = 1.1 + Math.random() * 0.9; p.visible = true;
             p.material.color.setHex(bleedColor()); p.material.opacity = 1;
             p.material.blending = THREE.AdditiveBlending; p.material.depthWrite = false;
             const a = Math.random() * Math.PI * 2;
-            const sp = 18 + Math.random() * 16;
-            p.userData.velocity.set(Math.cos(a) * sp, 7 + Math.random() * 10, Math.sin(a) * sp);
+            const sp = 20 + Math.random() * 18;
+            p.userData.velocity.set(Math.cos(a) * sp, 8 + Math.random() * 12, Math.sin(a) * sp);
             this.activeParticles.push(p);
         }
-        this.addTemporaryLight(center.clone(), 0xaa0a0a, 135, 0.95);
+        this.addTemporaryLight(center.clone(), 0xcc0a0a, 150, 1.0);
     }
 
-    emitPoisonBurst(position, count = 14) {
+    emitPoisonBurst(position, count = 18) {
         const n = Math.floor(count * this.qualityMultiplier);
         for (let i = 0; i < n; i++) {
             const p = this.getFromPool('spark');
             if (!p) break;
-            p.position.copy(position);
-            p.userData.active = true;
-            p.userData.lifetime = 0;
-            p.userData.maxLifetime = 0.35 + Math.random() * 0.25;
-            p.visible = true;
-            p.material.color.setHex(Math.random() > 0.5 ? 0x8bff7a : 0x2bc95a);
-            p.material.opacity = 1;
-            p.userData.velocity.set((Math.random() - 0.5) * 6, Math.random() * 3 + 1, (Math.random() - 0.5) * 6);
-            this.activeParticles.push(p);
-        }
-        const embers = Math.floor(n * 0.8);
-        for (let i = 0; i < embers; i++) {
-            const p = this.getFromPool('ember');
-            if (!p) break;
-            p.position.copy(position);
-            p.userData.active = true;
-            p.userData.lifetime = 0;
-            p.userData.maxLifetime = 0.7 + Math.random() * 0.45;
-            p.visible = true;
-            p.material.color.setHex(Math.random() > 0.5 ? 0x4dff66 : 0x1fbf4c);
-            p.material.opacity = 1;
-            p.material.blending = THREE.AdditiveBlending;
-            p.material.depthWrite = false;
-            p.userData.velocity.set((Math.random() - 0.5) * 4, Math.random() * 2 + 0.6, (Math.random() - 0.5) * 4);
-            this.activeParticles.push(p);
-        }
-        this.addTemporaryLight(position.clone(), 0x2bc95a, 42, 0.35);
-    }
-
-    emitPoisonTrail(position, count = 1) {
-        const n = Math.max(1, Math.floor(count * this.qualityMultiplier));
-        for (let i = 0; i < n; i++) {
-            const p = this.getFromPool('ember');
-            if (!p) return;
             p.position.copy(position);
             p.userData.active = true;
             p.userData.lifetime = 0;
             p.userData.maxLifetime = 0.4 + Math.random() * 0.3;
             p.visible = true;
-            p.material.color.setHex(Math.random() > 0.5 ? 0x4dff66 : 0x1fbf4c);
-            p.material.blending = THREE.AdditiveBlending;
-            p.material.depthWrite = false;
-            p.userData.velocity.set(
-                (Math.random() - 0.5) * 0.3,
-                0.3 + Math.random() * 0.5,
-                (Math.random() - 0.5) * 0.3
-            );
-            p.material.opacity = 0.7;
-            this.activeParticles.push(p);
-        }
-    }
-
-    emitShadowStepBurst(position, count = 28) {
-        const n = Math.floor(count * this.qualityMultiplier);
-        for (let i = 0; i < n; i++) {
-            const p = this.getFromPool('spark');
-            if (!p) break;
-            p.position.copy(position);
-            p.userData.active = true;
-            p.userData.lifetime = 0;
-            p.userData.maxLifetime = 0.5 + Math.random() * 0.35;
-            p.visible = true;
-            p.material.color.setHex(Math.random() > 0.3 ? 0x4dff66 : 0x1a0a2e);
+            p.material.color.setHex(Math.random() > 0.5 ? 0x8bff7a : 0x2bc95a);
             p.material.opacity = 1;
-            p.material.blending = THREE.AdditiveBlending;
-            p.material.depthWrite = false;
             const theta = Math.random() * Math.PI * 2;
-            const speed = 6 + Math.random() * 8;
-            p.userData.velocity.set(
-                Math.cos(theta) * speed,
-                Math.random() * 5 + 2,
-                Math.sin(theta) * speed
-            );
+            const speed = 5 + Math.random() * 5;
+            p.userData.velocity.set(Math.cos(theta) * speed, Math.random() * 4 + 1.5, Math.sin(theta) * speed);
             this.activeParticles.push(p);
         }
-        const embers = Math.floor(n * 0.6);
+        const embers = Math.floor(n * 0.9);
         for (let i = 0; i < embers; i++) {
             const p = this.getFromPool('ember');
             if (!p) break;
@@ -589,158 +565,226 @@ export class ParticleSystem {
             p.userData.lifetime = 0;
             p.userData.maxLifetime = 0.8 + Math.random() * 0.5;
             p.visible = true;
-            p.material.color.setHex(0x1a0a2e);
-            p.material.opacity = 0.9;
+            p.material.color.setHex(Math.random() > 0.5 ? 0x4dff66 : 0x1fbf4c);
+            p.material.opacity = 1;
             p.material.blending = THREE.AdditiveBlending;
             p.material.depthWrite = false;
             const theta = Math.random() * Math.PI * 2;
-            const speed = 3 + Math.random() * 5;
+            const speed = 3 + Math.random() * 4;
+            p.userData.velocity.set(Math.cos(theta) * speed, Math.random() * 2.5 + 0.8, Math.sin(theta) * speed);
+            this.activeParticles.push(p);
+        }
+        this.addTemporaryLight(position.clone(), 0x2bc95a, 55, 0.4);
+    }
+
+    emitPoisonTrail(position, count = 2) {
+        const n = Math.max(1, Math.floor(count * this.qualityMultiplier));
+        for (let i = 0; i < n; i++) {
+            const p = this.getFromPool('ember');
+            if (!p) return;
+            p.position.copy(position);
+            p.userData.active = true;
+            p.userData.lifetime = 0;
+            p.userData.maxLifetime = 0.5 + Math.random() * 0.4;
+            p.visible = true;
+            p.material.color.setHex(Math.random() > 0.5 ? 0x4dff66 : 0x1fbf4c);
+            p.material.blending = THREE.AdditiveBlending;
+            p.material.depthWrite = false;
+            p.userData.velocity.set(
+                (Math.random() - 0.5) * 0.4,
+                0.4 + Math.random() * 0.7,
+                (Math.random() - 0.5) * 0.4
+            );
+            p.material.opacity = 0.8;
+            this.activeParticles.push(p);
+        }
+    }
+
+    emitShadowStepBurst(position, count = 35) {
+        const n = Math.floor(count * this.qualityMultiplier);
+        for (let i = 0; i < n; i++) {
+            const p = this.getFromPool('spark');
+            if (!p) break;
+            p.position.copy(position);
+            p.userData.active = true;
+            p.userData.lifetime = 0;
+            p.userData.maxLifetime = 0.55 + Math.random() * 0.4;
+            p.visible = true;
+            p.material.color.setHex(Math.random() > 0.3 ? 0x4dff66 : 0x1a0a2e);
+            p.material.opacity = 1;
+            p.material.blending = THREE.AdditiveBlending;
+            p.material.depthWrite = false;
+            const theta = Math.random() * Math.PI * 2;
+            const speed = 7 + Math.random() * 10;
             p.userData.velocity.set(
                 Math.cos(theta) * speed,
-                Math.random() * 3 + 1,
+                Math.random() * 6 + 3,
                 Math.sin(theta) * speed
             );
             this.activeParticles.push(p);
         }
-        this.addTemporaryLight(position.clone(), 0x4dff66, 60, 0.45);
+        const embers = Math.floor(n * 0.7);
+        for (let i = 0; i < embers; i++) {
+            const p = this.getFromPool('ember');
+            if (!p) break;
+            p.position.copy(position);
+            p.userData.active = true;
+            p.userData.lifetime = 0;
+            p.userData.maxLifetime = 0.9 + Math.random() * 0.6;
+            p.visible = true;
+            p.material.color.setHex(0x1a0a2e);
+            p.material.opacity = 0.95;
+            p.material.blending = THREE.AdditiveBlending;
+            p.material.depthWrite = false;
+            const theta = Math.random() * Math.PI * 2;
+            const speed = 4 + Math.random() * 6;
+            p.userData.velocity.set(
+                Math.cos(theta) * speed,
+                Math.random() * 4 + 1.5,
+                Math.sin(theta) * speed
+            );
+            this.activeParticles.push(p);
+        }
+        this.addTemporaryLight(position.clone(), 0x4dff66, 75, 0.5);
     }
 
-    emitVanishSmoke(position, count = 40) {
+    emitVanishSmoke(position, count = 50) {
         const n = Math.floor(count * this.qualityMultiplier);
         for (let i = 0; i < n; i++) {
             const p = this.getFromPool('smoke');
             if (!p) break;
             p.position.copy(position);
-            p.position.x += (Math.random() - 0.5) * 1.5;
-            p.position.z += (Math.random() - 0.5) * 1.5;
+            p.position.x += (Math.random() - 0.5) * 2;
+            p.position.z += (Math.random() - 0.5) * 2;
             p.userData.active = true;
             p.userData.lifetime = 0;
-            p.userData.maxLifetime = 1.0 + Math.random() * 0.6;
+            p.userData.maxLifetime = 1.2 + Math.random() * 0.7;
             p.visible = true;
             p.material.color.setHex(0x1a0a2e);
-            p.material.opacity = 0.7;
+            p.material.opacity = 0.75;
             p.material.blending = THREE.NormalBlending;
-            p.scale.setScalar(0.6 + Math.random() * 0.5);
+            p.scale.setScalar(0.7 + Math.random() * 0.6);
             p.userData.velocity.set(
-                (Math.random() - 0.5) * 3,
-                1.5 + Math.random() * 2,
-                (Math.random() - 0.5) * 3
+                (Math.random() - 0.5) * 4,
+                2 + Math.random() * 2.5,
+                (Math.random() - 0.5) * 4
             );
             this.activeParticles.push(p);
         }
-        const sparks = Math.floor(n * 0.5);
+        const sparks = Math.floor(n * 0.6);
         for (let i = 0; i < sparks; i++) {
             const p = this.getFromPool('spark');
             if (!p) break;
             p.position.copy(position);
             p.userData.active = true;
             p.userData.lifetime = 0;
-            p.userData.maxLifetime = 0.6 + Math.random() * 0.3;
+            p.userData.maxLifetime = 0.7 + Math.random() * 0.35;
             p.visible = true;
             p.material.color.setHex(Math.random() > 0.5 ? 0x6633aa : 0x4dff66);
-            p.material.opacity = 0.9;
+            p.material.opacity = 0.95;
             p.material.blending = THREE.AdditiveBlending;
             p.material.depthWrite = false;
             const theta = Math.random() * Math.PI * 2;
-            const speed = 2 + Math.random() * 4;
+            const speed = 3 + Math.random() * 5;
             p.userData.velocity.set(
                 Math.cos(theta) * speed,
-                Math.random() * 3 + 1,
+                Math.random() * 4 + 1.5,
                 Math.sin(theta) * speed
             );
             this.activeParticles.push(p);
         }
+        this.addTemporaryLight(position.clone(), 0x6633aa, 45, 0.5);
     }
 
     emitPunchBurst(position) {
         const m = Math.max(0.5, this.qualityMultiplier);
-        const nS = Math.floor(24 * m);
-        const speed = 14;
+        const nS = Math.floor(30 * m);
+        const speed = 16;
         for (let i = 0; i < nS; i++) {
             const p = this.getFromPool('spark');
             if (!p) break;
             p.position.copy(position);
-            p.userData.active = true; p.userData.lifetime = 0; p.userData.maxLifetime = 0.45 + Math.random() * 0.3; p.visible = true;
+            p.userData.active = true; p.userData.lifetime = 0; p.userData.maxLifetime = 0.5 + Math.random() * 0.35; p.visible = true;
             p.material.color.setHex(bleedColor()); p.material.opacity = 1;
             const theta = Math.random() * Math.PI * 2;
             const phi = Math.acos(2 * Math.random() - 1) * 0.5;
-            p.userData.velocity.set(Math.sin(phi) * Math.cos(theta) * speed * (0.6 + Math.random() * 0.6), Math.random() * speed * 0.8 + speed * 0.2, Math.sin(phi) * Math.sin(theta) * speed * (0.6 + Math.random() * 0.6));
+            p.userData.velocity.set(Math.sin(phi) * Math.cos(theta) * speed * (0.6 + Math.random() * 0.7), Math.random() * speed * 0.9 + speed * 0.2, Math.sin(phi) * Math.sin(theta) * speed * (0.6 + Math.random() * 0.7));
             this.activeParticles.push(p);
         }
-        this.addTemporaryLight(position.clone(), 0xaa0a0a, 58, 0.4);
+        this.addTemporaryLight(position.clone(), 0xcc0a0a, 70, 0.45);
     }
 
-    emitHealEffect(center, count = 36) {
+    emitHealEffect(center, count = 40) {
         const n = Math.floor(count * Math.max(0.5, this.qualityMultiplier));
         const greens = [0x22cc44, 0x33dd55, 0x44ee66, 0x28b850, 0x2dd66a];
         for (let i = 0; i < n; i++) {
             const p = this.pools.heal.pop();
             if (!p) break;
-            p.position.set(center.x + (Math.random() - 0.5) * 0.8, center.y + (Math.random() - 0.2) * 0.6, center.z + (Math.random() - 0.5) * 0.8);
-            p.userData.active = true; p.userData.lifetime = 0; p.userData.maxLifetime = 1.2; p.visible = true;
-            p.userData.velocity.set((Math.random() - 0.5) * (0.4 + Math.random() * 0.5), 1.8 + Math.random() * 1.4, (Math.random() - 0.5) * (0.4 + Math.random() * 0.5));
+            p.position.set(center.x + (Math.random() - 0.5) * 1.0, center.y + (Math.random() - 0.2) * 0.7, center.z + (Math.random() - 0.5) * 1.0);
+            p.userData.active = true; p.userData.lifetime = 0; p.userData.maxLifetime = 1.3; p.visible = true;
+            p.userData.velocity.set((Math.random() - 0.5) * (0.5 + Math.random() * 0.6), 2.0 + Math.random() * 1.6, (Math.random() - 0.5) * (0.5 + Math.random() * 0.6));
             p.material.color.setHex(greens[Math.floor(Math.random() * greens.length)]);
             p.material.opacity = 1;
             this.activeParticles.push(p);
         }
-        this.addTemporaryLight(center.clone(), 0x22cc44, 25, 0.35);
+        this.addTemporaryLight(center.clone(), 0x22cc44, 35, 0.4);
     }
 
-    emitDrainFlow(fromPos, toPos, count = 24) {
+    emitDrainFlow(fromPos, toPos, count = 28) {
         this._tmpVec.subVectors(toPos, fromPos).normalize();
-        const speed = 5 + fromPos.distanceTo(toPos) * 0.6;
+        const speed = 6 + fromPos.distanceTo(toPos) * 0.7;
         const n = Math.floor(count * Math.max(0.5, this.qualityMultiplier));
         for (let i = 0; i < n; i++) {
             const p = this.getFromPool('spark');
             if (!p) break;
             p.position.copy(fromPos);
-            p.userData.active = true; p.userData.lifetime = 0; p.userData.maxLifetime = 0.6 + Math.random() * 0.35; p.visible = true;
-            p.material.color.setHex(bleedColor()); p.material.opacity = 0.9;
+            p.userData.active = true; p.userData.lifetime = 0; p.userData.maxLifetime = 0.65 + Math.random() * 0.4; p.visible = true;
+            p.material.color.setHex(bleedColor()); p.material.opacity = 0.95;
             p.material.blending = THREE.AdditiveBlending;
-            const s = speed * (0.85 + Math.random() * 0.5);
-            p.userData.velocity.set(this._tmpVec.x * s, this._tmpVec.y * s, this._tmpVec.z * s);
+            const s = speed * (0.85 + Math.random() * 0.55);
+            p.userData.velocity.set(this._tmpVec.x * s + (Math.random() - 0.5) * 1.5, this._tmpVec.y * s + (Math.random() - 0.5) * 1.5, this._tmpVec.z * s + (Math.random() - 0.5) * 1.5);
             this.activeParticles.push(p);
         }
-        this.addTemporaryLight(fromPos.clone(), 0xaa0a0a, 28, 0.18);
+        this.addTemporaryLight(fromPos.clone(), 0xaa0a0a, 35, 0.2);
     }
 
     emitDrainTargetBurst(position) {
         const m = Math.max(0.5, this.qualityMultiplier);
-        const nS = Math.floor(8 * m);
+        const nS = Math.floor(12 * m);
         for (let i = 0; i < nS; i++) {
             const p = this.getFromPool('spark');
             if (!p) break;
             p.position.copy(position);
-            p.userData.active = true; p.userData.lifetime = 0; p.userData.maxLifetime = 0.35 + Math.random() * 0.3; p.visible = true;
-            p.material.color.setHex(bleedColor()); p.material.opacity = 0.95;
+            p.userData.active = true; p.userData.lifetime = 0; p.userData.maxLifetime = 0.4 + Math.random() * 0.35; p.visible = true;
+            p.material.color.setHex(bleedColor()); p.material.opacity = 1;
             p.material.blending = THREE.AdditiveBlending;
             const theta = Math.random() * Math.PI * 2;
-            const speed = 2.5 + Math.random() * 3;
-            p.userData.velocity.set(Math.cos(theta) * speed, speed * 0.5 + 0.5, Math.sin(theta) * speed);
+            const speed = 3 + Math.random() * 4;
+            p.userData.velocity.set(Math.cos(theta) * speed, speed * 0.6 + 0.8, Math.sin(theta) * speed);
             this.activeParticles.push(p);
         }
-        const nE = Math.floor(6 * m);
+        const nE = Math.floor(8 * m);
         for (let i = 0; i < nE; i++) {
             const p = this.getFromPool('ember');
             if (!p) break;
             p.position.copy(position);
-            p.userData.active = true; p.userData.lifetime = 0; p.userData.maxLifetime = 0.4 + Math.random() * 0.35; p.visible = true;
-            p.material.color.setHex(bleedColor()); p.material.opacity = 0.9;
+            p.userData.active = true; p.userData.lifetime = 0; p.userData.maxLifetime = 0.5 + Math.random() * 0.4; p.visible = true;
+            p.material.color.setHex(bleedColor()); p.material.opacity = 1;
             p.material.blending = THREE.AdditiveBlending; p.material.depthWrite = false;
             const theta = Math.random() * Math.PI * 2;
-            const speed = 1.2 + Math.random() * 2;
-            p.userData.velocity.set(Math.cos(theta) * speed, speed * 0.8, Math.sin(theta) * speed);
+            const speed = 1.5 + Math.random() * 2.5;
+            p.userData.velocity.set(Math.cos(theta) * speed, speed * 0.9, Math.sin(theta) * speed);
             this.activeParticles.push(p);
         }
-        this.addTemporaryLight(position.clone(), 0xaa0a0a, 18, 0.12);
+        this.addTemporaryLight(position.clone(), 0xaa0a0a, 25, 0.15);
     }
 
-    emitTorchFire(position) { this.emitEmbers(position, 1); }
+    emitTorchFire(position) { this.emitEmbers(position, 2); }
 
     // ── ICE / FROST particle emitters ──
 
     /** Burst of ice crystal sparks (cyan-white) */
-    emitIceBurst(position, count = 20) {
+    emitIceBurst(position, count = 25) {
         const iceColors = [0x88ccff, 0x44aaff, 0xaaddff, 0x66bbff, 0xccf0ff, 0xffffff];
         const n = Math.max(4, Math.floor(count * this.qualityMultiplier));
         for (let i = 0; i < n; i++) {
@@ -749,24 +793,26 @@ export class ParticleSystem {
             p.position.copy(position);
             const theta = Math.random() * Math.PI * 2;
             const phi = Math.acos(2 * Math.random() - 1);
-            const speed = 6 + Math.random() * 12;
+            const speed = 7 + Math.random() * 14;
             p.userData.velocity.set(
                 Math.sin(phi) * Math.cos(theta) * speed,
-                Math.sin(phi) * Math.sin(theta) * speed * 0.6 + 2,
+                Math.sin(phi) * Math.sin(theta) * speed * 0.6 + 3,
                 Math.cos(phi) * speed
             );
-            p.userData.maxLifetime = 0.3 + Math.random() * 0.5;
+            p.userData.active = true; p.userData.lifetime = 0;
+            p.userData.maxLifetime = 0.35 + Math.random() * 0.55;
+            p.visible = true;
             p.material.color.setHex(iceColors[Math.floor(Math.random() * iceColors.length)]);
             p.material.blending = THREE.AdditiveBlending;
-            p.material.opacity = 0.9;
-            p.scale.setScalar(0.08 + Math.random() * 0.06);
+            p.material.opacity = 0.95;
+            p.scale.setScalar(0.1 + Math.random() * 0.08);
             this.activeParticles.push(p);
         }
-        this.addTemporaryLight(position.clone(), 0x66ccff, 35, 0.3);
+        this.addTemporaryLight(position.clone(), 0x66ccff, 45, 0.35);
     }
 
     /** Ice shatter: sharp crystal fragments flying outward */
-    emitIceShatter(position, count = 25) {
+    emitIceShatter(position, count = 30) {
         const iceColors = [0x88ccff, 0x44aaff, 0xcceeff, 0xffffff];
         const n = Math.max(4, Math.floor(count * this.qualityMultiplier));
         for (let i = 0; i < n; i++) {
@@ -774,43 +820,47 @@ export class ParticleSystem {
             if (!p) break;
             p.position.copy(position);
             const theta = Math.random() * Math.PI * 2;
-            const speed = 4 + Math.random() * 10;
+            const speed = 5 + Math.random() * 12;
             p.userData.velocity.set(
                 Math.cos(theta) * speed,
-                1 + Math.random() * 6,
+                1.5 + Math.random() * 7,
                 Math.sin(theta) * speed
             );
-            p.userData.maxLifetime = 0.5 + Math.random() * 0.8;
+            p.userData.active = true; p.userData.lifetime = 0;
+            p.userData.maxLifetime = 0.6 + Math.random() * 0.9;
+            p.visible = true;
             p.material.color.setHex(iceColors[Math.floor(Math.random() * iceColors.length)]);
             p.material.blending = THREE.AdditiveBlending;
-            p.material.opacity = 0.85;
-            p.scale.setScalar(0.03 + Math.random() * 0.04);
+            p.material.opacity = 0.9;
+            p.scale.setScalar(0.04 + Math.random() * 0.05);
             this.activeParticles.push(p);
         }
-        this.addTemporaryLight(position.clone(), 0x44aaff, 50, 0.4);
+        this.addTemporaryLight(position.clone(), 0x44aaff, 60, 0.45);
     }
 
     /** Gentle ice trail (falling frost particles) */
-    emitIceTrail(position, count = 4) {
+    emitIceTrail(position, count = 5) {
         const iceColors = [0x88ccff, 0xaaddff, 0xccf0ff];
         const n = Math.max(1, Math.floor(count * this.qualityMultiplier));
         for (let i = 0; i < n; i++) {
             const p = this.getFromPool('ember');
             if (!p) break;
             p.position.copy(position);
-            p.position.x += (Math.random() - 0.5) * 0.5;
-            p.position.y += (Math.random() - 0.5) * 0.3;
-            p.position.z += (Math.random() - 0.5) * 0.5;
+            p.position.x += (Math.random() - 0.5) * 0.6;
+            p.position.y += (Math.random() - 0.5) * 0.4;
+            p.position.z += (Math.random() - 0.5) * 0.6;
             p.userData.velocity.set(
-                (Math.random() - 0.5) * 0.5,
-                -0.5 - Math.random() * 1.5,
-                (Math.random() - 0.5) * 0.5
+                (Math.random() - 0.5) * 0.6,
+                -0.6 - Math.random() * 1.8,
+                (Math.random() - 0.5) * 0.6
             );
-            p.userData.maxLifetime = 0.6 + Math.random() * 0.6;
+            p.userData.active = true; p.userData.lifetime = 0;
+            p.userData.maxLifetime = 0.7 + Math.random() * 0.7;
+            p.visible = true;
             p.material.color.setHex(iceColors[Math.floor(Math.random() * iceColors.length)]);
             p.material.blending = THREE.AdditiveBlending;
-            p.material.opacity = 0.6;
-            p.scale.setScalar(0.02 + Math.random() * 0.02);
+            p.material.opacity = 0.65;
+            p.scale.setScalar(0.025 + Math.random() * 0.03);
             this.activeParticles.push(p);
         }
     }
