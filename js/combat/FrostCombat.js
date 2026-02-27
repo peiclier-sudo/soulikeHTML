@@ -35,8 +35,8 @@ export class FrostCombat {
         this.frozenOrb = null;
         this.frozenOrbCooldown = 0;
         this.frozenOrbCooldownDuration = 9;
-        this.frozenOrbDamage = 30;           // per shard (was 15)
-        this.frozenOrbShardInterval = 0.14;
+        this.frozenOrbDamage = 40;           // per shard (fewer shards, more damage each)
+        this.frozenOrbShardInterval = 0.28;
         this.frozenOrbRadius = 14;
 
         // ── Frost Beam (E) - consumes frost stacks ──
@@ -385,7 +385,11 @@ export class FrostCombat {
         orb.mesh.rotation.y += deltaTime * 3;
 
         const lifePct = 1 - orb.lifetime / orb.maxLifetime;
-        orb.materials.forEach(mat => updateIceMaterial(mat, orb.lifetime * 6, 0.8 * lifePct));
+        // Throttle shader updates to every 2nd frame
+        orb._shaderTick = (orb._shaderTick || 0) + 1;
+        if (orb._shaderTick % 2 === 0) {
+            orb.materials.forEach(mat => updateIceMaterial(mat, orb.lifetime * 6, 0.8 * lifePct));
+        }
         if (orb.light) orb.light.intensity = (18 + 6 * Math.sin(orb.lifetime * 12)) * lifePct;
 
         // Emit ice shards radially
@@ -468,14 +472,15 @@ export class FrostCombat {
         // Add as a mini-projectile to CombatSystem's projectile list
         const shard = {
             mesh: shardMesh,
-            velocity: dir.clone().multiplyScalar(16),
+            velocity: dir.clone().multiplyScalar(18),
             lifetime: 0,
-            maxLifetime: 0.8,
+            maxLifetime: 0.55,
             damage: this.frozenOrbDamage,
             releaseBurst: 0,
             isCharged: false,
             isFrost: true,
             isShard: true,
+            skipShaderUpdate: true,
             materials: [shardMat],
             geometries: [shardGeo],
             vfx: null

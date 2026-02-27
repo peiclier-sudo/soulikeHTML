@@ -1194,14 +1194,19 @@ export class CombatSystem {
                     p.mesh.material.opacity = 0.85 * lifePct;
                 }
             } else if (p.materials) {
-                p.materials.forEach((mat, idx) => {
-                    const layerAlpha = idx === 0 ? alpha * 0.5 : alpha;
-                    if (p.isFrost) {
-                        updateIceMaterial(mat, p.lifetime, layerAlpha);
-                    } else {
-                        updateBloodFireMaterial(mat, p.lifetime, layerAlpha);
-                    }
-                });
+                if (p.skipShaderUpdate) {
+                    // Lightweight fade for small shards — skip expensive shader uniforms
+                    p.materials.forEach(mat => { if (mat.uniforms?.alpha) mat.uniforms.alpha.value = alpha; });
+                } else {
+                    p.materials.forEach((mat, idx) => {
+                        const layerAlpha = idx === 0 ? alpha * 0.5 : alpha;
+                        if (p.isFrost) {
+                            updateIceMaterial(mat, p.lifetime, layerAlpha);
+                        } else {
+                            updateBloodFireMaterial(mat, p.lifetime, layerAlpha);
+                        }
+                    });
+                }
             }
 
             if (p.lifetime >= p.maxLifetime) {
@@ -1314,7 +1319,7 @@ export class CombatSystem {
                         }
                     }
                     if (this.onProjectileHit) {
-                        this.onProjectileHit({ charged: p.isCharged, isBoss: !!enemy.isBoss, isUltimate: !!p.isUltimateArrow });
+                        this.onProjectileHit({ charged: p.isCharged, isBoss: !!enemy.isBoss, isUltimate: !!p.isUltimateArrow, isBowArrow: !!p.isBowArrow });
                     }
                     // Piercing arrows don't stop on hit
                     if (!p.isPiercing) break;
