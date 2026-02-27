@@ -315,7 +315,8 @@ export class CombatSystem {
             damage: isCharged ? this.chargedDamage : this.basicDamage,
             releaseBurst: isCharged ? 0.15 : 0,
             isCharged: !!isCharged,
-            materials, geometries, vfx
+            materials, geometries, vfx,
+            hitSet: new Set()
         };
     }
     
