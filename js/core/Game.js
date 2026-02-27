@@ -36,10 +36,15 @@ export class Game {
 
         // Quality settings (optimized for performance)
         this.qualitySettings = {
-            shadows: 'high',
+            shadows: 'medium',
             particles: 'low',
             postProcessing: true
         };
+
+        // Adaptive quality: auto-lower DPR when FPS drops, raise when stable
+        this._adaptiveDpr = Math.min(window.devicePixelRatio, 1.0);
+        this._lowFpsFrames = 0;
+        this._highFpsFrames = 0;
         
         this.mouseSensitivity = 1.0;
         this.targetMouseSensitivity = 1.0;
@@ -54,6 +59,10 @@ export class Game {
         this.shakeSeed = Math.random() * 1000;
         this.punchDecay = 0.82;
         this._shieldCenter = new THREE.Vector3();
+        this._tmpGroundResult = new THREE.Vector3();
+        this._tmpDirVec = new THREE.Vector3();
+        this._tmpPosVec = new THREE.Vector3();
+        this._tmpDmgPos = new THREE.Vector3();
 
         // Hit-stop (brief time freeze on heavy impacts)
         this.hitStopTime = 0;
@@ -80,8 +89,8 @@ export class Game {
         });
         
         this.renderer.setSize(window.innerWidth, window.innerHeight);
-        // Slight supersampling for cleaner silhouettes without huge perf hit.
-        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.25));
+        // DPR capped at 1.0 for consistent performance; adaptive quality may lower further.
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.0));
         this.renderer.shadowMap.enabled = true;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -116,7 +125,7 @@ export class Game {
         
         const w = window.innerWidth;
         const h = window.innerHeight;
-        this.bloomResolutionScale = 0.5;
+        this.bloomResolutionScale = 0.25;
         this.bloomPass = new UnrealBloomPass(
             new THREE.Vector2(w * this.bloomResolutionScale, h * this.bloomResolutionScale),
             0.15, 0.26, 0.98
@@ -187,9 +196,9 @@ export class Game {
         this._crimsonMouse.y = -((Number(mouseScreenY) / h) * 2 - 1);
         this.raycaster.setFromCamera(this._crimsonMouse, this.camera);
         const hit = this.raycaster.ray.intersectPlane(this._groundPlane, this._groundIntersect);
-        if (hit) return this._groundIntersect.clone();
+        if (hit) return this._tmpGroundResult.copy(this._groundIntersect);
         this._groundIntersect.set(0, 0, -10);
-        return this._groundIntersect.clone();
+        return this._tmpGroundResult.copy(this._groundIntersect);
     }
 
     /** Ground position in front of the player (camera look direction), at least minDistance away */
@@ -199,7 +208,7 @@ export class Game {
         const hit = this.raycaster.ray.intersectPlane(this._groundPlane, this._groundIntersect);
         if (!hit) {
             this._groundIntersect.set(0, 0, -10);
-            return this._groundIntersect.clone();
+            return this._tmpGroundResult.copy(this._groundIntersect);
         }
         const playerPos = this.character.position;
         const dist = Math.sqrt(
@@ -212,7 +221,7 @@ export class Game {
             this._groundIntersect.x = playerPos.x + dirX * minDistance;
             this._groundIntersect.z = playerPos.z + dirZ * minDistance;
         }
-        return this._groundIntersect.clone();
+        return this._tmpGroundResult.copy(this._groundIntersect);
     }
 
     spawnBoss() {
@@ -461,14 +470,15 @@ export class Game {
 
         if (this.gameState.requestUltimateSlashSpawn) {
             this.pendingUltimateSlash = 0.05;
-            this.pendingUltimateDir = this.character.getForwardDirection().clone().normalize();
+            this._tmpDirVec.copy(this.character.getForwardDirection()).normalize();
+            this.pendingUltimateDir = this._tmpDirVec.clone(); // clone once for delayed use
             this.gameState.requestUltimateSlashSpawn = false;
         }
         if (this.pendingUltimateSlash > 0) {
             this.pendingUltimateSlash -= this.deltaTime;
             if (this.pendingUltimateSlash <= 0) {
-                const dir = this.pendingUltimateDir || this.character.getForwardDirection().clone().normalize();
-                const pos = this.character.getWeaponPosition().clone().add(dir.clone().multiplyScalar(0.5));
+                const dir = this.pendingUltimateDir || this._tmpDirVec.copy(this.character.getForwardDirection()).normalize();
+                const pos = this._tmpPosVec.copy(this.character.getWeaponPosition()).addScaledVector(dir, 0.5);
                 if (this.combatSystem.isBowRangerKit && this.combatSystem.bowRangerCombat) {
                     this.combatSystem.bowRangerCombat.spawnUltimateArrow();
                 } else if (this.combatSystem.isDaggerKit && this.combatSystem.daggerCombat) {
@@ -733,7 +743,8 @@ export class Game {
             enemy.staggerTimer = Math.max(enemy.staggerTimer, 0.55);
             enemy.state = 'stagger';
             this.character.superDashHitSet.add(id);
-            this.gameState.emit('damageNumber', { position: this.combatSystem._enemyPos.clone(), damage: this.character.superDashDamage, isCritical: true, anchorId: this.combatSystem._getDamageAnchorId(enemy) });
+            this._tmpDmgPos.copy(this.combatSystem._enemyPos);
+            this.gameState.emit('damageNumber', { position: this._tmpDmgPos, damage: this.character.superDashDamage, isCritical: true, anchorId: this.combatSystem._getDamageAnchorId(enemy) });
             this.onProjectileHit({ whipHit: true, punchFinish: true });
         }
     }
@@ -759,6 +770,40 @@ export class Game {
             if (fpsElement) {
                 fpsElement.textContent = `FPS: ${this.fps}`;
             }
+
+            // Adaptive quality: auto-adjust DPR based on sustained FPS
+            this._adaptiveQualityTick();
+        }
+    }
+
+    _adaptiveQualityTick() {
+        if (this.fps < 40) {
+            this._lowFpsFrames++;
+            this._highFpsFrames = 0;
+            if (this._lowFpsFrames >= 3 && this._adaptiveDpr > 0.6) {
+                this._adaptiveDpr = Math.max(0.6, this._adaptiveDpr - 0.1);
+                this.renderer.setPixelRatio(this._adaptiveDpr);
+                // Also disable bloom if FPS is really bad
+                if (this._adaptiveDpr <= 0.7 && this.qualitySettings.postProcessing) {
+                    this.qualitySettings.postProcessing = false;
+                }
+            }
+        } else if (this.fps >= 55) {
+            this._highFpsFrames++;
+            this._lowFpsFrames = 0;
+            if (this._highFpsFrames >= 5) {
+                const maxDpr = Math.min(window.devicePixelRatio, 1.0);
+                if (this._adaptiveDpr < maxDpr) {
+                    this._adaptiveDpr = Math.min(maxDpr, this._adaptiveDpr + 0.05);
+                    this.renderer.setPixelRatio(this._adaptiveDpr);
+                }
+                if (!this.qualitySettings.postProcessing && this._adaptiveDpr >= 0.9) {
+                    this.qualitySettings.postProcessing = true;
+                }
+            }
+        } else {
+            this._lowFpsFrames = 0;
+            this._highFpsFrames = 0;
         }
     }
 
@@ -769,7 +814,7 @@ export class Game {
         this.camera.updateProjectionMatrix();
         this.renderer.setSize(width, height);
         this.composer.setSize(width, height);
-        this.composer.setPixelRatio(Math.min(window.devicePixelRatio, 1));
+        this.composer.setPixelRatio(this._adaptiveDpr);
         this.bloomPass.resolution.set(width * this.bloomResolutionScale, height * this.bloomResolutionScale);
     }
 

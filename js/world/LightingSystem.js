@@ -26,10 +26,10 @@ export class LightingSystem {
         this.keyLight.shadow.mapSize.height = this.shadowResolution;
         this.keyLight.shadow.camera.near = 0.5;
         this.keyLight.shadow.camera.far = 40;
-        this.keyLight.shadow.camera.left = -26;
-        this.keyLight.shadow.camera.right = 26;
-        this.keyLight.shadow.camera.top = 26;
-        this.keyLight.shadow.camera.bottom = -26;
+        this.keyLight.shadow.camera.left = -18;
+        this.keyLight.shadow.camera.right = 18;
+        this.keyLight.shadow.camera.top = 18;
+        this.keyLight.shadow.camera.bottom = -18;
         this.keyLight.shadow.bias = -0.0003;
         this.keyLight.shadow.normalBias = 0.02;
         this.scene.add(this.keyLight);
@@ -48,20 +48,11 @@ export class LightingSystem {
         this.rimLight.position.set(-12, 8, -10);
         this.scene.add(this.rimLight);
 
-        // Top-down white directional for clean model shadows on the floor.
+        // Top-down white directional — light only, shadow DISABLED for perf
+        // (single shadow from keyLight is sufficient for gameplay readability)
         this.topLight = new THREE.DirectionalLight(0xffffff, 0.55);
         this.topLight.position.set(0.5, 15, 0.5);
-        this.topLight.castShadow = true;
-        this.topLight.shadow.mapSize.width = 512;
-        this.topLight.shadow.mapSize.height = 512;
-        this.topLight.shadow.camera.near = 0.5;
-        this.topLight.shadow.camera.far = 40;
-        this.topLight.shadow.camera.left = -20;
-        this.topLight.shadow.camera.right = 20;
-        this.topLight.shadow.camera.top = 20;
-        this.topLight.shadow.camera.bottom = -20;
-        this.topLight.shadow.bias = -0.0002;
-        this.topLight.shadow.normalBias = 0.02;
+        this.topLight.castShadow = false;
         this.scene.add(this.topLight);
 
         // Subtle cool kicker from behind camera to lift dark faces just enough.

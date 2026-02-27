@@ -88,8 +88,8 @@ export class InputManager {
     
     getInput() {
         if (!this._inputReady) {
-            this.prevKeys = { ...this.keys };
-            this.prevKeyChars = { ...this.keyChars };
+            this._copyObj(this.keys, this.prevKeys);
+            this._copyObj(this.keyChars, this.prevKeyChars);
             this._inputReady = true;
         }
         const bloodNovaKey = (this.keys['KeyX'] || this.keyChars['x']) && !(this.prevKeys['KeyX'] || this.prevKeyChars['x']);
@@ -138,9 +138,19 @@ export class InputManager {
         };
     }
     
+    /** Copy own enumerable props from src → dst without allocating a new object */
+    _copyObj(src, dst) {
+        for (const k in dst) {
+            if (!(k in src)) delete dst[k];
+        }
+        for (const k in src) {
+            dst[k] = src[k];
+        }
+    }
+
     resetFrameInput() {
-        this.prevKeys = { ...this.keys };
-        this.prevKeyChars = { ...this.keyChars };
+        this._copyObj(this.keys, this.prevKeys);
+        this._copyObj(this.keyChars, this.prevKeyChars);
         this.mouse.deltaX = 0;
         this.mouse.deltaY = 0;
         this.mouse.leftClickDown = false;
