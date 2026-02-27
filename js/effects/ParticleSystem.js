@@ -381,38 +381,39 @@ export class ParticleSystem {
         const m = Math.max(0.5, this.qualityMultiplier);
         const speed = 42;
         const spread = 5;
-        const sz = 0.22;
-        const nS = Math.floor(35 * m);
+        const sz = 0.28;
+        // Fewer but larger particles — same visual punch, less CPU
+        const nS = Math.floor(18 * m);
         for (let i = 0; i < nS; i++) {
             const p = this.getFromPool('spark');
             if (!p) break;
             p.position.set(position.x + (Math.random() - 0.5) * spread, position.y + (Math.random() - 0.5) * spread, position.z + (Math.random() - 0.5) * spread);
             p.userData.active = true; p.userData.lifetime = 0; p.userData.maxLifetime = 0.55 + Math.random() * 0.45; p.visible = true;
-            p.scale.setScalar(sz * (0.7 + Math.random() * 0.8));
+            p.scale.setScalar(sz * (0.8 + Math.random() * 1.0));
             p.material.color.setHex(bleedColor()); p.material.opacity = 1;
             p.material.blending = THREE.AdditiveBlending; p.material.depthWrite = false;
             p.userData.velocity.set((Math.random() - 0.5) * speed, Math.random() * speed * 0.6 + speed * 0.2, (Math.random() - 0.5) * speed);
             this.activeParticles.push(p);
         }
-        const nSm = Math.floor(10 * m);
+        const nSm = Math.floor(5 * m);
         for (let i = 0; i < nSm; i++) {
             const p = this.getFromPool('smoke');
             if (!p) break;
             p.position.set(position.x + (Math.random() - 0.5) * spread, position.y, position.z + (Math.random() - 0.5) * spread);
-            p.userData.active = true; p.userData.lifetime = 0; p.userData.maxLifetime = 2.5 + Math.random() * 1.0; p.visible = true;
-            p.scale.setScalar(sz * 0.6 * (0.6 + Math.random() * 0.6));
+            p.userData.active = true; p.userData.lifetime = 0; p.userData.maxLifetime = 2.2 + Math.random() * 0.8; p.visible = true;
+            p.scale.setScalar(sz * 0.7 * (0.6 + Math.random() * 0.6));
             p.material.color.setHex(bleedColor()); p.material.opacity = 0.9;
             p.material.blending = THREE.AdditiveBlending; p.material.depthWrite = false;
             p.userData.velocity.set((Math.random() - 0.5) * speed * 0.5, Math.random() * speed * 0.35 + speed * 0.15, (Math.random() - 0.5) * speed * 0.5);
             this.activeParticles.push(p);
         }
-        const nE = Math.floor(20 * m);
+        const nE = Math.floor(10 * m);
         for (let i = 0; i < nE; i++) {
             const p = this.getFromPool('ember');
             if (!p) break;
             p.position.set(position.x + (Math.random() - 0.5) * spread, position.y + (Math.random() - 0.5) * spread, position.z + (Math.random() - 0.5) * spread);
-            p.userData.active = true; p.userData.lifetime = 0; p.userData.maxLifetime = 1.4 + Math.random() * 0.9; p.visible = true;
-            p.scale.setScalar(sz * (0.5 + Math.random() * 0.6));
+            p.userData.active = true; p.userData.lifetime = 0; p.userData.maxLifetime = 1.2 + Math.random() * 0.8; p.visible = true;
+            p.scale.setScalar(sz * (0.6 + Math.random() * 0.7));
             p.material.color.setHex(bleedColor()); p.material.opacity = 1;
             p.material.blending = THREE.AdditiveBlending; p.material.depthWrite = false;
             p.userData.velocity.set((Math.random() - 0.5) * speed * 0.7, Math.random() * speed * 0.5 + speed * 0.25, (Math.random() - 0.5) * speed * 0.7);
@@ -425,33 +426,36 @@ export class ParticleSystem {
         const m = Math.max(0.5, this.qualityMultiplier);
         const spread = 7; const speed = 48;
         this.addTemporaryLight(position.clone(), 0xaa0a0a, 110, 0.65);
-        const nS = Math.floor(70 * m);
+        // Fewer but bigger particles: same visual impact, way less overhead
+        const nS = Math.floor(30 * m);
         for (let i = 0; i < nS; i++) {
             const p = this.getFromPool('spark');
             if (!p) break;
             p.position.set(position.x + (Math.random() - 0.5) * spread, position.y + (Math.random() - 0.5) * spread, position.z + (Math.random() - 0.5) * spread);
             p.userData.active = true; p.userData.lifetime = 0; p.userData.maxLifetime = 0.7 + Math.random() * 0.5; p.visible = true;
+            p.scale.setScalar(1.0 + Math.random() * 0.8);
             p.material.color.setHex(bleedColor()); p.material.opacity = 1;
             p.userData.velocity.set((Math.random() - 0.5) * speed, Math.random() * speed * 0.6 + speed * 0.2, (Math.random() - 0.5) * speed);
             this.activeParticles.push(p);
         }
-        const nSm = Math.floor(24 * m);
+        const nSm = Math.floor(10 * m);
         for (let i = 0; i < nSm; i++) {
             const p = this.getFromPool('smoke');
             if (!p) break;
             p.position.set(position.x + (Math.random() - 0.5) * spread, position.y, position.z + (Math.random() - 0.5) * spread);
-            p.userData.active = true; p.userData.lifetime = 0; p.userData.maxLifetime = 3.0 + Math.random(); p.visible = true;
+            p.userData.active = true; p.userData.lifetime = 0; p.userData.maxLifetime = 2.5 + Math.random() * 0.8; p.visible = true;
             p.material.color.setHex(bleedColor()); p.material.opacity = 0.9;
             p.material.blending = THREE.AdditiveBlending; p.material.depthWrite = false;
             p.userData.velocity.set((Math.random() - 0.5) * speed * 0.5, Math.random() * speed * 0.35 + speed * 0.15, (Math.random() - 0.5) * speed * 0.5);
             this.activeParticles.push(p);
         }
-        const nE = Math.floor(55 * m);
+        const nE = Math.floor(22 * m);
         for (let i = 0; i < nE; i++) {
             const p = this.getFromPool('ember');
             if (!p) break;
             p.position.set(position.x + (Math.random() - 0.5) * spread, position.y + (Math.random() - 0.5) * spread, position.z + (Math.random() - 0.5) * spread);
-            p.userData.active = true; p.userData.lifetime = 0; p.userData.maxLifetime = 1.6 + Math.random(); p.visible = true;
+            p.userData.active = true; p.userData.lifetime = 0; p.userData.maxLifetime = 1.4 + Math.random() * 0.8; p.visible = true;
+            p.scale.setScalar(1.0 + Math.random() * 0.5);
             p.material.color.setHex(bleedColor()); p.material.opacity = 1;
             p.material.blending = THREE.AdditiveBlending; p.material.depthWrite = false;
             p.userData.velocity.set((Math.random() - 0.5) * speed * 0.7, Math.random() * speed * 0.5 + speed * 0.25, (Math.random() - 0.5) * speed * 0.7);
@@ -698,7 +702,7 @@ export class ParticleSystem {
 
     emitPunchBurst(position) {
         const m = Math.max(0.5, this.qualityMultiplier);
-        const nS = Math.floor(30 * m);
+        const nS = Math.floor(16 * m);
         const speed = 16;
         for (let i = 0; i < nS; i++) {
             const p = this.getFromPool('spark');

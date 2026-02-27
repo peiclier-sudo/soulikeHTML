@@ -727,7 +727,19 @@ export class Game {
         this.hitStopTime = Math.max(this.hitStopTime, duration);
     }
     onProjectileHit(payload = {}) {
-        const { charged, isBoss, isUltimate, whipHit, whipWindup, bloodflailCharges, punchFinish, bloodNova, crimsonEruption, daggerSlashImpact, vanishActivated, shadowStepLand, bowRecoilShot, bowDamageZone, bowMultiShot, bowJudgmentArrow } = payload;
+        const { charged, isBoss, isUltimate, whipHit, whipWindup, bloodflailCharges, punchFinish, bloodNova, crimsonEruption, daggerSlashImpact, vanishActivated, shadowStepLand, bowRecoilShot, bowDamageZone, bowMultiShot, bowJudgmentArrow, bloodCrescendLaunch } = payload;
+        // Blood crescent launch: snappy forward push + brief bloom, NO heavy hit-stop
+        if (bloodCrescendLaunch) {
+            const charges = bloodflailCharges ?? 0;
+            this.shakeIntensity = 0.02 + charges * 0.002;
+            this.shakeDuration = 0.1;
+            this.shakeTime = this.shakeDuration;
+            this.lastPunchOffset.copy(this.character.getForwardDirection()).multiplyScalar(0.15 + charges * 0.02);
+            this.ultimateBloomTime = 0.12 + charges * 0.01;
+            this.ultimateBloomDuration = 0.12 + charges * 0.01;
+            this.ultimateFovTime = 0.08 + charges * 0.01;
+            return;
+        }
         if (vanishActivated) {
             this.shakeIntensity = 0.025;
             this.shakeDuration = 0.15;
