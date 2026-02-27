@@ -339,6 +339,7 @@ export class Game {
         // V = Teleport Behind (dagger kit)
         if (input.teleport && this.combatSystem?.isDaggerKit && this.combatSystem?.daggerCombat) {
             this.combatSystem.daggerCombat.executeTeleportBehind();
+            input.crimsonEruption = false;
         }
 
         // C = Vanish (dagger) or Shield (others)
@@ -428,12 +429,12 @@ export class Game {
         }
 
         // Q ability: Frost Mage → instant Frozen Orb, others → Crimson Eruption targeting
-        if (this.combatSystem && input.crimsonEruption && this.combatSystem.isFrostKit && this.combatSystem.frostCombat) {
+        if (this.combatSystem && input.crimsonEruption && !this.combatSystem.isDaggerKit && this.combatSystem.isFrostKit && this.combatSystem.frostCombat) {
             this.combatSystem.frostCombat.castFrozenOrb();
             input.crimsonEruption = false;
         }
         if (this.combatSystem && typeof this.combatSystem.updateCrimsonEruptionPreview === 'function') {
-            if (input.crimsonEruption && this.combatSystem.crimsonEruptionCooldown <= 0) {
+            if (input.crimsonEruption && !this.combatSystem.isDaggerKit && this.combatSystem.crimsonEruptionCooldown <= 0) {
                 this.crimsonEruptionTargeting = true;
                 const w = this.canvas?.clientWidth || 1;
                 const h = this.canvas?.clientHeight || 1;

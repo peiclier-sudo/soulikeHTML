@@ -499,6 +499,41 @@ export class ParticleSystem {
         }
         this.addTemporaryLight(center.clone(), 0xaa0a0a, 135, 0.95);
     }
+
+    emitPoisonBurst(position, count = 14) {
+        const n = Math.floor(count * this.qualityMultiplier);
+        for (let i = 0; i < n; i++) {
+            const p = this.getFromPool('spark');
+            if (!p) break;
+            p.position.copy(position);
+            p.userData.active = true;
+            p.userData.lifetime = 0;
+            p.userData.maxLifetime = 0.35 + Math.random() * 0.25;
+            p.visible = true;
+            p.material.color.setHex(Math.random() > 0.5 ? 0x8bff7a : 0x2bc95a);
+            p.material.opacity = 1;
+            p.userData.velocity.set((Math.random() - 0.5) * 6, Math.random() * 3 + 1, (Math.random() - 0.5) * 6);
+            this.activeParticles.push(p);
+        }
+        const embers = Math.floor(n * 0.8);
+        for (let i = 0; i < embers; i++) {
+            const p = this.getFromPool('ember');
+            if (!p) break;
+            p.position.copy(position);
+            p.userData.active = true;
+            p.userData.lifetime = 0;
+            p.userData.maxLifetime = 0.7 + Math.random() * 0.45;
+            p.visible = true;
+            p.material.color.setHex(Math.random() > 0.5 ? 0x4dff66 : 0x1fbf4c);
+            p.material.opacity = 1;
+            p.material.blending = THREE.AdditiveBlending;
+            p.material.depthWrite = false;
+            p.userData.velocity.set((Math.random() - 0.5) * 4, Math.random() * 2 + 0.6, (Math.random() - 0.5) * 4);
+            this.activeParticles.push(p);
+        }
+        this.addTemporaryLight(position.clone(), 0x2bc95a, 42, 0.35);
+    }
+
     emitPunchBurst(position) {
         const m = Math.max(0.5, this.qualityMultiplier);
         const nS = Math.floor(24 * m);

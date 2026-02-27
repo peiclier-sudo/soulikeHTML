@@ -652,7 +652,7 @@ export class CombatSystem {
         if (!this.isDaggerKit) this.spawnFireball(false);
 
         const basicClip = this.character.actions?.['Basic attack']?.getClip();
-        const basicTimeScale = 3.8;
+        const basicTimeScale = this.isDaggerKit ? 8.0 : 3.8;
         this.attackDuration = basicClip?.duration ? basicClip.duration / basicTimeScale : 0.28;
         this.attackTimer = this.attackDuration;
         this._meleeHitThisSwing = false;

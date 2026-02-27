@@ -216,7 +216,7 @@ export const KIT_DEFINITIONS = {
         id: 'shadow_assassin',
         name: 'Shadow Assassin',
         className: CLASS_ROGUE,
-        description: 'Strikes from the shadows. Build poison charges, pierce with venom, vanish and teleport.',
+        description: 'A toxic assassin with emerald dashes and instant strikes. Build poison charges, then blink behind targets.',
         icon: '\u{1F5E1}',
 
         stats: {
@@ -300,10 +300,10 @@ export const KIT_DEFINITIONS = {
         },
 
         theme: {
-            primary: 0x1a0a2e,
-            secondary: 0x8844cc,
-            accent: 0xcc88ff,
-            particleColor: 0x9955ff,
+            primary: 0x0b2a12,
+            secondary: 0x1fbf4c,
+            accent: 0x8bff7a,
+            particleColor: 0x4dff66,
             uiClass: 'kit-shadow-assassin'
         },
 
