@@ -909,13 +909,99 @@ export class CombatSystem {
         }
     }
 
-    /** E = Blood Crescend / Frost Beam: consume stacks and discharge. */
+    /** E = Blood Crescend / Frost Beam / Venom Burst: consume stacks and discharge. */
     executeBloodflail(chargesUsed, multiplier) {
         if (this.isFrostKit && this.frostCombat) {
             this.frostCombat.executeFrostBeam(chargesUsed, multiplier);
             return;
         }
+        if (this.isVenomKit) {
+            this._executeVenomBurst(chargesUsed, multiplier);
+            return;
+        }
         this.executeBloodCrescend(chargesUsed, multiplier);
+    }
+
+    /** Venom Stalker E: clean green burst — no shader, just fast MeshBasicMaterial */
+    _executeVenomBurst(chargesUsed, multiplier) {
+        if (this.bloodCrescend) return;
+        const weaponPos = this.character.getWeaponPosition();
+        const dir = this.character.getForwardDirection().clone();
+        dir.y = 0;
+        if (dir.lengthSq() < 0.0001) dir.set(0, 0, -1);
+        dir.normalize();
+
+        const startPos = weaponPos.clone().addScaledVector(dir, 0.8);
+        const stackRatio = Math.min(1, chargesUsed / 8);
+        const bladeLen = 2.6 + chargesUsed * 0.45;
+        const bladeWidth = 0.8 + chargesUsed * 0.12;
+
+        // Poison blade shape — tapered, aggressive
+        const shape = new THREE.Shape();
+        shape.moveTo(bladeLen * 0.5, 0);
+        shape.quadraticCurveTo(bladeLen * 0.12, bladeWidth * 0.6, -bladeLen * 0.5, bladeWidth * 0.2);
+        shape.lineTo(-bladeLen * 0.5, -bladeWidth * 0.2);
+        shape.quadraticCurveTo(bladeLen * 0.12, -bladeWidth * 0.6, bladeLen * 0.5, 0);
+
+        const geom = new THREE.ShapeGeometry(shape, 10);
+        const matCore = new THREE.MeshBasicMaterial({
+            color: 0x44ff70, transparent: true, opacity: 0.95,
+            side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending
+        });
+        const meshCore = new THREE.Mesh(geom, matCore);
+
+        const glowGeom = new THREE.ShapeGeometry(shape, 10);
+        const matGlow = new THREE.MeshBasicMaterial({
+            color: 0x22aa44, transparent: true, opacity: 0.35,
+            side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending
+        });
+        const meshGlow = new THREE.Mesh(glowGeom, matGlow);
+        meshGlow.scale.set(1.4, 1.0, 1.6);
+
+        // Bright center line
+        const coreLineGeo = new THREE.ShapeGeometry(shape, 8);
+        const matLine = new THREE.MeshBasicMaterial({
+            color: 0xccffcc, transparent: true, opacity: 0.4,
+            side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending
+        });
+        const meshLine = new THREE.Mesh(coreLineGeo, matLine);
+        meshLine.scale.set(0.6, 1.0, 0.3);
+
+        const group = new THREE.Group();
+        group.add(meshCore);
+        group.add(meshGlow);
+        group.add(meshLine);
+        group.position.copy(startPos);
+        const lookTarget = startPos.clone().add(dir);
+        group.lookAt(lookTarget);
+
+        this.scene.add(group);
+
+        const speed = 24 + stackRatio * 8;
+        const dirNorm = dir.clone();
+
+        this.bloodCrescend = {
+            mesh: group,
+            velocity: dirNorm.clone().multiplyScalar(speed),
+            lifetime: 0,
+            maxLifetime: 0.45 + stackRatio * 0.2,
+            damage: Math.floor((this.whipDamage + chargesUsed * 18) * multiplier),
+            chargesUsed,
+            hitSet: new Set(),
+            materials: [matCore, matGlow, matLine],
+            geometries: [geom, glowGeom, coreLineGeo],
+            isVenomBurst: true,
+            hitRadius: 1.8 + stackRatio * 0.8
+        };
+
+        this.gameState.combat.isWhipAttacking = true;
+        this.whipTimer = this.whipDuration;
+        this.whipHitOnce = true;
+
+        if (this.particleSystem) {
+            this.particleSystem.emitPoisonBurst(startPos.clone(), 12 + chargesUsed * 2);
+        }
+        if (this.onProjectileHit) this.onProjectileHit({ bloodCrescendLaunch: true, bloodflailCharges: chargesUsed });
     }
 
     executeBloodCrescend(chargesUsed, multiplier) {
@@ -943,15 +1029,21 @@ export class CombatSystem {
 
         // Alternate slash direction per combo
         const comboIdx = this.gameState.combat.comboCount || 1;
-        const slashAngle = comboIdx % 2 === 0 ? -0.4 : 0.4;
+        const slashAngle = comboIdx % 2 === 0 ? -0.35 : 0.35;
 
-        // Crescent slash arc geometry — wider + thicker for punchy feel
-        const arcShape = new THREE.Shape();
-        const outerR = 1.8;
-        const innerR = 0.9;
-        arcShape.absarc(0, 0, outerR, -0.7, 0.7, false);
-        arcShape.absarc(0, 0, innerR, 0.7, -0.7, true);
-        const geom = new THREE.ShapeGeometry(arcShape, 12);
+        // Long blade shape — tapered katana energy wave
+        const bladeShape = new THREE.Shape();
+        const len = 3.2;   // long reach
+        const width = 0.55; // thin blade
+        // Tip (sharp point forward)
+        bladeShape.moveTo(len * 0.5, 0);
+        // Top edge — slight outward curve
+        bladeShape.quadraticCurveTo(len * 0.15, width * 0.65, -len * 0.5, width * 0.25);
+        // Tail (flat back)
+        bladeShape.lineTo(-len * 0.5, -width * 0.25);
+        // Bottom edge — mirror curve
+        bladeShape.quadraticCurveTo(len * 0.15, -width * 0.65, len * 0.5, 0);
+        const geom = new THREE.ShapeGeometry(bladeShape, 10);
         geom.rotateX(-Math.PI / 2);
 
         const group = new THREE.Group();
@@ -959,45 +1051,43 @@ export class CombatSystem {
         group.lookAt(startPos.clone().add(dir));
         group.rotateZ(slashAngle);
 
-        // Main slash mesh — bright toxic green with purple edge
+        // Core blade — bright toxic green
         const mat = new THREE.MeshBasicMaterial({
-            color: 0x44ff88,
+            color: 0x33ff77,
             transparent: true,
             opacity: 0.95,
             side: THREE.DoubleSide,
             depthWrite: false,
             blending: THREE.AdditiveBlending
         });
-        const slashMesh = new THREE.Mesh(geom, mat);
-        group.add(slashMesh);
+        group.add(new THREE.Mesh(geom, mat));
 
-        // Outer glow layer — purple-green poison haze
-        const glowGeom = new THREE.ShapeGeometry(arcShape, 12);
+        // Outer glow — wider, softer green
+        const glowGeom = new THREE.ShapeGeometry(bladeShape, 10);
         glowGeom.rotateX(-Math.PI / 2);
         const glowMat = new THREE.MeshBasicMaterial({
-            color: 0x7744cc,
+            color: 0x22cc66,
             transparent: true,
-            opacity: 0.35,
+            opacity: 0.3,
             side: THREE.DoubleSide,
             depthWrite: false,
             blending: THREE.AdditiveBlending
         });
         const glowMesh = new THREE.Mesh(glowGeom, glowMat);
-        glowMesh.scale.setScalar(1.4);
+        glowMesh.scale.set(1.35, 1.0, 1.6);
         group.add(glowMesh);
 
         this.scene.add(group);
 
-        // Spawn particles along the slash
         if (this.particleSystem) {
-            this.particleSystem.emitPoisonBurst(startPos.clone(), 8);
+            this.particleSystem.emitPoisonBurst(startPos.clone(), 6);
         }
 
         this.projectiles.push({
             mesh: group,
-            velocity: dir.multiplyScalar(28),
+            velocity: dir.multiplyScalar(30),
             lifetime: 0,
-            maxLifetime: 0.18,
+            maxLifetime: 0.2,
             isDaggerBlade: true,
             isDaggerSlash: true,
             hitSet: new Set(),
@@ -1006,49 +1096,50 @@ export class CombatSystem {
         });
     }
 
-    /** Charged attack: twin crossing slashes (X pattern) with bigger VFX */
+    /** Charged attack: twin crossing blades (X pattern) with bigger VFX */
     spawnDaggerChargedSlash() {
         const wp = this.character.getWeaponPosition().clone();
         const dir = this.character.getForwardDirection().clone().normalize();
         const startPos = wp.addScaledVector(dir, 0.6);
 
+        const len = 3.8;
+        const width = 0.7;
         for (let side = -1; side <= 1; side += 2) {
-            const arcShape = new THREE.Shape();
-            const outerR = 1.8;
-            const innerR = 1.1;
-            arcShape.absarc(0, 0, outerR, -0.7, 0.7, false);
-            arcShape.absarc(0, 0, innerR, 0.7, -0.7, true);
-            const geom = new THREE.ShapeGeometry(arcShape, 14);
+            const bladeShape = new THREE.Shape();
+            bladeShape.moveTo(len * 0.5, 0);
+            bladeShape.quadraticCurveTo(len * 0.15, width * 0.65, -len * 0.5, width * 0.25);
+            bladeShape.lineTo(-len * 0.5, -width * 0.25);
+            bladeShape.quadraticCurveTo(len * 0.15, -width * 0.65, len * 0.5, 0);
+            const geom = new THREE.ShapeGeometry(bladeShape, 10);
             geom.rotateX(-Math.PI / 2);
 
             const group = new THREE.Group();
             group.position.copy(startPos);
             group.lookAt(startPos.clone().add(dir));
-            group.rotateZ(side * 0.6);
+            group.rotateZ(side * 0.55);
 
             const mat = new THREE.MeshBasicMaterial({
-                color: 0x8bff7a,
+                color: 0x55ff90,
                 transparent: true,
                 opacity: 0.95,
                 side: THREE.DoubleSide,
                 depthWrite: false,
                 blending: THREE.AdditiveBlending
             });
-            const slash = new THREE.Mesh(geom, mat);
-            group.add(slash);
+            group.add(new THREE.Mesh(geom, mat));
 
-            const glowGeom = new THREE.ShapeGeometry(arcShape, 14);
+            const glowGeom = new THREE.ShapeGeometry(bladeShape, 10);
             glowGeom.rotateX(-Math.PI / 2);
             const glowMat = new THREE.MeshBasicMaterial({
-                color: 0x1fbf4c,
+                color: 0x22cc66,
                 transparent: true,
-                opacity: 0.4,
+                opacity: 0.35,
                 side: THREE.DoubleSide,
                 depthWrite: false,
                 blending: THREE.AdditiveBlending
             });
             const glow = new THREE.Mesh(glowGeom, glowMat);
-            glow.scale.setScalar(1.4);
+            glow.scale.set(1.3, 1.0, 1.5);
             group.add(glow);
 
             this.scene.add(group);
@@ -1056,7 +1147,7 @@ export class CombatSystem {
                 mesh: group,
                 velocity: dir.clone().multiplyScalar(32),
                 lifetime: 0,
-                maxLifetime: 0.22,
+                maxLifetime: 0.24,
                 isDaggerBlade: true,
                 isDaggerSlash: true,
                 isChargedSlash: true,
@@ -1834,21 +1925,40 @@ export class CombatSystem {
         c.lifetime += deltaTime;
         c.mesh.position.addScaledVector(c.velocity, deltaTime);
         const lifePct = 1 - c.lifetime / c.maxLifetime;
-        const scaleBoost = c.stackScale ?? 1;
-        const pulse = 1 + (0.22 + 0.08 * (scaleBoost - 1)) * Math.sin(c.lifetime * 24);
-        c.mesh.scale.set((1 + 0.2 * Math.sin(c.lifetime * 16)) * scaleBoost, pulse * scaleBoost, scaleBoost);
 
-        const fireMat = c.materials[0];
-        if (fireMat?.uniforms) updateBloodFireMaterial(fireMat, c.lifetime * 10, Math.max(0, 0.98 * lifePct));
-        if (c.materials[1]) c.materials[1].opacity = Math.max(0, 0.5 * lifePct);
-        if (c.materials[2]) c.materials[2].opacity = Math.max(0, 0.3 * lifePct);
+        if (c.isVenomBurst) {
+            // Venom burst: simple expand + fade (no shader updates)
+            const expandT = Math.min(1, c.lifetime / (c.maxLifetime * 0.4));
+            const scale = 0.5 + 0.7 * expandT;
+            c.mesh.scale.setScalar(scale);
+            c.materials[0].opacity = 0.95 * lifePct;
+            c.materials[1].opacity = 0.35 * lifePct;
+            if (c.materials[2]) c.materials[2].opacity = 0.4 * lifePct;
 
-        if (this.particleSystem) {
-            c._trailTick = (c._trailTick || 0) + 1;
-            if (c._trailTick % 3 === 0) {
-                const trailDir = c.velocity.clone().normalize();
-                this.particleSystem.emitSlashTrail(c.mesh.position, trailDir, 6 + c.chargesUsed);
-                this.particleSystem.emitOrbTrail(c.mesh.position, trailDir, 5 + c.chargesUsed);
+            if (this.particleSystem) {
+                c._trailTick = (c._trailTick || 0) + 1;
+                if (c._trailTick % 4 === 0) {
+                    this.particleSystem.emitPoisonTrail?.(c.mesh.position, 1);
+                }
+            }
+        } else {
+            // Blood crescend: original shader-based animation
+            const scaleBoost = c.stackScale ?? 1;
+            const pulse = 1 + (0.22 + 0.08 * (scaleBoost - 1)) * Math.sin(c.lifetime * 24);
+            c.mesh.scale.set((1 + 0.2 * Math.sin(c.lifetime * 16)) * scaleBoost, pulse * scaleBoost, scaleBoost);
+
+            const fireMat = c.materials[0];
+            if (fireMat?.uniforms) updateBloodFireMaterial(fireMat, c.lifetime * 10, Math.max(0, 0.98 * lifePct));
+            if (c.materials[1]) c.materials[1].opacity = Math.max(0, 0.5 * lifePct);
+            if (c.materials[2]) c.materials[2].opacity = Math.max(0, 0.3 * lifePct);
+
+            if (this.particleSystem) {
+                c._trailTick = (c._trailTick || 0) + 1;
+                if (c._trailTick % 3 === 0) {
+                    const trailDir = c.velocity.clone().normalize();
+                    this.particleSystem.emitSlashTrail(c.mesh.position, trailDir, 6 + c.chargesUsed);
+                    this.particleSystem.emitOrbTrail(c.mesh.position, trailDir, 5 + c.chargesUsed);
+                }
             }
         }
 
@@ -1873,8 +1983,12 @@ export class CombatSystem {
                     anchorId: this._getDamageAnchorId(enemy)
                 });
                 if (this.particleSystem) {
-                    this.particleSystem.emitPunchBurst(this._enemyPos.clone());
-                    this.particleSystem.emitUltimateEndExplosion(this._enemyPos.clone());
+                    if (c.isVenomBurst) {
+                        this.particleSystem.emitPoisonBurst(this._enemyPos.clone(), 16 + c.chargesUsed * 2);
+                    } else {
+                        this.particleSystem.emitPunchBurst(this._enemyPos.clone());
+                        this.particleSystem.emitUltimateEndExplosion(this._enemyPos.clone());
+                    }
                 }
                 if (this.onProjectileHit) this.onProjectileHit({ charged: true, isBoss: !!enemy.isBoss, whipHit: true, bloodflailCharges: c.chargesUsed, punchFinish: true });
             }
