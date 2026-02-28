@@ -35,18 +35,19 @@ export class Game {
         this.lastFpsUpdate = 0;
         this.fps = 60;
 
-        // Quality settings (optimized for performance)
+        // Quality settings — start conservative, adaptive system promotes if GPU can handle it
         this.qualitySettings = {
-            shadows: 'medium',
+            shadows: 'low',
             particles: 'low',
-            postProcessing: true,
+            postProcessing: false,
             motionSmoothing: false
         };
 
         // Adaptive quality: auto-lower DPR when FPS drops, raise when stable
-        this._adaptiveDpr = Math.min(window.devicePixelRatio, 1.0);
+        this._adaptiveDpr = Math.min(window.devicePixelRatio, 0.85);
         this._lowFpsFrames = 0;
         this._highFpsFrames = 0;
+        this._qualityPromoted = false;  // true once we've tried promoting
         
         this.mouseSensitivity = 1.0;
         this.targetMouseSensitivity = 1.0;
@@ -83,18 +84,17 @@ export class Game {
     initRenderer() {
         this.renderer = new THREE.WebGLRenderer({
             canvas: this.canvas,
-            antialias: true,
+            antialias: false,
             alpha: false,
             powerPreference: 'high-performance',
             stencil: false,
             depth: true
         });
-        
+
         this.renderer.setSize(window.innerWidth, window.innerHeight);
-        // DPR capped at 1.0 for consistent performance; adaptive quality may lower further.
-        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.0));
+        this.renderer.setPixelRatio(this._adaptiveDpr);
         this.renderer.shadowMap.enabled = true;
-        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        this.renderer.shadowMap.type = THREE.BasicShadowMap;
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
         this.renderer.toneMappingExposure = 0.95;
         this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -127,7 +127,7 @@ export class Game {
         
         const w = window.innerWidth;
         const h = window.innerHeight;
-        this.bloomResolutionScale = 0.25;
+        this.bloomResolutionScale = 0.15;
         this.bloomPass = new UnrealBloomPass(
             new THREE.Vector2(w * this.bloomResolutionScale, h * this.bloomResolutionScale),
             0.15, 0.26, 0.98
@@ -682,15 +682,19 @@ export class Game {
         // Apply screen shake after camera update (short impact feel)
         this.applyScreenShake();
         this.applyPunchPush();
-        // Bloom pulse with smooth ease-out
-        if (this.ultimateBloomTime > 0) {
+        // Bloom pulse with smooth ease-out (skip when post-processing is off)
+        if (this.qualitySettings.postProcessing) {
+            if (this.ultimateBloomTime > 0) {
+                this.ultimateBloomTime = Math.max(0, this.ultimateBloomTime - this.deltaTime);
+                const t = this.ultimateBloomTime / this.ultimateBloomDuration;
+                const eased = t * t;
+                const peak = 1.6;
+                this.bloomPass.strength = this.baseBloomStrength + (peak - this.baseBloomStrength) * eased;
+            } else {
+                this.bloomPass.strength = this.baseBloomStrength;
+            }
+        } else if (this.ultimateBloomTime > 0) {
             this.ultimateBloomTime = Math.max(0, this.ultimateBloomTime - this.deltaTime);
-            const t = this.ultimateBloomTime / this.ultimateBloomDuration;
-            const eased = t * t; // ease-out: fast peak, smooth decay
-            const peak = 1.6;
-            this.bloomPass.strength = this.baseBloomStrength + (peak - this.baseBloomStrength) * eased;
-        } else {
-            this.bloomPass.strength = this.baseBloomStrength;
         }
         // FOV punch with smooth ease-out
         if (this.ultimateFovTime > 0) {
@@ -704,8 +708,8 @@ export class Game {
             this.camera.updateProjectionMatrix();
         }
 
-        // Adaptive afterimage: reacts per-frame to smooth FPS drops + dash trails
-        this._updateAfterimage();
+        // Adaptive afterimage (skip entirely when post-processing is off)
+        if (this.qualitySettings.postProcessing) this._updateAfterimage();
 
         // Update boss AI and boss health bar; apply damage + ultimate charge when boss hits player
         if (this.boss) {
@@ -789,28 +793,44 @@ export class Game {
 
     _adaptiveQualityTick() {
         if (this.fps < 40) {
+            // Struggling — demote aggressively (react in 2s instead of 3s)
             this._lowFpsFrames++;
             this._highFpsFrames = 0;
-            if (this._lowFpsFrames >= 3 && this._adaptiveDpr > 0.6) {
-                this._adaptiveDpr = Math.max(0.6, this._adaptiveDpr - 0.1);
-                this.renderer.setPixelRatio(this._adaptiveDpr);
-                // Also disable bloom if FPS is really bad
-                if (this._adaptiveDpr <= 0.7 && this.qualitySettings.postProcessing) {
+            if (this._lowFpsFrames >= 2) {
+                // Step 1: Kill post-processing first (biggest GPU saver)
+                if (this.qualitySettings.postProcessing) {
                     this.qualitySettings.postProcessing = false;
+                    return;
+                }
+                // Step 2: Lower DPR
+                if (this._adaptiveDpr > 0.5) {
+                    this._adaptiveDpr = Math.max(0.5, this._adaptiveDpr - 0.15);
+                    this.renderer.setPixelRatio(this._adaptiveDpr);
+                    return;
+                }
+                // Step 3: Disable shadows entirely
+                if (this.qualitySettings.shadows !== 'low') {
+                    this.qualitySettings.shadows = 'low';
+                    this.updateShadowQuality('low');
                 }
             }
         } else if (this.fps >= 55) {
+            // Running well — cautiously promote (only after 8s sustained)
             this._highFpsFrames++;
             this._lowFpsFrames = 0;
-            if (this._highFpsFrames >= 5) {
+            if (this._highFpsFrames >= 8) {
                 const maxDpr = Math.min(window.devicePixelRatio, 1.0);
                 if (this._adaptiveDpr < maxDpr) {
                     this._adaptiveDpr = Math.min(maxDpr, this._adaptiveDpr + 0.05);
                     this.renderer.setPixelRatio(this._adaptiveDpr);
-                }
-                if (!this.qualitySettings.postProcessing && this._adaptiveDpr >= 0.9) {
+                } else if (this.qualitySettings.shadows === 'low') {
+                    this.qualitySettings.shadows = 'medium';
+                    this.updateShadowQuality('medium');
+                } else if (!this.qualitySettings.postProcessing && !this._qualityPromoted) {
                     this.qualitySettings.postProcessing = true;
+                    this._qualityPromoted = true;  // only try once
                 }
+                this._highFpsFrames = 0;  // reset so each promotion takes 8s
             }
         } else {
             this._lowFpsFrames = 0;
