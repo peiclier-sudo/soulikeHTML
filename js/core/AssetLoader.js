@@ -203,13 +203,12 @@ export class AssetLoader {
     }
 
     /**
-     * Load rogue character model (RogueV2.glb) with embedded animations.
-     * Supports both old and new clip labels (case-insensitive), including:
-     * walk/Walking, idle/Idle/drink, run/Running fast/Fast running, run left, run right,
-     * jump/roll dodge, death, Basic attack Dagger, Basci attack bow.
+     * Load rogue character model (RogueV3.glb) with embedded locomotion-only animations.
+     * RogueV3 has 7 movement clips: Idle, Jump, Run left, Run right, RunFast, Running, Walking.
+     * No attack animations — attacks are purely VFX-based (blade waves, arrows, etc.).
      */
     async loadRogueModel() {
-        const rogueUrl = './models/RogueV2.glb?v=1';
+        const rogueUrl = './models/RogueV3.glb?v=3';
         try {
             const gltf = await this.loadGLTF(rogueUrl);
             const model = gltf.scene;
@@ -268,7 +267,7 @@ export class AssetLoader {
                 clips.forEach((clip) => {
                     byNameLower[clip.name.toLowerCase()] = clip;
                 });
-                console.log('RogueV2 animations:', clips.map(a => a.name));
+                console.log('RogueV3 animations:', clips.map(a => a.name));
 
                 const get = (...candidates) => {
                     for (const candidate of candidates) {
@@ -278,57 +277,34 @@ export class AssetLoader {
                         const lower = normalized.toLowerCase();
                         if (byNameLower[lower]) return byNameLower[lower];
                     }
-                    return fallback;
+                    return null;
                 };
 
-                const Idle = get('idle', 'Idle');
-                const Walking = get('walk', 'Walking');
-                const RunningFast = get('run', 'Running fast', 'Fast running');
-                const RunLeft = get('run left', 'Run left');
-                const RunRight = get('run right', 'Run right');
-                const Jump = get('jump', 'Jump', 'roll dodge', 'Roll dodge');
-                const Death = get('death', 'Death');
-                const BasicDagger = get('Basic attack Dagger');
-                const BasicBow = get('Basci attack bow');
+                const Idle = get('Idle', 'idle');
+                const Walking = get('Walking', 'walk');
+                const Running = get('Running', 'run');
+                const RunFast = get('RunFast', 'Fast running', 'Running fast');
+                const RunLeft = get('Run left', 'run left');
+                const RunRight = get('Run right', 'run right');
+                const Jump = get('Jump', 'jump');
 
-                const loco = {
-                    Idle,
-                    Walk: Walking,
-                    Run: RunningFast,
-                    'Fast running': RunningFast,
+                // Locomotion-only map — no attack animations in RogueV3
+                const locoMap = {
+                    Idle: Idle || fallback,
+                    Walk: Walking || Running || fallback,
+                    Run: Running || RunFast || fallback,
+                    'Fast running': RunFast || Running || fallback,
                     'Run left': RunLeft,
                     'Run right': RunRight,
-                    Jump,
-                    Death,
-                    Drink: Idle,
-                    'Roll dodge': Jump
+                    Jump: Jump || fallback,
+                    Death: Idle || fallback,
+                    Drink: Idle || fallback,
+                    'Roll dodge': Jump || fallback
                 };
 
-                const mapDagger = {
-                    ...loco,
-                    'Basic attack': BasicDagger,
-                    'Charged attack': BasicDagger,
-                    'Special attack 1': BasicDagger,
-                    'Special attack 2': BasicDagger,
-                    'Special attack 3': BasicDagger,
-                    'Ultimate': BasicDagger,
-                    'Whip': BasicDagger
-                };
-
-                const mapBow = {
-                    ...loco,
-                    'Basic attack': BasicBow,
-                    'Charged attack': BasicBow,
-                    'Special attack 1': BasicBow,
-                    'Special attack 2': BasicBow,
-                    'Special attack 3': BasicBow,
-                    'Ultimate': BasicBow,
-                    'Whip': BasicBow
-                };
-
-                this.assets.animations.character_3k_rogue_dagger = { clips, map: mapDagger };
-                this.assets.animations.character_3k_rogue_bow = { clips, map: mapBow };
-                this.assets.animations.character_3k_rogue = { clips, map: mapDagger };
+                this.assets.animations.character_3k_rogue_dagger = { clips, map: locoMap, locoOnly: true };
+                this.assets.animations.character_3k_rogue_bow = { clips, map: locoMap, locoOnly: true };
+                this.assets.animations.character_3k_rogue = { clips, map: locoMap, locoOnly: true };
             } else {
                 const empty = { clips: [], map: {} };
                 this.assets.animations.character_3k_rogue_dagger = empty;
@@ -336,10 +312,10 @@ export class AssetLoader {
                 this.assets.animations.character_3k_rogue = empty;
             }
 
-            console.log('RogueV2 loaded successfully');
+            console.log('RogueV3 loaded successfully');
             return model;
         } catch (error) {
-            console.warn('RogueV2 model not found, rogue kits will fall back to mage model:', error.message);
+            console.warn('RogueV3 model not found, rogue kits will fall back to mage model:', error.message);
             this.assets.models.character_3k_rogue = null;
             const empty = { clips: [], map: {} };
             this.assets.animations.character_3k_rogue_dagger = empty;

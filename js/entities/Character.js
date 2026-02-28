@@ -70,6 +70,7 @@ export class Character {
 
         // Dissociation: two-layer system (Souls-like)
         this.useDissociation = true;
+        this.locoOnly = false;       // Set true by setupAnimations for loco-only models (RogueV3)
         this.locoAction = null;      // Locomotion layer (legs, hips) - always active
         this.upperAction = null;     // Upper body layer (arms, torso, head) - plays on top
         this.currentUpperState = 'none'; // Track to avoid resetting every frame
@@ -514,6 +515,12 @@ export class Character {
             console.warn('No animation data available for character');
             this.useProceduralAnimation = true;
             return;
+        }
+
+        // Loco-only models (e.g. RogueV3): disable dissociation, attacks are VFX-only
+        if (animationData.locoOnly) {
+            this.locoOnly = true;
+            this.useDissociation = false;
         }
 
         // Check if we have real animation clips (GLTF loaded)
@@ -1295,6 +1302,39 @@ export class Character {
             }
 
             this.currentAction = this.upperAction || this.locoAction;
+        } else if (this.locoOnly) {
+            // Loco-only mode (RogueV3): movement stays perfectly smooth, attacks are VFX-only.
+            // Combat states never interrupt locomotion — the character keeps running/walking.
+            let targetAnimation = 'Idle';
+            if (this.isDashing) {
+                targetAnimation = this.actions['Fast running'] ? 'Fast running' : 'Run';
+            } else if (this.isSuperDashing) {
+                targetAnimation = this.actions['Fast running'] ? 'Fast running' : 'Run';
+            } else if (!this.isGrounded) {
+                targetAnimation = this.actions['Jump'] ? 'Jump' : 'Idle';
+            } else if (this.gameState.movement.isMoving) {
+                const isFastRun = this.gameState.player.stamina > 5;
+                if (input.left && !input.right && this.actions['Run left']) {
+                    targetAnimation = 'Run left';
+                } else if (input.right && !input.left && this.actions['Run right']) {
+                    targetAnimation = 'Run right';
+                } else if (isFastRun && this.actions['Fast running']) {
+                    targetAnimation = 'Fast running';
+                } else {
+                    targetAnimation = isFastRun ? 'Run' : 'Walk';
+                }
+            }
+
+            if (targetAnimation !== this.currentAnimation) {
+                const fromDash = this.currentAnimation === 'Fast running' || this.currentAnimation === 'Run';
+                const fadeDur = fromDash ? 0.28 : 0.18;
+                this.fadeToAction(targetAnimation, fadeDur);
+                this.currentAnimation = targetAnimation;
+            }
+
+            this.currentAction = this.actions[targetAnimation] || this.currentAction;
+            this.locoAction = this.currentAction;
+            this.upperAction = null;
         } else {
             // Full-body: single layer (attacks take over entire body)
             let targetAnimation = 'Idle';
