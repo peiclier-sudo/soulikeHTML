@@ -359,6 +359,49 @@ export class Game {
         this.gameState.reset();
     }
 
+    /** Apply gear + talent stat bonuses from HubManager to the current GameState. */
+    applyStatBonuses(bonuses) {
+        if (!bonuses) return;
+        const gs = this.gameState;
+
+        // Health & stamina (increase max and current equally)
+        if (bonuses.health) {
+            gs.player.maxHealth += bonuses.health;
+            gs.player.health += bonuses.health;
+        }
+        if (bonuses.stamina) {
+            gs.player.maxStamina += bonuses.stamina;
+            gs.player.stamina += bonuses.stamina;
+        }
+
+        // Weapon damage
+        if (bonuses.damage) {
+            gs.equipment.weapon.damage += bonuses.damage;
+        }
+
+        // Armor
+        if (bonuses.armor) {
+            gs.equipment.armor.defense += bonuses.armor;
+        }
+
+        // Attack speed (multiplier-style)
+        if (bonuses.attackSpeed) {
+            gs.equipment.weapon.attackSpeed += bonuses.attackSpeed;
+        }
+
+        // Store remaining bonuses on gameState for combat/movement systems to read
+        gs.bonuses = {
+            critChance: bonuses.critChance || 0,
+            critMultiplier: bonuses.critMultiplier || 0,
+            backstabMultiplier: bonuses.backstabMultiplier || 0,
+            lifesteal: bonuses.lifesteal || 0,
+            runSpeed: bonuses.runSpeed || 0,
+            jumpForce: bonuses.jumpForce || 0,
+            healthRegen: bonuses.healthRegen || 0,
+            soulBonus: bonuses.soulBonus || 0
+        };
+    }
+
     /** Restore a saved run (called from main.js when player clicks "Continue"). */
     restoreRun(savedRun) {
         this.bossNumber = savedRun.bossesDefeated;
@@ -653,6 +696,12 @@ export class Game {
 
         if (this.gameState.player.drinkPotionCooldown > 0) {
             this.gameState.player.drinkPotionCooldown -= this.deltaTime;
+        }
+
+        // Health regen from gear/talents (HP per second)
+        const hpRegen = this.gameState.bonuses?.healthRegen ?? 0;
+        if (hpRegen > 0 && this.gameState.player.health > 0) {
+            this.gameState.heal(hpRegen * this.deltaTime);
         }
         if (this.gameState.combat.isDrinkingPotion) {
             this.gameState.combat.drinkingPotionTimer -= this.deltaTime;

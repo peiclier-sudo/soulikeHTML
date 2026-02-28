@@ -8,6 +8,7 @@
     <title>ORDALIE</title>
     <link rel="stylesheet" href="/css/main.css?v=20260226-1">
     <link rel="stylesheet" href="/css/hud.css?v=20260226-1">
+    <link rel="stylesheet" href="/css/hub.css?v=20260228-1">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&display=swap" rel="stylesheet">
 </head>
@@ -104,8 +105,90 @@
                 <div class="kit-preview-abilities" id="kit-preview-abilities"></div>
                 <div class="confirm-buttons">
                     <button class="game-button back-button" id="confirm-back-btn">BACK</button>
-                    <button class="game-button confirm-button" id="confirm-btn">BEGIN ORDALIE</button>
+                    <button class="game-button confirm-button" id="confirm-btn">ENTER THE HUB</button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ HUB — Main Navigation ═══ -->
+    <div id="hub-screen" class="hub-screen" style="display: none;">
+        <button class="hub-back-btn" id="hub-back-btn">MENU</button>
+        <div class="hub-header">
+            <div class="hub-title">ORDALIE</div>
+            <div class="hub-subtitle">CHOOSE YOUR PATH</div>
+            <div class="hub-souls" id="hub-souls">0 SOULS</div>
+        </div>
+        <div class="hub-nav">
+            <div class="hub-card" id="hub-tower">
+                <span class="hub-card-icon">\u{1F3F0}</span>
+                <div class="hub-card-title">BOSS TOWER</div>
+                <div class="hub-card-desc">Endless ascent. Each floor a deadlier guardian. How far can you climb?</div>
+            </div>
+            <div class="hub-card disabled" id="hub-pvx">
+                <span class="hub-card-icon">\u2694</span>
+                <div class="hub-card-title">PVX ARENA</div>
+                <div class="hub-card-desc">Prove your worth against other warriors in the crucible.</div>
+                <div class="hub-card-badge">COMING SOON</div>
+            </div>
+            <div class="hub-card" id="hub-boutique">
+                <span class="hub-card-icon">\u{1F4B0}</span>
+                <div class="hub-card-title">BOUTIQUE</div>
+                <div class="hub-card-desc">Spend souls on weapons, armor, and consumables to grow stronger.</div>
+            </div>
+            <div class="hub-card" id="hub-character">
+                <span class="hub-card-icon">\u{1F464}</span>
+                <div class="hub-card-title">CHARACTER</div>
+                <div class="hub-card-desc">Equip gear, unlock talents, and forge your build.</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ BOUTIQUE — Shop ═══ -->
+    <div id="boutique-screen" class="hub-screen" style="display: none;">
+        <button class="hub-back-btn" id="boutique-back-btn">BACK</button>
+        <div class="hub-header">
+            <div class="hub-title">BOUTIQUE</div>
+            <div class="hub-souls" id="boutique-souls">0 SOULS</div>
+        </div>
+        <div class="shop-tabs" id="shop-tabs">
+            <button class="shop-tab active" data-slot="weapon">WEAPONS</button>
+            <button class="shop-tab" data-slot="helmet">HELMETS</button>
+            <button class="shop-tab" data-slot="chest">CHEST</button>
+            <button class="shop-tab" data-slot="boots">BOOTS</button>
+            <button class="shop-tab" data-slot="consumable">CONSUMABLES</button>
+        </div>
+        <div class="shop-grid" id="shop-grid"></div>
+    </div>
+
+    <!-- ═══ CHARACTER — Gear + Talent Tree ═══ -->
+    <div id="character-screen" class="hub-screen" style="display: none;">
+        <button class="hub-back-btn" id="char-back-btn">BACK</button>
+        <div class="hub-header">
+            <div class="hub-title">CHARACTER</div>
+            <div class="hub-souls" id="char-souls">0 SOULS</div>
+        </div>
+        <div class="char-stat-summary" id="char-stat-summary"></div>
+        <div class="char-layout">
+            <!-- Gear Panel -->
+            <div class="gear-panel">
+                <div class="gear-panel-title">EQUIPMENT</div>
+                <div class="gear-slots" id="gear-slots"></div>
+            </div>
+            <!-- Talent Tree -->
+            <div class="talent-panel">
+                <div class="talent-panel-header">
+                    <div class="talent-panel-title">TALENTS</div>
+                    <div class="talent-points-display" id="talent-points">0 POINTS</div>
+                </div>
+                <div class="talent-branches" id="talent-branches"></div>
+            </div>
+        </div>
+        <!-- Gear picker modal -->
+        <div class="gear-picker-overlay" id="gear-picker-overlay">
+            <div class="gear-picker">
+                <div class="gear-picker-title" id="gear-picker-title">SELECT ITEM</div>
+                <div id="gear-picker-items"></div>
             </div>
         </div>
     </div>

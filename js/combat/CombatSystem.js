@@ -161,9 +161,10 @@ export class CombatSystem {
 
     // ─── Crit / Backstab helpers ─────────────────────────────────
 
-    /** Roll crit based on kit's critChance. Returns true if this hit is a crit. */
+    /** Roll crit based on kit's critChance + gear/talent bonuses. */
     _rollCrit() {
-        return Math.random() < this._critChance;
+        const bonus = this.gameState?.bonuses?.critChance ?? 0;
+        return Math.random() < (this._critChance + bonus);
     }
 
     /**
@@ -204,11 +205,20 @@ export class CombatSystem {
     _applyCritBackstab(baseDamage, enemy, enemyMesh) {
         const isCritical = this._rollCrit();
         const isBackstab = this._isBackstab(enemy, enemyMesh);
+        const bonuses = this.gameState?.bonuses;
         let damage = baseDamage;
-        if (isBackstab) damage = Math.floor(damage * this._backstabMultiplier);
-        if (isCritical) damage = Math.floor(damage * this._critMultiplier);
+        if (isBackstab) damage = Math.floor(damage * (this._backstabMultiplier + (bonuses?.backstabMultiplier ?? 0)));
+        if (isCritical) damage = Math.floor(damage * (this._critMultiplier + (bonuses?.critMultiplier ?? 0)));
         // Bow multi-shot vulnerability debuff
         if (enemy?._bowVulnerabilityRemaining > 0) damage = Math.floor(damage * (enemy._bowVulnerabilityMult ?? 1));
+
+        // Lifesteal from gear/talents
+        const lifesteal = bonuses?.lifesteal ?? 0;
+        if (lifesteal > 0 && damage > 0) {
+            const heal = Math.max(1, Math.floor(damage * lifesteal));
+            this.gameState.heal(heal);
+        }
+
         return { damage, isCritical, isBackstab };
     }
 
