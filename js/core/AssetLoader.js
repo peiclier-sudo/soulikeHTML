@@ -212,7 +212,7 @@ export class AssetLoader {
         try {
             const gltf = await this.loadGLTF(rogueUrl);
             const model = gltf.scene;
-            model.scale.setScalar(1.0);
+            model.scale.setScalar(0.75);
 
             model.traverse((child) => {
                 if (child.isMesh) {

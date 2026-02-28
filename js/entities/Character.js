@@ -1520,6 +1520,45 @@ export class Character {
      */
     _updateProceduralCombatPose(dt) {
         if (!this._combatBones) return;
+        const bones = this._combatBones;
+        const q = this._poseQ;
+        const e = this._poseE;
+
+        // --- Airborne arm lock: pin arms to a compact held pose during jump ---
+        const airTarget = this.isGrounded ? 0 : 1;
+        this._jumpArmBlend = this._jumpArmBlend ?? 0;
+        this._jumpArmBlend += (airTarget - this._jumpArmBlend) * Math.min(1, dt * 12);
+        if (this._jumpArmBlend > 0.01) {
+            const jb = this._jumpArmBlend;
+            // Arms tucked in close to body, forearms bent
+            if (bones.rArm) {
+                e.set(-0.25 * jb, 0, 0.4 * jb);
+                q.setFromEuler(e);
+                bones.rArm.quaternion.multiply(q);
+            }
+            if (bones.rForeArm) {
+                e.set(-0.55 * jb, 0, 0);
+                q.setFromEuler(e);
+                bones.rForeArm.quaternion.multiply(q);
+            }
+            if (bones.lArm) {
+                e.set(-0.25 * jb, 0, -0.4 * jb);
+                q.setFromEuler(e);
+                bones.lArm.quaternion.multiply(q);
+            }
+            if (bones.lForeArm) {
+                e.set(-0.55 * jb, 0, 0);
+                q.setFromEuler(e);
+                bones.lForeArm.quaternion.multiply(q);
+            }
+            // Slight forward lean
+            if (bones.spine) {
+                e.set(0.08 * jb, 0, 0);
+                q.setFromEuler(e);
+                bones.spine.quaternion.multiply(q);
+            }
+        }
+
         const combat = this.gameState.combat;
 
         // Determine target pose from combat state
@@ -1549,7 +1588,6 @@ export class Character {
         this._combatSwingT = Math.min(1, this._combatSwingT + dt * swingSpeed);
         const t = this._combatSwingT;
         const blend = this._combatPoseBlend;
-        const bones = this._combatBones;
         const dir = this._combatSwingDir; // +1 or -1
 
         // Easing curves
@@ -1557,9 +1595,6 @@ export class Character {
         const bell = Math.sin(t * Math.PI);
         // Sharp attack curve: fast wind-up, sharp peak, slower follow-through
         const strike = t < 0.35 ? Math.sin(t / 0.35 * Math.PI * 0.5) : Math.cos((t - 0.35) / 0.65 * Math.PI * 0.5);
-
-        const q = this._poseQ;
-        const e = this._poseE;
 
         if (newType === 'basic') {
             // Alternating diagonal slash — full upper body commits to the swing
