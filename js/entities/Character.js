@@ -73,6 +73,15 @@ export class Character {
         this.locoOnly = false;       // Set true by setupAnimations for loco-only models (RogueV3)
         this.locoAction = null;      // Locomotion layer (legs, hips) - always active
         this.upperAction = null;     // Upper body layer (arms, torso, head) - plays on top
+
+        // Procedural combat pose (locoOnly rigs): additive bone rotations during attacks
+        this._combatBones = null;    // { spine, spine01, rArm, rForeArm, lArm, lForeArm }
+        this._combatPoseBlend = 0;   // 0 = loco only, 1 = full attack pose
+        this._combatPoseTarget = 0;  // target blend value
+        this._combatPoseType = 'none'; // 'basic', 'charged', 'charging', 'ability', 'none'
+        this._combatSwingT = 0;      // swing progress within an attack (0→1)
+        this._poseQ = new THREE.Quaternion();
+        this._poseE = new THREE.Euler();
         this.currentUpperState = 'none'; // Track to avoid resetting every frame
         this.chargedAttackAnimStarted = false; // Only start charged anim once per charge, never replay
         this.isPlayingUltimate = false;
@@ -521,6 +530,7 @@ export class Character {
         if (animationData.locoOnly) {
             this.locoOnly = true;
             this.useDissociation = false;
+            this._cacheCombatBones();
         }
 
         // Check if we have real animation clips (GLTF loaded)
@@ -1380,6 +1390,9 @@ export class Character {
         }
 
         this.updateAnimationSpeed();
+
+        // Procedural combat pose: additive bone rotations for locoOnly rigs
+        if (this.locoOnly) this._updateProceduralCombatPose(deltaTime);
     }
 
     updateAnimationSpeed() {
@@ -1435,6 +1448,158 @@ export class Character {
                 } else {
                     this.currentAction.setEffectiveTimeScale(1.0);
                 }
+            }
+        }
+    }
+
+    /** Cache bone references for procedural combat poses (locoOnly rigs). */
+    _cacheCombatBones() {
+        if (!this.mesh) return;
+        const bones = {};
+        const wanted = {
+            spine: ['spine02', 'spine2'],
+            spine01: ['spine01', 'spine1'],
+            rArm: ['rightarm'],
+            rForeArm: ['rightforearm'],
+            lArm: ['leftarm'],
+            lForeArm: ['leftforearm']
+        };
+        this.mesh.traverse(child => {
+            if (!child.isBone) return;
+            const n = child.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+            for (const [key, patterns] of Object.entries(wanted)) {
+                if (bones[key]) continue;
+                for (const p of patterns) {
+                    if (n === p || n.includes(p)) { bones[key] = child; break; }
+                }
+            }
+        });
+        if (bones.spine || bones.rArm) {
+            this._combatBones = bones;
+            // Store rest quaternions (captured from first idle frame)
+            this._combatBonesRest = {};
+            for (const [key, bone] of Object.entries(bones)) {
+                this._combatBonesRest[key] = bone.quaternion.clone();
+            }
+        }
+    }
+
+    /**
+     * Apply additive procedural rotations on top of locomotion for combat feel.
+     * Called AFTER mixer.update() so bone transforms are set by locomotion clips.
+     */
+    _updateProceduralCombatPose(dt) {
+        if (!this._combatBones) return;
+        const combat = this.gameState.combat;
+
+        // Determine target pose from combat state
+        let newType = 'none';
+        if (combat.isAttacking) newType = 'basic';
+        else if (combat.isCharging) newType = 'charging';
+        else if (combat.isChargedAttacking) newType = 'charged';
+        else if (combat.isWhipAttacking) newType = 'ability';
+
+        // Reset swing when attack type changes
+        if (newType !== this._combatPoseType) {
+            if (newType !== 'none') this._combatSwingT = 0;
+            this._combatPoseType = newType;
+        }
+        this._combatPoseTarget = newType !== 'none' ? 1 : 0;
+
+        // Smooth blend in/out
+        const blendSpeed = this._combatPoseTarget > 0.5 ? 14 : 8;
+        this._combatPoseBlend += (this._combatPoseTarget - this._combatPoseBlend) * Math.min(1, dt * blendSpeed);
+        if (Math.abs(this._combatPoseBlend) < 0.001) { this._combatPoseBlend = 0; return; }
+
+        // Advance swing timer
+        const swingSpeed = newType === 'basic' ? 6.0 : newType === 'charged' ? 5.0 : newType === 'ability' ? 4.5 : 1.0;
+        this._combatSwingT = Math.min(1, this._combatSwingT + dt * swingSpeed);
+        const t = this._combatSwingT;
+        const blend = this._combatPoseBlend;
+        const bones = this._combatBones;
+
+        // Easing: fast start, decelerate
+        const easeOut = 1 - (1 - t) * (1 - t);
+        // Bell curve for swing-and-return
+        const bell = Math.sin(t * Math.PI);
+
+        const q = this._poseQ;
+        const e = this._poseE;
+
+        if (newType === 'basic') {
+            // Quick forward slash: right arm swings forward, spine twists slightly
+            if (bones.spine) {
+                e.set(bell * 0.12 * blend, -bell * 0.15 * blend, 0);
+                q.setFromEuler(e);
+                bones.spine.quaternion.multiply(q);
+            }
+            if (bones.rArm) {
+                e.set(-bell * 0.5 * blend, 0, -bell * 0.2 * blend);
+                q.setFromEuler(e);
+                bones.rArm.quaternion.multiply(q);
+            }
+            if (bones.rForeArm) {
+                e.set(-bell * 0.3 * blend, 0, 0);
+                q.setFromEuler(e);
+                bones.rForeArm.quaternion.multiply(q);
+            }
+        } else if (newType === 'charging') {
+            // Draw arm back: right arm rotates back, spine leans
+            const chargeT = Math.min(1, t * 2); // fill quickly
+            const ease = 1 - (1 - chargeT) * (1 - chargeT);
+            if (bones.spine) {
+                e.set(-ease * 0.08 * blend, ease * 0.12 * blend, 0);
+                q.setFromEuler(e);
+                bones.spine.quaternion.multiply(q);
+            }
+            if (bones.rArm) {
+                e.set(ease * 0.35 * blend, 0, ease * 0.25 * blend);
+                q.setFromEuler(e);
+                bones.rArm.quaternion.multiply(q);
+            }
+            if (bones.rForeArm) {
+                e.set(ease * 0.2 * blend, 0, 0);
+                q.setFromEuler(e);
+                bones.rForeArm.quaternion.multiply(q);
+            }
+        } else if (newType === 'charged') {
+            // Release: both arms swing forward hard, spine punches forward
+            if (bones.spine) {
+                e.set(bell * 0.18 * blend, -bell * 0.1 * blend, 0);
+                q.setFromEuler(e);
+                bones.spine.quaternion.multiply(q);
+            }
+            if (bones.rArm) {
+                e.set(-bell * 0.6 * blend, 0, -bell * 0.25 * blend);
+                q.setFromEuler(e);
+                bones.rArm.quaternion.multiply(q);
+            }
+            if (bones.lArm) {
+                e.set(-bell * 0.4 * blend, 0, bell * 0.2 * blend);
+                q.setFromEuler(e);
+                bones.lArm.quaternion.multiply(q);
+            }
+        } else if (newType === 'ability') {
+            // Wide sweep: spine rotates, both arms swing outward then forward
+            if (bones.spine) {
+                e.set(bell * 0.12 * blend, -easeOut * 0.2 * blend, 0);
+                q.setFromEuler(e);
+                bones.spine.quaternion.multiply(q);
+            }
+            if (bones.spine01) {
+                e.set(0, -bell * 0.1 * blend, 0);
+                q.setFromEuler(e);
+                bones.spine01.quaternion.multiply(q);
+            }
+            if (bones.rArm) {
+                e.set(-bell * 0.5 * blend, -bell * 0.3 * blend, -easeOut * 0.2 * blend);
+                q.setFromEuler(e);
+                bones.rArm.quaternion.multiply(q);
+            }
+            if (bones.lArm) {
+                e.set(-bell * 0.4 * blend, bell * 0.3 * blend, easeOut * 0.2 * blend);
+                q.setFromEuler(e);
+                bones.lArm.quaternion.multiply(q);
             }
         }
     }
