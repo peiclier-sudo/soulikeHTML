@@ -1246,7 +1246,8 @@ export class CombatSystem {
                     const epVfx = this._vfx.projectile || {};
                     const epv = p.isCharged ? (epVfx.charged || {}) : (epVfx.basic || {});
                     if (p.isBowArrow) {
-                        this.particleSystem.emitSparks(p.mesh.position.clone(), p.isCharged ? 6 : 3);
+                        const bowExpire = epVfx.expireSparks ?? {};
+                        this.particleSystem.emitSparks(p.mesh.position.clone(), p.isCharged ? (bowExpire.charged ?? 6) : (bowExpire.basic ?? 3));
                     } else if (p.isDaggerBlade) {
                         this.particleSystem.emitPoisonBurst?.(p.mesh.position.clone(), 8);
                     } else if (p.isFrost) {
@@ -1337,8 +1338,10 @@ export class CombatSystem {
                         const hitVfx = this._vfx.projectile || {};
                         const hpv = p.isCharged ? (hitVfx.charged || {}) : (hitVfx.basic || {});
                         if (p.isBowArrow) {
-                            this.particleSystem.emitSparks(fireballPos.clone(), p.isCharged ? 8 : 4);
-                            if (this.particleSystem.emitVioletBurst) this.particleSystem.emitVioletBurst(fireballPos, p.isCharged ? 6 : 3);
+                            const bowHitSparks = hitVfx.hitSparks ?? {};
+                            const bowHitViolet = hitVfx.hitVioletBurst ?? {};
+                            this.particleSystem.emitSparks(fireballPos.clone(), p.isCharged ? (bowHitSparks.charged ?? 8) : (bowHitSparks.basic ?? 4));
+                            if (this.particleSystem.emitVioletBurst) this.particleSystem.emitVioletBurst(fireballPos, p.isCharged ? (bowHitViolet.charged ?? 6) : (bowHitViolet.basic ?? 3));
                         } else if (p.isFrost) {
                             this.particleSystem.emitIceBurst(fireballPos, p.isCharged ? 12 : 6);
                             this.particleSystem.emitIceShatter(fireballPos, p.isCharged ? 8 : 4);
