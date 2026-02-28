@@ -116,20 +116,20 @@ export class BowCombat {
     // Arrow creation
     // ═══════════════════════════════════════════════════════════════
 
-    /** Create a violet arrow mesh. scale controls overall size. */
+    /** Create a proper arrow mesh. scale controls overall size. */
     createArrowMesh(scale = 1.0, color = 0x8844ff) {
         const group = new THREE.Group();
         const materials = [];
         const geometries = [];
 
-        // Shaft
-        const shaftLen = 0.45 * scale;
-        const shaftRad = 0.012 * scale;
-        const shaftGeo = new THREE.CylinderGeometry(shaftRad, shaftRad, shaftLen, 4);
+        // Shaft — real arrow proportions
+        const shaftLen = 1.1 * scale;
+        const shaftRad = 0.028 * scale;
+        const shaftGeo = new THREE.CylinderGeometry(shaftRad, shaftRad * 0.85, shaftLen, 5);
         const shaftMat = new THREE.MeshBasicMaterial({
             color,
             transparent: true,
-            opacity: 0.85
+            opacity: 0.9
         });
         const shaft = new THREE.Mesh(shaftGeo, shaftMat);
         shaft.rotation.x = Math.PI / 2;
@@ -137,9 +137,9 @@ export class BowCombat {
         materials.push(shaftMat);
         geometries.push(shaftGeo);
 
-        // Arrowhead (cone)
-        const headLen = 0.12 * scale;
-        const headRad = 0.035 * scale;
+        // Arrowhead — sharp, diamond-like
+        const headLen = 0.28 * scale;
+        const headRad = 0.075 * scale;
         const headGeo = new THREE.ConeGeometry(headRad, headLen, 4);
         const headMat = new THREE.MeshBasicMaterial({
             color: 0xccaaff,
@@ -155,13 +155,13 @@ export class BowCombat {
         materials.push(headMat);
         geometries.push(headGeo);
 
-        // Glow sphere at tip
-        const glowRad = 0.07 * scale;
+        // Glow at tip — bigger, more visible
+        const glowRad = 0.12 * scale;
         const glowGeo = new THREE.SphereGeometry(glowRad, 6, 6);
         const glowMat = new THREE.MeshBasicMaterial({
             color,
             transparent: true,
-            opacity: 0.3,
+            opacity: 0.35,
             blending: THREE.AdditiveBlending,
             depthWrite: false
         });
@@ -170,6 +170,26 @@ export class BowCombat {
         group.add(glow);
         materials.push(glowMat);
         geometries.push(glowGeo);
+
+        // Fletching fins at tail — two flat planes crossed
+        const finLen = 0.22 * scale;
+        const finWidth = 0.06 * scale;
+        const finGeo = new THREE.PlaneGeometry(finWidth, finLen);
+        const finMat = new THREE.MeshBasicMaterial({
+            color: 0xaa77ee,
+            transparent: true,
+            opacity: 0.6,
+            side: THREE.DoubleSide,
+            depthWrite: false
+        });
+        for (let r = 0; r < 2; r++) {
+            const fin = new THREE.Mesh(finGeo, finMat);
+            fin.position.z = shaftLen * 0.42;
+            fin.rotation.z = r * (Math.PI / 2);
+            group.add(fin);
+        }
+        materials.push(finMat);
+        geometries.push(finGeo);
 
         return { group, materials, geometries };
     }
