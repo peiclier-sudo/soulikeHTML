@@ -102,9 +102,9 @@ export class Game {
 
     initScene() {
         this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0x0a0d16);
+        this.scene.background = new THREE.Color(0x080c14);
 
-        this.scene.fog = new THREE.FogExp2(0x0a0d16, 0.02);
+        this.scene.fog = new THREE.FogExp2(0x080c14, 0.02);
     }
     
     initCamera() {
