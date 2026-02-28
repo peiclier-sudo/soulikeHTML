@@ -14,6 +14,7 @@
 const STORAGE_RUN  = 'eldenflame_run';
 const STORAGE_META = 'eldenflame_meta';
 const STORAGE_ACCT = 'eldenflame_account';
+const STORAGE_PLAYER = 'eldenflame_player'; // persistent player data (gear, talents, souls)
 
 // Kit ids mapped to short indices for compact encoding
 const KIT_IDS = [
@@ -104,6 +105,14 @@ export const RunProgress = {
         meta.totalBossKills++;
         meta.bestStreak = Math.max(meta.bestStreak, run.bossesDefeated);
         this._saveMeta(meta);
+
+        // Award souls and talent point
+        const pd = this.getPlayerData();
+        const soulBonus = 1 + (pd.talents?.includes?.('u_scavenger') ? 0.25 : 0);
+        const baseSouls = 80 + run.bossesDefeated * 30;
+        pd.souls += Math.floor(baseSouls * soulBonus);
+        pd.talentPoints += 1;
+        this.savePlayerData(pd);
     },
 
     /**
@@ -152,6 +161,85 @@ export const RunProgress = {
         };
     },
 
+    // ── persistent player data (gear, talents, souls) ─────────
+
+    /** Default player data shape */
+    _defaultPlayer() {
+        return {
+            souls: 0,
+            talentPoints: 0,
+            talents: [],           // array of unlocked talent ids
+            gear: {                // equipped item ids per slot
+                weapon: null,
+                helmet: null,
+                chest: null,
+                boots: null
+            },
+            ownedItems: []         // array of item ids the player has purchased
+        };
+    },
+
+    getPlayerData() {
+        return load(STORAGE_PLAYER) ?? this._defaultPlayer();
+    },
+
+    savePlayerData(data) {
+        save(STORAGE_PLAYER, data);
+    },
+
+    addSouls(amount) {
+        const pd = this.getPlayerData();
+        pd.souls += amount;
+        this.savePlayerData(pd);
+        return pd.souls;
+    },
+
+    spendSouls(amount) {
+        const pd = this.getPlayerData();
+        if (pd.souls < amount) return false;
+        pd.souls -= amount;
+        this.savePlayerData(pd);
+        return true;
+    },
+
+    purchaseItem(itemId, cost) {
+        const pd = this.getPlayerData();
+        if (pd.souls < cost) return false;
+        if (pd.ownedItems.includes(itemId)) return false;
+        pd.souls -= cost;
+        pd.ownedItems.push(itemId);
+        this.savePlayerData(pd);
+        return true;
+    },
+
+    equipItem(itemId, slot) {
+        const pd = this.getPlayerData();
+        pd.gear[slot] = itemId;
+        this.savePlayerData(pd);
+    },
+
+    unequipSlot(slot) {
+        const pd = this.getPlayerData();
+        pd.gear[slot] = null;
+        this.savePlayerData(pd);
+    },
+
+    unlockTalent(talentId, cost) {
+        const pd = this.getPlayerData();
+        if (pd.talentPoints < cost) return false;
+        if (pd.talents.includes(talentId)) return false;
+        pd.talentPoints -= cost;
+        pd.talents.push(talentId);
+        this.savePlayerData(pd);
+        return true;
+    },
+
+    addTalentPoint(count = 1) {
+        const pd = this.getPlayerData();
+        pd.talentPoints += count;
+        this.savePlayerData(pd);
+    },
+
     // ── account / recovery code ───────────────────────────────
 
     /** Returns the current account name, or null. */
@@ -173,10 +261,11 @@ export const RunProgress = {
      */
     generateRecoveryCode() {
         const payload = {
-            v: 1,
+            v: 2,
             a: this.getAccount(),
             m: this.getMeta(),
-            r: this.getSavedRun()
+            r: this.getSavedRun(),
+            p: this.getPlayerData()
         };
         const json = JSON.stringify(payload);
         // base64url encode (browser-safe, no +/= chars)
@@ -216,6 +305,9 @@ export const RunProgress = {
             } else {
                 localStorage.removeItem(STORAGE_RUN);
             }
+
+            // Restore player data (gear, talents, souls)
+            if (payload.p) save(STORAGE_PLAYER, payload.p);
 
             return { success: true, account: payload.a };
         } catch (e) {

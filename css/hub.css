@@ -1,0 +1,604 @@
+/* ═══════════════════════════════════════════════════════════════
+   Hub, Boutique & Character Pages — ORDALIE
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Shared full-screen overlay ──────────────────────────────── */
+.hub-screen {
+    position: fixed;
+    inset: 0;
+    background: #06080c;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    z-index: 998;
+    overflow-y: auto;
+    overflow-x: hidden;
+    font-family: 'Cinzel', serif;
+    color: #fff;
+}
+
+.hub-screen::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+        linear-gradient(rgba(0, 212, 255, 0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 212, 255, 0.025) 1px, transparent 1px);
+    background-size: 60px 60px;
+    pointer-events: none;
+    z-index: 0;
+}
+
+.hub-screen > * { position: relative; z-index: 1; }
+
+/* ── Page header ─────────────────────────────────────────────── */
+.hub-header {
+    width: 100%;
+    text-align: center;
+    padding: 2.5rem 1rem 1rem;
+}
+
+.hub-title {
+    font-size: 2.6rem;
+    font-weight: 400;
+    letter-spacing: 0.8rem;
+    color: #fff;
+    text-shadow: 0 0 30px rgba(0, 212, 255, 0.3);
+    margin-bottom: 0.3rem;
+}
+
+.hub-subtitle {
+    font-size: 0.9rem;
+    letter-spacing: 0.25rem;
+    color: rgba(255, 255, 255, 0.4);
+}
+
+.hub-souls {
+    font-size: 1rem;
+    letter-spacing: 0.15rem;
+    color: #ffcc44;
+    margin-top: 0.5rem;
+    text-shadow: 0 0 12px rgba(255, 200, 50, 0.3);
+}
+
+/* ── Back button ─────────────────────────────────────────────── */
+.hub-back-btn {
+    position: absolute;
+    top: 1.5rem;
+    left: 1.5rem;
+    background: transparent;
+    border: 1px solid rgba(0, 212, 255, 0.25);
+    color: rgba(255, 255, 255, 0.6);
+    font-family: 'Cinzel', serif;
+    font-size: 0.85rem;
+    letter-spacing: 0.15rem;
+    padding: 0.5rem 1.2rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    z-index: 2;
+}
+
+.hub-back-btn:hover {
+    color: #fff;
+    border-color: #00d4ff;
+    background: rgba(0, 212, 255, 0.06);
+    box-shadow: 0 0 15px rgba(0, 212, 255, 0.12);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   HUB — Main navigation
+   ═══════════════════════════════════════════════════════════════ */
+.hub-nav {
+    display: flex;
+    gap: 2rem;
+    flex-wrap: wrap;
+    justify-content: center;
+    padding: 2rem 1rem 3rem;
+    max-width: 1200px;
+}
+
+.hub-card {
+    width: 240px;
+    padding: 2.5rem 1.5rem;
+    background: rgba(10, 15, 20, 0.8);
+    border: 1px solid rgba(0, 212, 255, 0.15);
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    position: relative;
+}
+
+.hub-card:hover {
+    border-color: rgba(0, 212, 255, 0.5);
+    background: rgba(0, 212, 255, 0.04);
+    box-shadow: 0 0 25px rgba(0, 212, 255, 0.1);
+    transform: translateY(-4px);
+}
+
+.hub-card.disabled {
+    opacity: 0.35;
+    pointer-events: none;
+}
+
+.hub-card-icon {
+    font-size: 3rem;
+    display: block;
+    margin-bottom: 1rem;
+}
+
+.hub-card-title {
+    font-size: 1.15rem;
+    letter-spacing: 0.3rem;
+    margin-bottom: 0.6rem;
+    color: #fff;
+}
+
+.hub-card-desc {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.45);
+    letter-spacing: 0.08rem;
+    line-height: 1.4;
+}
+
+.hub-card-badge {
+    position: absolute;
+    top: 0.6rem;
+    right: 0.8rem;
+    font-size: 0.65rem;
+    letter-spacing: 0.1rem;
+    color: rgba(255, 255, 255, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    padding: 0.15rem 0.5rem;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   BOUTIQUE — Shop page
+   ═══════════════════════════════════════════════════════════════ */
+.shop-tabs {
+    display: flex;
+    gap: 0;
+    justify-content: center;
+    margin-bottom: 1.5rem;
+}
+
+.shop-tab {
+    background: transparent;
+    border: 1px solid rgba(0, 212, 255, 0.2);
+    border-right: none;
+    color: rgba(255, 255, 255, 0.5);
+    font-family: 'Cinzel', serif;
+    font-size: 0.8rem;
+    letter-spacing: 0.15rem;
+    padding: 0.6rem 1.5rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.shop-tab:last-child { border-right: 1px solid rgba(0, 212, 255, 0.2); }
+
+.shop-tab:hover {
+    color: #fff;
+    background: rgba(0, 212, 255, 0.04);
+}
+
+.shop-tab.active {
+    color: #00d4ff;
+    background: rgba(0, 212, 255, 0.08);
+    border-color: rgba(0, 212, 255, 0.4);
+}
+
+.shop-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 1rem;
+    padding: 0 2rem 3rem;
+    max-width: 1000px;
+    width: 100%;
+}
+
+.shop-item {
+    background: rgba(10, 15, 20, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 1.2rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
+}
+
+.shop-item:hover {
+    border-color: rgba(0, 212, 255, 0.4);
+    background: rgba(0, 212, 255, 0.03);
+}
+
+.shop-item.owned {
+    border-color: rgba(68, 204, 68, 0.3);
+}
+
+.shop-item.owned::after {
+    content: 'OWNED';
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    font-size: 0.6rem;
+    color: #44cc44;
+    letter-spacing: 0.1rem;
+}
+
+.shop-item-header {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 0.6rem;
+}
+
+.shop-item-icon { font-size: 1.5rem; }
+
+.shop-item-name {
+    font-size: 0.9rem;
+    letter-spacing: 0.1rem;
+}
+
+.shop-item-rarity {
+    font-size: 0.65rem;
+    letter-spacing: 0.08rem;
+    margin-bottom: 0.4rem;
+}
+
+.shop-item-desc {
+    font-size: 0.7rem;
+    color: rgba(255, 255, 255, 0.4);
+    line-height: 1.35;
+    margin-bottom: 0.6rem;
+}
+
+.shop-item-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem 0.8rem;
+    margin-bottom: 0.8rem;
+}
+
+.shop-item-stat {
+    font-size: 0.7rem;
+    color: #44cc44;
+}
+
+.shop-item-cost {
+    font-size: 0.85rem;
+    color: #ffcc44;
+    text-shadow: 0 0 8px rgba(255, 200, 50, 0.25);
+}
+
+.shop-buy-btn {
+    background: transparent;
+    border: 1px solid rgba(0, 212, 255, 0.3);
+    color: #00d4ff;
+    font-family: 'Cinzel', serif;
+    font-size: 0.75rem;
+    letter-spacing: 0.12rem;
+    padding: 0.4rem 1rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    margin-top: 0.5rem;
+    width: 100%;
+}
+
+.shop-buy-btn:hover {
+    background: rgba(0, 212, 255, 0.1);
+    border-color: #00d4ff;
+}
+
+.shop-buy-btn.cant-afford {
+    color: rgba(255, 255, 255, 0.25);
+    border-color: rgba(255, 255, 255, 0.1);
+    cursor: not-allowed;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   CHARACTER — Gear & Talent Tree
+   ═══════════════════════════════════════════════════════════════ */
+.char-layout {
+    display: flex;
+    gap: 2.5rem;
+    padding: 1rem 2rem 3rem;
+    max-width: 1200px;
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+/* ── Gear Panel ──────────────────────────────────────────────── */
+.gear-panel {
+    flex: 0 0 320px;
+}
+
+.gear-panel-title {
+    font-size: 1.1rem;
+    letter-spacing: 0.35rem;
+    color: rgba(255, 255, 255, 0.7);
+    margin-bottom: 1rem;
+    text-align: center;
+}
+
+.gear-slots {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+}
+
+.gear-slot {
+    background: rgba(10, 15, 20, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-height: 70px;
+}
+
+.gear-slot:hover {
+    border-color: rgba(0, 212, 255, 0.4);
+    background: rgba(0, 212, 255, 0.03);
+}
+
+.gear-slot-icon {
+    font-size: 1.8rem;
+    width: 2.5rem;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.gear-slot-info { flex: 1; }
+
+.gear-slot-label {
+    font-size: 0.65rem;
+    letter-spacing: 0.15rem;
+    color: rgba(255, 255, 255, 0.35);
+    margin-bottom: 0.2rem;
+    text-transform: uppercase;
+}
+
+.gear-slot-name {
+    font-size: 0.85rem;
+    letter-spacing: 0.08rem;
+}
+
+.gear-slot-stats {
+    font-size: 0.7rem;
+    color: #44cc44;
+    margin-top: 0.15rem;
+}
+
+.gear-slot.empty .gear-slot-name {
+    color: rgba(255, 255, 255, 0.25);
+    font-style: italic;
+}
+
+/* ── Gear picker modal ───────────────────────────────────────── */
+.gear-picker-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.75);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 1100;
+}
+
+.gear-picker {
+    background: #0a0f14;
+    border: 1px solid rgba(0, 212, 255, 0.25);
+    padding: 1.5rem;
+    max-width: 500px;
+    width: 90%;
+    max-height: 70vh;
+    overflow-y: auto;
+}
+
+.gear-picker-title {
+    font-size: 1rem;
+    letter-spacing: 0.3rem;
+    margin-bottom: 1rem;
+    text-align: center;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.gear-picker-item {
+    background: rgba(10, 15, 20, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 0.8rem;
+    margin-bottom: 0.5rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+}
+
+.gear-picker-item:hover {
+    border-color: rgba(0, 212, 255, 0.4);
+    background: rgba(0, 212, 255, 0.04);
+}
+
+.gear-picker-item.equipped {
+    border-color: rgba(0, 212, 255, 0.5);
+    background: rgba(0, 212, 255, 0.06);
+}
+
+.gear-picker-item.locked {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
+/* ── Talent Tree Panel ───────────────────────────────────────── */
+.talent-panel {
+    flex: 1;
+    min-width: 300px;
+    max-width: 600px;
+}
+
+.talent-panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.talent-panel-title {
+    font-size: 1.1rem;
+    letter-spacing: 0.35rem;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.talent-points-display {
+    font-size: 0.85rem;
+    color: #00d4ff;
+    letter-spacing: 0.1rem;
+}
+
+.talent-branches {
+    display: flex;
+    gap: 1.2rem;
+    justify-content: center;
+}
+
+.talent-branch {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    flex: 1;
+    max-width: 180px;
+}
+
+.talent-branch-label {
+    font-size: 0.75rem;
+    letter-spacing: 0.2rem;
+    margin-bottom: 0.3rem;
+    text-align: center;
+}
+
+/* Connector line between nodes */
+.talent-connector {
+    width: 2px;
+    height: 16px;
+    background: rgba(255, 255, 255, 0.1);
+    flex-shrink: 0;
+}
+
+.talent-connector.unlocked {
+    background: rgba(0, 212, 255, 0.5);
+    box-shadow: 0 0 6px rgba(0, 212, 255, 0.3);
+}
+
+.talent-node {
+    width: 100%;
+    background: rgba(10, 15, 20, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 0.7rem 0.6rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    position: relative;
+}
+
+.talent-node:hover {
+    border-color: rgba(0, 212, 255, 0.4);
+    background: rgba(0, 212, 255, 0.04);
+}
+
+.talent-node.unlocked {
+    border-color: rgba(0, 212, 255, 0.5);
+    background: rgba(0, 212, 255, 0.08);
+}
+
+.talent-node.available {
+    border-color: rgba(0, 212, 255, 0.3);
+    box-shadow: 0 0 10px rgba(0, 212, 255, 0.1);
+}
+
+.talent-node.locked {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
+.talent-node-icon {
+    font-size: 1.4rem;
+    display: block;
+    margin-bottom: 0.3rem;
+}
+
+.talent-node-name {
+    font-size: 0.7rem;
+    letter-spacing: 0.1rem;
+    margin-bottom: 0.15rem;
+}
+
+.talent-node-cost {
+    font-size: 0.6rem;
+    color: rgba(255, 255, 255, 0.35);
+}
+
+.talent-node.unlocked .talent-node-cost { color: #00d4ff; }
+
+/* Tooltip on hover */
+.talent-tooltip {
+    display: none;
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: #0c1018;
+    border: 1px solid rgba(0, 212, 255, 0.3);
+    padding: 0.6rem 0.8rem;
+    width: 200px;
+    z-index: 10;
+    pointer-events: none;
+}
+
+.talent-node:hover .talent-tooltip { display: block; }
+
+.talent-tooltip-name {
+    font-size: 0.8rem;
+    letter-spacing: 0.1rem;
+    margin-bottom: 0.3rem;
+}
+
+.talent-tooltip-desc {
+    font-size: 0.65rem;
+    color: rgba(255, 255, 255, 0.5);
+    line-height: 1.3;
+}
+
+/* ── Stat summary bar ────────────────────────────────────────── */
+.char-stat-summary {
+    display: flex;
+    gap: 1.5rem;
+    justify-content: center;
+    flex-wrap: wrap;
+    padding: 0.8rem 1rem;
+    margin-bottom: 0.5rem;
+    background: rgba(10, 15, 20, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    max-width: 1200px;
+    width: 100%;
+}
+
+.char-summary-stat {
+    text-align: center;
+}
+
+.char-summary-value {
+    font-size: 1rem;
+    color: #00d4ff;
+    display: block;
+}
+
+.char-summary-label {
+    font-size: 0.6rem;
+    color: rgba(255, 255, 255, 0.35);
+    letter-spacing: 0.1rem;
+    text-transform: uppercase;
+}

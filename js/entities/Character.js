@@ -1068,7 +1068,8 @@ export class Character {
             // Default fast run when moving; Vanish (dagger C) gives +60% speed
             const isRunning = this.gameState.player.stamina > 5;
             const vanishMult = (this.gameState?.combat?.vanishRemaining > 0) ? 1.6 : 1;
-            const speed = (isRunning ? this.runSpeed : this.walkSpeed) * vanishMult;
+            const speedBonus = this.gameState?.bonuses?.runSpeed ?? 0;
+            const speed = ((isRunning ? this.runSpeed : this.walkSpeed) + speedBonus) * vanishMult;
 
             // Drain stamina while running
             if (isRunning) {
@@ -1095,7 +1096,8 @@ export class Character {
 
         // Space = jump only
         if (input.jump && this.isGrounded && !this.isDashing) {
-            this.velocity.y = this.jumpForce;
+            const jumpBonus = this.gameState?.bonuses?.jumpForce ?? 0;
+            this.velocity.y = this.jumpForce + jumpBonus;
             this.isGrounded = false;
         }
 

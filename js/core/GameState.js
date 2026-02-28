@@ -117,6 +117,13 @@ export class GameState {
         // Bow ranger kit: trust charges (max 8), gained on arrow hits
         this.trustCharges = 0;
 
+        // Gear + talent bonuses (applied by Game.applyStatBonuses after construction)
+        this.bonuses = {
+            critChance: 0, critMultiplier: 0, backstabMultiplier: 0,
+            lifesteal: 0, runSpeed: 0, jumpForce: 0,
+            healthRegen: 0, soulBonus: 0
+        };
+
         // Game flags
         this.flags = {
             tutorialComplete: false,

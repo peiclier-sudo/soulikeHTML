@@ -6,11 +6,13 @@ import { Game } from './core/Game.js';
 import { AssetLoader } from './core/AssetLoader.js';
 import { KIT_DEFINITIONS, CLASS_INFO, getKitsByClass } from './kits/KitDefinitions.js';
 import { RunProgress } from './core/RunProgress.js';
+import { HubManager } from './ui/HubManager.js';
 
 // Global game instance
 let game = null;
 let assetLoader = null;
 let canvas = null;
+let hubManager = null;
 
 /** Currently selected kit id from the class selection screen */
 let selectedKitId = null;
@@ -81,12 +83,28 @@ async function init() {
         const startButton = document.getElementById('start-button');
         refreshContinueButton();
 
-        // Continue saved run
+        // Create HubManager (once)
+        hubManager = new HubManager({
+            onStartTower: () => {
+                const saved = RunProgress.getSavedRun();
+                if (saved) {
+                    startGameWithKit(saved.kitId, saved);
+                } else if (selectedKitId) {
+                    startGameWithKit(selectedKitId);
+                }
+            },
+            onBackToStart: () => {
+                showStartScreen();
+            }
+        });
+
+        // Continue saved run → hub (kit already selected)
         continueButton.addEventListener('click', () => {
             const saved = RunProgress.getSavedRun();
             if (!saved) return;
+            selectedKitId = saved.kitId;
             startScreen.style.display = 'none';
-            startGameWithKit(saved.kitId, saved);
+            hubManager.showHub();
         });
 
         // New game → class selection (clears any saved run)
@@ -167,11 +185,11 @@ function setupClassSelection() {
         document.getElementById('kit-step').style.animation = '';
     });
 
-    // Confirm button → start game with selected kit
+    // Confirm button → go to Hub (game starts from Hub → Boss Tower)
     document.getElementById('confirm-btn').addEventListener('click', () => {
         if (!selectedKitId) return;
         document.getElementById('class-select-screen').style.display = 'none';
-        startGameWithKit(selectedKitId);
+        hubManager.showHub();
     });
 }
 
@@ -263,19 +281,38 @@ function startGameWithKit(kitId, savedRun = null) {
     game = new Game(canvas, assetLoader, kitId);
     window.game = game;
 
+    // Apply gear + talent stat bonuses from the character page
+    if (hubManager) {
+        game.applyStatBonuses(hubManager.getStatBonuses());
+    }
+
     // Restore saved run state (boss number, health, potions)
     if (savedRun) {
         game.restoreRun(savedRun);
     }
 
-    // Wire up death → end the run in localStorage
+    // Wire up death → end the run, return to hub
     game.gameState.on('playerDeath', () => {
         RunProgress.onPlayerDeath();
+        // After death animation, return to hub
+        setTimeout(() => {
+            document.getElementById('death-screen').style.display = 'none';
+            document.getElementById('hud').style.display = 'none';
+            if (game) { game.stop(); game = null; }
+            hubManager.showHub();
+        }, 3000);
     });
 
     document.getElementById('hud').style.display = 'block';
     game.start();
     requestAnimationFrame(() => canvas.requestPointerLock());
+}
+
+/** Show the start screen (from hub back button, etc.) */
+function showStartScreen() {
+    document.getElementById('start-screen').style.display = 'flex';
+    refreshContinueButton();
+    refreshAccountUI();
 }
 
 // ─── Menu Buttons ──────────────────────────────────────────────
@@ -305,10 +342,8 @@ function setupMenuButtons() {
     quitButton?.addEventListener('click', () => {
         document.getElementById('pause-menu').style.display = 'none';
         document.getElementById('hud').style.display = 'none';
-        document.getElementById('start-screen').style.display = 'flex';
         game?.stop();
-        refreshContinueButton();
-        refreshAccountUI();
+        hubManager.showHub();
     });
 
     // Settings handlers
@@ -349,14 +384,12 @@ function setupTowerScreen() {
         if (game) game.proceedFromTower();
     });
 
-    // Quit to menu from tower screen
+    // Quit to menu from tower screen → back to hub
     document.getElementById('tower-quit-btn')?.addEventListener('click', () => {
         document.getElementById('tower-screen').style.display = 'none';
         document.getElementById('hud').style.display = 'none';
-        document.getElementById('start-screen').style.display = 'flex';
         game?.stop();
-        refreshContinueButton();
-        refreshAccountUI();
+        hubManager.showHub();
     });
 }
 
