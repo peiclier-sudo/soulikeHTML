@@ -29,11 +29,11 @@
     100% { opacity: 0; }
 }
 
-/* Stat Bars */
+/* Stat Bars — unified style */
 .stat-bar {
     position: absolute;
     width: 300px;
-    height: 24px;
+    height: 18px;
     background: rgba(0, 0, 0, 0.62);
     border: 1px solid rgba(0, 212, 255, 0.2);
     border-radius: 2px;
@@ -41,14 +41,13 @@
 }
 
 .health-bar {
-    bottom: 108px;
+    bottom: 100px;
     left: 24px;
 }
 
 .stamina-bar {
-    bottom: 78px;
+    bottom: 74px;
     left: 24px;
-    height: 18px;
 }
 
 /* No Blood Essence popup */
@@ -121,7 +120,7 @@
 .charge-bar-bg {
     position: relative;
     width: 100%;
-    height: 10px;
+    height: 18px;
     background: rgba(0, 0, 0, 0.62);
     border: 1px solid rgba(0, 212, 255, 0.2);
     border-radius: 2px;
@@ -180,16 +179,16 @@
     position: absolute;
     right: 26px;
     bottom: 218px;
-    width: 292px;
+    width: 300px;
     z-index: 10;
 }
 
 .superdash-bar-bg {
     position: relative;
     width: 100%;
-    height: 12px;
+    height: 18px;
     background: rgba(0, 0, 0, 0.62);
-    border: 1px solid rgba(128, 110, 255, 0.3);
+    border: 1px solid rgba(0, 212, 255, 0.2);
     border-radius: 2px;
     overflow: hidden;
 }
@@ -224,14 +223,14 @@
     position: absolute;
     right: 26px;
     bottom: 166px;
-    width: 292px;
+    width: 300px;
     z-index: 10;
 }
 
 .ultimate-bar-bg {
     position: relative;
     width: 100%;
-    height: 12px;
+    height: 18px;
     background: rgba(0, 0, 0, 0.62);
     border: 1px solid rgba(0, 212, 255, 0.2);
     border-radius: 2px;
@@ -342,12 +341,12 @@
     display: grid;
     grid-template-columns: repeat(2, minmax(130px, 1fr));
     gap: 10px;
-    width: 292px;
+    width: 300px;
 }
 
 .ability-box {
     background: rgba(0, 0, 0, 0.62);
-    border: 1px solid rgba(0, 212, 255, 0.18);
+    border: 1px solid rgba(0, 212, 255, 0.2);
     border-radius: 2px;
     padding: 8px 10px;
     min-height: 62px;
@@ -588,9 +587,11 @@
 
 .boss-bar {
     width: 100%;
-    height: 20px;
-    background: rgba(0, 0, 0, 0.8);
-    border: 1px solid rgba(0, 212, 255, 0.3);
+    height: 18px;
+    background: rgba(0, 0, 0, 0.62);
+    border: 1px solid rgba(0, 212, 255, 0.2);
+    border-radius: 2px;
+    overflow: hidden;
 }
 
 .boss-bar .bar-fill {
