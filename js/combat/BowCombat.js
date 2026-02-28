@@ -28,14 +28,18 @@ export class BowCombat {
         this._enemyPos = new THREE.Vector3();
         this._tmpUp = new THREE.Vector3(0, 1, 0);
 
+        // VFX parameters from kit definition (data-driven)
+        this._vfx = this.cs.gameState.selectedKit?.vfx || {};
+
         // ── Recoil Shot (A/V) ────────────────────────────────────
         const abilA = this.gameState.selectedKit?.combat?.abilityA || {};
+        const va = this._vfx.abilityA ?? {};
         this.recoilShotCooldown = 0;
         this.recoilShotCooldownDuration = abilA.cooldown ?? 6;
         this.recoilShotDamage = abilA.damage ?? 55;
         this.recoilDashTimer = 0;
-        this.recoilDashDuration = 0.22;
-        this.recoilDashSpeed = 28;
+        this.recoilDashDuration = va.dashDuration ?? 0.22;
+        this.recoilDashSpeed = va.dashSpeed ?? 28;
         this.recoilDashDir = new THREE.Vector3();
 
         // ── Hunter's Mark Zone (C) ──────────────────────────────
@@ -48,11 +52,12 @@ export class BowCombat {
 
         // ── Multi Shot (X) ──────────────────────────────────────
         const abilX = this.gameState.selectedKit?.combat?.abilityX || {};
+        const vx = this._vfx.abilityX ?? {};
         this.multiShotCooldown = 0;
         this.multiShotCooldownDuration = abilX.cooldown ?? 10;
         this.multiShotState = null;
         this.multiShotArrowCount = abilX.arrowCount ?? 6;
-        this.multiShotInterval = 0.08;
+        this.multiShotInterval = vx.interval ?? 0.08;
         this.multiShotDamagePerArrow = abilX.damagePerArrow ?? 18;
         this.multiShotDebuffDuration = abilX.debuffDuration ?? 6;
         this.multiShotDebuffMultiplier = abilX.debuffMultiplier ?? 1.5;
@@ -117,15 +122,19 @@ export class BowCombat {
     // ═══════════════════════════════════════════════════════════════
 
     /** Create a proper arrow mesh. scale controls overall size. */
-    createArrowMesh(scale = 1.0, color = 0x8844ff) {
+    createArrowMesh(scale = 1.0, color) {
+        const vp = this._vfx.projectile ?? {};
         const group = new THREE.Group();
         const materials = [];
         const geometries = [];
 
+        color = color ?? (vp.arrowColor ?? 0x8844ff);
+
         // Shaft — real arrow proportions
+        const shaftCfg = vp.shaft ?? {};
         const shaftLen = 1.1 * scale;
         const shaftRad = 0.028 * scale;
-        const shaftGeo = new THREE.CylinderGeometry(shaftRad, shaftRad * 0.85, shaftLen, 5);
+        const shaftGeo = new THREE.CylinderGeometry(shaftRad, shaftRad * (shaftCfg.taperRatio ?? 0.85), shaftLen, shaftCfg.segments ?? 5);
         const shaftMat = new THREE.MeshBasicMaterial({
             color,
             transparent: true,
@@ -138,13 +147,14 @@ export class BowCombat {
         geometries.push(shaftGeo);
 
         // Arrowhead — sharp, diamond-like
-        const headLen = 0.28 * scale;
-        const headRad = 0.075 * scale;
-        const headGeo = new THREE.ConeGeometry(headRad, headLen, 4);
+        const headCfg = vp.head ?? {};
+        const headLen = (headCfg.lengthScale ?? 0.28) * scale;
+        const headRad = (headCfg.radiusScale ?? 0.075) * scale;
+        const headGeo = new THREE.ConeGeometry(headRad, headLen, headCfg.segments ?? 4);
         const headMat = new THREE.MeshBasicMaterial({
-            color: 0xccaaff,
+            color: vp.arrowHeadColor ?? 0xccaaff,
             transparent: true,
-            opacity: 1.0,
+            opacity: headCfg.opacity ?? 1.0,
             blending: THREE.AdditiveBlending,
             depthWrite: false
         });
@@ -156,12 +166,13 @@ export class BowCombat {
         geometries.push(headGeo);
 
         // Glow at tip — bigger, more visible
-        const glowRad = 0.12 * scale;
-        const glowGeo = new THREE.SphereGeometry(glowRad, 6, 6);
+        const glowCfg = vp.glow ?? {};
+        const glowRad = (glowCfg.radiusScale ?? 0.12) * scale;
+        const glowGeo = new THREE.SphereGeometry(glowRad, glowCfg.segments ?? 6, glowCfg.segments ?? 6);
         const glowMat = new THREE.MeshBasicMaterial({
             color,
             transparent: true,
-            opacity: 0.35,
+            opacity: glowCfg.opacity ?? 0.35,
             blending: THREE.AdditiveBlending,
             depthWrite: false
         });
@@ -172,19 +183,20 @@ export class BowCombat {
         geometries.push(glowGeo);
 
         // Fletching fins at tail — two flat planes crossed
-        const finLen = 0.22 * scale;
-        const finWidth = 0.06 * scale;
+        const fletchCfg = vp.fletching ?? {};
+        const finLen = (fletchCfg.lengthScale ?? 0.22) * scale;
+        const finWidth = (fletchCfg.widthScale ?? 0.06) * scale;
         const finGeo = new THREE.PlaneGeometry(finWidth, finLen);
         const finMat = new THREE.MeshBasicMaterial({
-            color: 0xaa77ee,
+            color: vp.fletchingColor ?? 0xaa77ee,
             transparent: true,
-            opacity: 0.6,
+            opacity: fletchCfg.opacity ?? 0.6,
             side: THREE.DoubleSide,
             depthWrite: false
         });
         for (let r = 0; r < 2; r++) {
             const fin = new THREE.Mesh(finGeo, finMat);
-            fin.position.z = shaftLen * 0.42;
+            fin.position.z = shaftLen * (fletchCfg.tailPosition ?? 0.42);
             fin.rotation.z = r * (Math.PI / 2);
             group.add(fin);
         }
@@ -199,10 +211,13 @@ export class BowCombat {
      * Returns the projectile object for extra configuration.
      */
     _spawnSingleArrow(pos, dir, speed, damage, maxLifetime, isCharged, isPiercing, extraFlags = {}) {
-        const scale = isCharged ? 1.3 : 1.0;
+        const vp = this._vfx.projectile ?? {};
+        const basicCfg = vp.basic ?? {};
+        const chargedCfg = vp.charged ?? {};
+        const scale = isCharged ? (chargedCfg.scale ?? 1.3) : (basicCfg.scale ?? 1.0);
         const { group, materials, geometries } = this.createArrowMesh(
             extraFlags.scale ?? scale,
-            extraFlags.color ?? 0x8844ff
+            extraFlags.color
         );
 
         group.quaternion.setFromUnitVectors(_defaultDir, dir);
@@ -221,7 +236,7 @@ export class BowCombat {
             materials,
             geometries,
             hitSet: new Set(),
-            releaseBurst: isCharged ? 0.12 : 0,
+            releaseBurst: isCharged ? (chargedCfg.releaseBurst ?? 0.12) : (basicCfg.releaseBurst ?? 0),
             ...extraFlags
         };
 

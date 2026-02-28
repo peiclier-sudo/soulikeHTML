@@ -35,6 +35,9 @@ export class DaggerCombat {
         this._vfxPos = new THREE.Vector3();   // reusable VFX position (avoid clones)
         this._trailFrame = 0;                 // trail throttle counter
 
+        // VFX parameters from kit definition (data-driven)
+        this._vfx = this.cs.gameState.selectedKit?.vfx || {};
+
         // Poison Pierce (E) — green blade projectile
         this._poisonSlash = null;
 
@@ -52,8 +55,6 @@ export class DaggerCombat {
 
         // Ultimate: Twin Daggers (F) - projectile
         this.twinDaggersProjectile = null;
-        this.twinDaggersSpeed = 22;
-        this.twinDaggersRange = 14;
 
         // Poison DoT per enemy (enemy ref -> { remaining, damagePerTick, nextTick })
         this._poisonDots = new WeakMap();
@@ -100,11 +101,13 @@ export class DaggerCombat {
         const target = this.getClosestEnemyInFront(TELEPORT_RANGE);
         if (!target) return false;
 
+        const va = this._vfx.abilityA ?? {};
+
         // Departure VFX — lean burst (smoke + sparks, no separate poison call)
         this._vfxPos.copy(this.character.position);
-        this._vfxPos.y += 0.8;
+        this._vfxPos.y += va.heightOffset ?? 0.8;
         if (this.particleSystem) {
-            this.particleSystem.emitVanishSmoke(this._vfxPos, 10);
+            this.particleSystem.emitVanishSmoke(this._vfxPos, va.departureSmoke ?? 10);
         }
 
         // Teleport
@@ -121,9 +124,9 @@ export class DaggerCombat {
 
         // Arrival VFX — single burst (shadow step sparks only, no poison duplicate)
         this._vfxPos.copy(this._behindPos);
-        this._vfxPos.y += 0.8;
+        this._vfxPos.y += va.heightOffset ?? 0.8;
         if (this.particleSystem) {
-            this.particleSystem.emitShadowStepBurst(this._vfxPos, 14);
+            this.particleSystem.emitShadowStepBurst(this._vfxPos, va.arrivalBurst ?? 14);
         }
 
         // Screen feedback
@@ -147,22 +150,24 @@ export class DaggerCombat {
         const poisonDamagePerTick = POISON_DAMAGE_PER_TICK_BASE + POISON_DAMAGE_PER_CHARGE * chargesUsed;
         const stackRatio = Math.min(1, chargesUsed / 6);
 
+        const ve = this._vfx.abilityE ?? {};
+
         const weaponPos = this.character.getWeaponPosition();
         const dir = this.character.getForwardDirection().clone();
         dir.y = 0;
         if (dir.lengthSq() < 0.0001) dir.set(0, 0, -1);
         dir.normalize();
-        const startPos = weaponPos.clone().addScaledVector(dir, 0.6);
+        const startPos = weaponPos.clone().addScaledVector(dir, ve.startOffset ?? 0.6);
 
         // Build massive green blade fan — 3 blades like charged slash but bigger
         const group = new THREE.Group();
         const materials = [];
         const geometries = [];
-        const bladeLen = 4.0 + chargesUsed * 0.6;
-        const bladeWidth = 0.6 + chargesUsed * 0.1;
-        const angles = [-0.4, 0, 0.4];
-        const coreColors = [0x33dd55, 0x55ff88, 0x33dd55];
-        const glowColors = [0x1a8833, 0x22cc55, 0x1a8833];
+        const bladeLen = (ve.bladeLenBase ?? 4.0) + chargesUsed * (ve.bladeLenPerCharge ?? 0.6);
+        const bladeWidth = (ve.bladeWidthBase ?? 0.6) + chargesUsed * (ve.bladeWidthPerCharge ?? 0.1);
+        const angles = ve.fanAngles ?? [-0.4, 0, 0.4];
+        const coreColors = ve.coreColors ?? [0x33dd55, 0x55ff88, 0x33dd55];
+        const glowColors = ve.glowColors ?? [0x1a8833, 0x22cc55, 0x1a8833];
 
         for (let i = 0; i < 3; i++) {
             // Blade shape — long tapered
@@ -172,22 +177,23 @@ export class DaggerCombat {
             shape.lineTo(-bladeLen * 0.45, -bladeWidth * 0.12);
             shape.quadraticCurveTo(bladeLen * 0.12, -bladeWidth * 0.8, bladeLen * 0.5, 0);
 
-            const geom = new THREE.ShapeGeometry(shape, 8);
+            const geom = new THREE.ShapeGeometry(shape, ve.coreSegments ?? 8);
             const mat = new THREE.MeshBasicMaterial({
-                color: coreColors[i], transparent: true, opacity: 0.95,
+                color: coreColors[i], transparent: true, opacity: ve.coreOpacity ?? 0.95,
                 side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending
             });
             const blade = new THREE.Mesh(geom, mat);
             blade.rotation.z = angles[i];
 
             // Glow layer
-            const glowGeom = new THREE.ShapeGeometry(shape, 6);
+            const glowGeom = new THREE.ShapeGeometry(shape, ve.glowSegments ?? 6);
             const glowMat = new THREE.MeshBasicMaterial({
-                color: glowColors[i], transparent: true, opacity: 0.35,
+                color: glowColors[i], transparent: true, opacity: ve.glowOpacity ?? 0.35,
                 side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending
             });
             const glow = new THREE.Mesh(glowGeom, glowMat);
-            glow.scale.set(1.35, 1.0, 1.5);
+            const gs = ve.glowScale ?? [1.35, 1.0, 1.5];
+            glow.scale.set(gs[0] ?? 1.35, gs[1] ?? 1.0, gs[2] ?? 1.5);
             glow.rotation.z = angles[i];
 
             group.add(blade);
@@ -197,9 +203,13 @@ export class DaggerCombat {
         }
 
         // Bright center flash
-        const flashGeo = new THREE.PlaneGeometry(bladeLen * 0.9, bladeWidth * 0.3);
+        const veFlash = ve.flash ?? {};
+        const flashGeo = new THREE.PlaneGeometry(
+            bladeLen * (veFlash.lengthRatio ?? 0.9),
+            bladeWidth * (veFlash.widthRatio ?? 0.3)
+        );
         const flashMat = new THREE.MeshBasicMaterial({
-            color: 0xccffcc, transparent: true, opacity: 0.5,
+            color: veFlash.color ?? 0xccffcc, transparent: true, opacity: veFlash.opacity ?? 0.5,
             side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending
         });
         const flash = new THREE.Mesh(flashGeo, flashMat);
@@ -212,13 +222,13 @@ export class DaggerCombat {
         group.lookAt(lookTarget);
         this.scene.add(group);
 
-        const speed = 28 + stackRatio * 12;
+        const speed = (ve.speedBase ?? 28) + stackRatio * (ve.speedPerChargeRatio ?? 12);
 
         this._poisonSlash = {
             mesh: group,
             velocity: dir.clone().multiplyScalar(speed),
             lifetime: 0,
-            maxLifetime: 0.4 + stackRatio * 0.15,
+            maxLifetime: (ve.lifetimeBase ?? 0.4) + stackRatio * (ve.lifetimePerChargeRatio ?? 0.15),
             damage,
             chargesUsed,
             poisonDuration,
@@ -226,12 +236,12 @@ export class DaggerCombat {
             hitSet: new Set(),
             materials,
             geometries,
-            hitRadius: 2.6 + stackRatio * 1.2
+            hitRadius: (ve.hitRadiusBase ?? 2.6) + stackRatio * (ve.hitRadiusPerChargeRatio ?? 1.2)
         };
 
         // Launch VFX
         if (this.particleSystem?.emitPoisonBurst) {
-            this.particleSystem.emitPoisonBurst(startPos.clone(), 16 + chargesUsed * 3);
+            this.particleSystem.emitPoisonBurst(startPos.clone(), (ve.launchBurstBase ?? 16) + chargesUsed * (ve.launchBurstPerCharge ?? 3));
         }
         if (this.cs.onProjectileHit) this.cs.onProjectileHit({ daggerSlashImpact: true });
     }
@@ -243,22 +253,27 @@ export class DaggerCombat {
         c.mesh.position.addScaledVector(c.velocity, dt);
         const lifePct = 1 - c.lifetime / c.maxLifetime;
 
+        const ve = this._vfx.abilityE ?? {};
+
         // Expand + fade
-        const expandT = Math.min(1, c.lifetime / (c.maxLifetime * 0.25));
-        const scale = 0.5 + 0.7 * expandT;
+        const expandDur = ve.expandDuration ?? 0.25;
+        const expandT = Math.min(1, c.lifetime / (c.maxLifetime * expandDur));
+        const scaleRange = ve.scaleRange ?? [0.5, 0.7];
+        const scale = (scaleRange[0] ?? 0.5) + ((scaleRange[1] ?? 0.7) - (scaleRange[0] ?? 0.5)) * expandT;
         c.mesh.scale.setScalar(scale);
         for (let i = 0; i < c.materials.length; i += 2) {
-            c.materials[i].opacity = 0.95 * lifePct;
-            if (c.materials[i + 1]) c.materials[i + 1].opacity = 0.35 * lifePct;
+            c.materials[i].opacity = (ve.coreOpacity ?? 0.95) * lifePct;
+            if (c.materials[i + 1]) c.materials[i + 1].opacity = (ve.glowOpacity ?? 0.35) * lifePct;
         }
         // Flash fades faster
-        c.materials[c.materials.length - 1].opacity = 0.5 * lifePct * lifePct;
+        const veFlash = ve.flash ?? {};
+        c.materials[c.materials.length - 1].opacity = (veFlash.opacity ?? 0.5) * lifePct * lifePct;
 
         // Trail particles
         if (this.particleSystem) {
             c._trailTick = (c._trailTick || 0) + 1;
-            if (c._trailTick % 3 === 0) {
-                this.particleSystem.emitPoisonTrail?.(c.mesh.position, 2);
+            if (c._trailTick % (ve.trailInterval ?? 3) === 0) {
+                this.particleSystem.emitPoisonTrail?.(c.mesh.position, ve.trailCount ?? 2);
             }
         }
 
@@ -286,7 +301,7 @@ export class DaggerCombat {
                     anchorId: this.cs._getDamageAnchorId(enemy)
                 });
                 if (this.particleSystem) {
-                    this.particleSystem.emitPoisonBurst(this._enemyPos.clone(), 18 + c.chargesUsed * 3);
+                    this.particleSystem.emitPoisonBurst(this._enemyPos.clone(), (ve.hitBurstBase ?? 18) + c.chargesUsed * (ve.hitBurstPerCharge ?? 3));
                 }
                 if (this.cs.onProjectileHit) this.cs.onProjectileHit({ daggerSlashImpact: true });
             }
@@ -341,12 +356,14 @@ export class DaggerCombat {
         const abilC = this.gameState.selectedKit?.combat?.abilityC || {};
         const duration = abilC.duration ?? 5;
 
+        const vc = this._vfx.abilityC ?? {};
+
         // VFX: smoke cloud at vanish position (leaner than before)
         this._vfxPos.copy(this.character.position);
-        this._vfxPos.y += 0.8;
+        this._vfxPos.y += vc.heightOffset ?? 0.8;
         if (this.particleSystem) {
-            this.particleSystem.emitVanishSmoke(this._vfxPos, 18);
-            this.particleSystem.emitPoisonBurst(this._vfxPos, 8);
+            this.particleSystem.emitVanishSmoke(this._vfxPos, vc.vanishSmoke ?? 18);
+            this.particleSystem.emitPoisonBurst(this._vfxPos, vc.vanishPoisonBurst ?? 8);
         }
 
         this.gameState.activateVanish(duration);
@@ -381,35 +398,48 @@ export class DaggerCombat {
         const poisonMult = 1 + 0.20 * consumed;
         const damage = Math.floor(baseDamage * poisonMult);
 
+        const vf = this._vfx.abilityF ?? {};
+        const vfBlade1 = vf.blade1 ?? {};
+        const vfBlade2 = vf.blade2 ?? {};
+        const vfRing = vf.ring ?? {};
+
         // Build visible spinning dagger mesh (cheap MeshBasicMaterial — no ShaderMaterial)
         const group = new THREE.Group();
         group.position.copy(pos);
 
         // Dagger blade 1 — bright toxic green
-        const bladeGeo = new THREE.ConeGeometry(0.12, 1.1, 4);
+        const bladeGeo = new THREE.ConeGeometry(
+            vfBlade1.radius ?? 0.12,
+            vfBlade1.height ?? 1.1,
+            vfBlade1.segments ?? 4
+        );
         bladeGeo.rotateX(Math.PI / 2);
         const bladeMat = new THREE.MeshBasicMaterial({
-            color: 0x44ff70, transparent: true, opacity: 0.95,
+            color: vfBlade1.color ?? 0x44ff70, transparent: true, opacity: vfBlade1.opacity ?? 0.95,
             depthWrite: false, blending: THREE.AdditiveBlending
         });
         const blade1 = new THREE.Mesh(bladeGeo, bladeMat);
-        blade1.position.x = 0.25;
+        blade1.position.x = vfBlade1.offsetX ?? 0.25;
         group.add(blade1);
 
         // Dagger blade 2 — offset, slightly purple
         const blade2Mat = new THREE.MeshBasicMaterial({
-            color: 0x9944ff, transparent: true, opacity: 0.85,
+            color: vfBlade2.color ?? 0x9944ff, transparent: true, opacity: vfBlade2.opacity ?? 0.85,
             depthWrite: false, blending: THREE.AdditiveBlending
         });
         const blade2 = new THREE.Mesh(bladeGeo, blade2Mat);
-        blade2.position.x = -0.25;
+        blade2.position.x = vfBlade2.offsetX ?? -0.25;
         blade2.rotation.z = Math.PI;
         group.add(blade2);
 
         // Outer glow ring — poison green halo
-        const ringGeo = new THREE.RingGeometry(0.3, 0.6, 8);
+        const ringGeo = new THREE.RingGeometry(
+            vfRing.innerRadius ?? 0.3,
+            vfRing.outerRadius ?? 0.6,
+            vfRing.segments ?? 8
+        );
         const ringMat = new THREE.MeshBasicMaterial({
-            color: 0x33ff66, transparent: true, opacity: 0.4,
+            color: vfRing.color ?? 0x33ff66, transparent: true, opacity: vfRing.opacity ?? 0.4,
             side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending
         });
         const ring = new THREE.Mesh(ringGeo, ringMat);
@@ -421,14 +451,17 @@ export class DaggerCombat {
 
         this.scene.add(group);
 
+        const speed = vf.speed ?? 22;
+        const range = vf.range ?? 14;
+
         this.twinDaggersProjectile = {
             position: pos,
             direction: dir.clone(),
-            velocity: dir.clone().multiplyScalar(this.twinDaggersSpeed),
+            velocity: dir.clone().multiplyScalar(speed),
             damage,
             poisonChargesConsumed: consumed,
             lifetime: 0,
-            maxLifetime: this.twinDaggersRange / this.twinDaggersSpeed,
+            maxLifetime: range / speed,
             hitSet: new Set(),
             mesh: group,
             bladeMat,
@@ -440,7 +473,7 @@ export class DaggerCombat {
 
         // Launch burst (scales with charges)
         if (this.particleSystem) {
-            this.particleSystem.emitShadowStepBurst(pos, 10 + consumed * 2);
+            this.particleSystem.emitShadowStepBurst(pos, (vf.launchBurstBase ?? 10) + consumed * (vf.launchBurstPerCharge ?? 2));
         }
     }
 
@@ -450,28 +483,31 @@ export class DaggerCombat {
         p.position.addScaledVector(p.velocity, dt);
         p.lifetime += dt;
 
+        const vf = this._vfx.abilityF ?? {};
+        const vfRing = vf.ring ?? {};
+
         // Spin the dagger mesh and update position
         if (p.mesh) {
             p.mesh.position.copy(p.position);
-            p.mesh.rotation.z += dt * 18;  // fast spin
+            p.mesh.rotation.z += dt * (vf.spinSpeed ?? 18);
 
             // Fade ring and blades as projectile ages
             const fade = 1 - p.lifetime / p.maxLifetime;
-            p.ringMat.opacity = 0.4 * fade;
+            p.ringMat.opacity = (vfRing.opacity ?? 0.4) * fade;
         }
 
-        // Emit trail every 3rd frame
+        // Emit trail every N frames
         if (this.particleSystem && p.lifetime < p.maxLifetime) {
             this._trailFrame++;
-            if (this._trailFrame % 3 === 0) {
-                this.particleSystem.emitPoisonTrail(p.position, 1);
+            if (this._trailFrame % (vf.trailInterval ?? 3) === 0) {
+                this.particleSystem.emitPoisonTrail(p.position, vf.trailCount ?? 1);
             }
         }
 
         if (p.lifetime >= p.maxLifetime) {
             this._cleanupTwinDaggersMesh(p);
             if (this.particleSystem) {
-                this.particleSystem.emitPoisonBurst(p.position, 10);
+                this.particleSystem.emitPoisonBurst(p.position, vf.expiryBurst ?? 10);
             }
             this.twinDaggersProjectile = null;
             return;
@@ -482,7 +518,7 @@ export class DaggerCombat {
             mesh.getWorldPosition(this._enemyPos);
             const dist = p.position.distanceTo(this._enemyPos);
             const radius = enemy.hitRadius ?? 1.0;
-            if (dist < radius + 0.8) {
+            if (dist < radius + (vf.hitMargin ?? 0.8)) {
                 p.hitSet.add(enemy);
                 const rawUltDmg = Math.floor(p.damage * (this.cs._consumeNextAttackMultiplier?.() ?? 1));
                 const { damage: totalDamage, isCritical, isBackstab } = this.cs._applyCritBackstab(rawUltDmg, enemy, mesh);
@@ -496,7 +532,7 @@ export class DaggerCombat {
                     anchorId: this.cs._getDamageAnchorId(enemy)
                 });
                 if (this.particleSystem) {
-                    this.particleSystem.emitPoisonBurst(this._enemyPos, 12);
+                    this.particleSystem.emitPoisonBurst(this._enemyPos, vf.hitBurst ?? 12);
                 }
             }
         }

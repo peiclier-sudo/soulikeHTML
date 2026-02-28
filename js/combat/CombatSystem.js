@@ -20,6 +20,8 @@ export class CombatSystem {
 
         // Read kit combat config (falls back to Blood Mage defaults if no kit set)
         const kit = gameState.selectedKit;
+        const vfx = kit?.vfx || {};
+        this._vfx = vfx;
         const kc = kit?.combat || {};
         const basic = kc.basicAttack || {};
         const charged = kc.chargedAttack || {};
@@ -95,7 +97,7 @@ export class CombatSystem {
 
         // Whip/finisher (E ability): CAC blood-fire slash, impactful
         this.whipTimer = null;
-        this.whipDuration = 0.48;
+        this.whipDuration = vfx.abilityE?.whipDuration ?? 0.48;
         this.whipRange = abilE.range ?? 3.8;
         this.whipDamage = abilE.baseDamage ?? 45;
         this.whipHitOnce = false;
@@ -117,12 +119,12 @@ export class CombatSystem {
         this._drainBeamMats = [];
         this._drainBeamGeoms = [];
         this._drainBeamSegments = [];
-        this._drainZapNumPointsMax = 140;
-        this._drainMaxSegmentLength = 0.11;
+        this._drainZapNumPointsMax = vfx.lifeDrain?.beamPoints ?? 140;
+        this._drainMaxSegmentLength = vfx.lifeDrain?.maxSegmentLength ?? 0.11;
         this._drainTargetLight = null;
         this._drainRight = new THREE.Vector3();
         this._drainUp = new THREE.Vector3();
-        this._drainPath = Array.from({ length: 140 }, () => new THREE.Vector3());
+        this._drainPath = Array.from({ length: this._drainZapNumPointsMax }, () => new THREE.Vector3());
         this._lastDrainBloodSecond = 0; // +1 blood charge per full second of life drain
 
         // Blood Nova / X ability: short blood burst that roots/freezes enemies
@@ -277,9 +279,11 @@ export class CombatSystem {
     }
 
     _createProjectile(isCharged, startPos, dir) {
+        const vp = this._vfx.projectile || {};
+        const pv = isCharged ? (vp.charged || {}) : (vp.basic || {});
         const radius = isCharged ? this.chargedRadius : this.basicRadius;
         const speed = isCharged ? this.chargedSpeed : this.basicSpeed;
-        const seg = isCharged ? 12 : 8;
+        const seg = pv.segments ?? (isCharged ? 12 : 8);
         const group = new THREE.Group();
         group.position.copy(startPos);
         group.castShadow = false;
@@ -287,29 +291,32 @@ export class CombatSystem {
         const materials = [];
         const geometries = [];
 
+        const outerParams = pv.outer || {};
         const outerMat = createBloodFireMaterial({
-            coreBrightness: isCharged ? 1.0 : 0.9,
-            plasmaSpeed: isCharged ? 3.5 : 3.8,
-            isCharged: isCharged ? 1.0 : 0.0,
-            layerScale: isCharged ? 0.7 : 0.85,
-            rimPower: isCharged ? 2.0 : 1.8,
-            redTint: 0.92
+            coreBrightness: outerParams.coreBrightness ?? (isCharged ? 1.0 : 0.9),
+            plasmaSpeed: outerParams.plasmaSpeed ?? (isCharged ? 3.5 : 3.8),
+            isCharged: outerParams.isCharged ?? (isCharged ? 1.0 : 0.0),
+            layerScale: outerParams.layerScale ?? (isCharged ? 0.7 : 0.85),
+            rimPower: outerParams.rimPower ?? (isCharged ? 2.0 : 1.8),
+            redTint: outerParams.redTint ?? 0.92
         });
-        outerMat.uniforms.alpha.value = isCharged ? 0.5 : 0.45;
+        outerMat.uniforms.alpha.value = outerParams.alpha ?? (isCharged ? 0.5 : 0.45);
         const outerGeo = new THREE.SphereGeometry(radius, seg, seg);
         group.add(new THREE.Mesh(outerGeo, outerMat));
         materials.push(outerMat);
         geometries.push(outerGeo);
 
+        const coreParams = pv.core || {};
         const coreMat = createBloodFireMaterial({
-            coreBrightness: isCharged ? 2.2 : 2.0,
-            plasmaSpeed: isCharged ? 6.5 : 5.5,
-            isCharged: isCharged ? 1.0 : 0.0,
-            layerScale: isCharged ? 1.6 : 1.3,
-            rimPower: isCharged ? 2.0 : 1.8,
-            redTint: 0.92
+            coreBrightness: coreParams.coreBrightness ?? (isCharged ? 2.2 : 2.0),
+            plasmaSpeed: coreParams.plasmaSpeed ?? (isCharged ? 6.5 : 5.5),
+            isCharged: coreParams.isCharged ?? (isCharged ? 1.0 : 0.0),
+            layerScale: coreParams.layerScale ?? (isCharged ? 1.6 : 1.3),
+            rimPower: coreParams.rimPower ?? (isCharged ? 2.0 : 1.8),
+            redTint: coreParams.redTint ?? 0.92
         });
-        const coreGeo = new THREE.SphereGeometry(radius * 0.55, seg, seg);
+        const coreRatio = pv.coreRatio ?? 0.55;
+        const coreGeo = new THREE.SphereGeometry(radius * coreRatio, seg, seg);
         group.add(new THREE.Mesh(coreGeo, coreMat));
         materials.push(coreMat);
         geometries.push(coreGeo);
@@ -320,7 +327,7 @@ export class CombatSystem {
             mesh: group, velocity, lifetime: 0,
             maxLifetime: isCharged ? this.chargedLifetime : this.basicLifetime,
             damage: isCharged ? this.chargedDamage : this.basicDamage,
-            releaseBurst: isCharged ? 0.15 : 0,
+            releaseBurst: isCharged ? (vp.charged?.releaseBurst ?? 0.15) : 0,
             isCharged: !!isCharged,
             materials, geometries, vfx,
             hitSet: new Set()
@@ -368,10 +375,15 @@ export class CombatSystem {
 
     _ensureBloodNovaPreview() {
         if (this._bloodNovaPreview) return;
-        const r = this.bloodNovaRadius * 0.85;
-        const geo = new THREE.RingGeometry(r - 0.22, r + 0.18, 64);
+        const vx = this._vfx.abilityX || {};
+        const pr = vx.previewRing || {};
+        const r = this.bloodNovaRadius * (pr.radiusScale ?? 0.85);
+        const innerInset = pr.innerInset ?? 0.22;
+        const outerInset = pr.outerInset ?? 0.18;
+        const segments = pr.segments ?? 64;
+        const geo = new THREE.RingGeometry(r - innerInset, r + outerInset, segments);
         const mat = new THREE.MeshBasicMaterial({
-            color: 0xaa1030,
+            color: pr.color ?? 0xaa1030,
             transparent: true,
             opacity: 0,
             side: THREE.DoubleSide,
@@ -398,8 +410,9 @@ export class CombatSystem {
             p.mesh.visible = true;
         }
         if (this.particleSystem) {
-            this.particleSystem.emitSparks(center, 18);
-            this.particleSystem.emitEmbers(center, 12);
+            const vx = this._vfx.abilityX || {};
+            this.particleSystem.emitSparks(center, vx.windupSparks ?? 18);
+            this.particleSystem.emitEmbers(center, vx.windupEmbers ?? 12);
         }
         if (this.onProjectileHit) this.onProjectileHit({ whipWindup: true });
     }
@@ -433,12 +446,13 @@ export class CombatSystem {
             this.bloodNovaCooldown = this.bloodNovaCooldownDuration;
             this.gameState.addBloodCharge(1);
             if (this.particleSystem) {
+                const vx = this._vfx.abilityX || {};
                 this.particleSystem.emitBloodNovaBurst(center, this.bloodNovaRadius * 1.15);
                 this.particleSystem.emitBloodMatterExplosion(center);
                 this.particleSystem.emitUltimateExplosion(center);
                 this.particleSystem.emitUltimateEndExplosion(center);
-                this.particleSystem.emitSparks(center, 45);
-                this.particleSystem.emitEmbers(center, 35);
+                this.particleSystem.emitSparks(center, vx.releaseSparks ?? 45);
+                this.particleSystem.emitEmbers(center, vx.releaseEmbers ?? 35);
             }
             if (this.onProjectileHit) this.onProjectileHit({ bloodNova: true, hits: hitCount, novaRadius: this.bloodNovaRadius });
             return true;
@@ -464,12 +478,16 @@ export class CombatSystem {
         if (this.bloodNovaWindup > 0) {
             this.bloodNovaWindup -= deltaTime;
             if (this._bloodNovaPreview) {
+                const vx = this._vfx.abilityX || {};
+                const ws = vx.windupScale || {};
+                const wo = vx.windupOpacity || {};
+                const pr = vx.previewRing || {};
                 const t = 1 - Math.max(0, this.bloodNovaWindup) / this.bloodNovaWindupDuration;
-                const pulse = 0.15 + t * 1.0;
+                const pulse = (ws.start ?? 0.15) + t * ((ws.end ?? 1.15) - (ws.start ?? 0.15));
                 this._bloodNovaPreview.mesh.position.copy(this._bloodNovaPendingCenter);
-                this._bloodNovaPreview.mesh.position.y = 0.03;
+                this._bloodNovaPreview.mesh.position.y = pr.groundY ?? 0.03;
                 this._bloodNovaPreview.mesh.scale.setScalar(pulse);
-                this._bloodNovaPreview.mat.opacity = 0.2 + 0.6 * t;
+                this._bloodNovaPreview.mat.opacity = (wo.start ?? 0.2) + ((wo.end ?? 0.8) - (wo.start ?? 0.2)) * t;
                 this._bloodNovaPreview.mesh.visible = true;
             }
             if (this.bloodNovaWindup <= 0) this._releaseBloodNova();
@@ -500,18 +518,19 @@ export class CombatSystem {
                                 this._lastDrainBloodSecond = secondsFull;
                             }
                             this.gameState.emit('damageNumber', { position: this._enemyPos.clone(), damage: drainDmg, isCritical: drainCrit, isBackstab: drainBack, anchorId: this._getDamageAnchorId(this.lifeDrainTarget) });
-                            if (this.particleSystem) this.particleSystem.emitDrainFlow(this._enemyPos, this.character.position, 18);
+                            if (this.particleSystem) this.particleSystem.emitDrainFlow(this._enemyPos, this.character.position, (this._vfx.lifeDrain?.damageFlowCount ?? 18));
                         }
                         this.lifeDrainBeamTime += deltaTime;
                         this._updateLifeDrainBeam();
                         if (this.particleSystem) {
                             this._drainFlowAccum = (this._drainFlowAccum || 0) + deltaTime;
-                            if (this._drainFlowAccum >= 0.08) {
+                            const ldFlow = this._vfx.lifeDrain || {};
+                            if (this._drainFlowAccum >= (ldFlow.flowInterval ?? 0.08)) {
                                 this._drainFlowAccum = 0;
-                                this.particleSystem.emitDrainFlow(this._enemyPos, this.character.position, 10);
+                                this.particleSystem.emitDrainFlow(this._enemyPos, this.character.position, ldFlow.flowCount ?? 10);
                             }
                             this._drainTargetBurstAccum = (this._drainTargetBurstAccum || 0) + deltaTime;
-                            if (this._drainTargetBurstAccum >= 0.15) {
+                            if (this._drainTargetBurstAccum >= (ldFlow.burstInterval ?? 0.15)) {
                                 this._drainTargetBurstAccum = 0;
                                 this.particleSystem.emitDrainTargetBurst(this._enemyPos);
                             }
@@ -536,7 +555,7 @@ export class CombatSystem {
                     this._createLifeDrainBeam();
                     if (this.particleSystem) {
                         const targetPos = this.lifeDrainTargetMesh.getWorldPosition(new THREE.Vector3());
-                        this.particleSystem.emitDrainFlow(targetPos.clone(), this.character.position.clone(), 40);
+                        this.particleSystem.emitDrainFlow(targetPos.clone(), this.character.position.clone(), this._vfx.lifeDrain?.castFlowCount ?? 40);
                         this.particleSystem.emitDrainTargetBurst(targetPos.clone());
                     }
                 }
@@ -567,8 +586,7 @@ export class CombatSystem {
             const v = this.crimsonEruptionVfx;
             v.elapsed += deltaTime;
             const t = v.elapsed / v.duration;
-            const expandDuration = 0.22;
-            const expandT = Math.min(1, v.elapsed / expandDuration);
+            const expandT = Math.min(1, v.elapsed / (v.expandDuration ?? 0.22));
             const scale = v.radius * (1 - (1 - expandT) * (1 - expandT));
             v.disc.scale.setScalar(scale);
             const alpha = t < 0.15 ? 0.9 : Math.max(0, 0.9 * (1 - (t - 0.15) / 0.85));
@@ -641,51 +659,37 @@ export class CombatSystem {
 
     updateChargeOrb(deltaTime) {
         const combat = this.gameState.combat;
+        const co = this._vfx.chargeOrb || {};
         if (combat.isCharging && combat.chargeTimer > 0) {
             if (!this.chargeOrb) {
-                const geometry = new THREE.SphereGeometry(0.22, 32, 32);
-                const material = this.isFrostKit
-                    ? createIceMaterial({
-                        coreBrightness: 0.9,
-                        iceSpeed: 4.5,
-                        isCharged: 1.0,
-                        layerScale: 1.2,
-                        rimPower: 2.0,
-                        displaceAmount: 0.3
-                    })
-                    : (this.isBowRangerKit
-                        ? new THREE.MeshStandardMaterial({
-                            color: 0x8844ff,
-                            emissive: 0x4422aa,
-                            emissiveIntensity: 1.6,
-                            roughness: 0.3,
-                            metalness: 0.1,
-                            transparent: true,
-                            opacity: 0.9
-                        })
-                        : createBloodFireMaterial({
-                                coreBrightness: 0.9,
-                                plasmaSpeed: 4.5,
-                                isCharged: 1.0,
-                                layerScale: 1.2,
-                                rimPower: 2.0,
-                                redTint: 0.92
-                            }));
+                const sphereRadius = co.sphereRadius ?? 0.22;
+                const sphereSegs = co.sphereSegments ?? 32;
+                const geometry = new THREE.SphereGeometry(sphereRadius, sphereSegs, sphereSegs);
+                let material;
+                const matType = co.materialType || 'bloodfire';
+                const matParams = co.material || {};
+                if (matType === 'ice') {
+                    material = createIceMaterial(matParams);
+                } else if (matType === 'standard' || matType === 'basic') {
+                    material = new THREE.MeshStandardMaterial(matParams);
+                } else {
+                    material = createBloodFireMaterial(matParams);
+                }
                 this.chargeOrb = new THREE.Mesh(geometry, material);
                 this.chargeOrb.castShadow = false;
                 // Hide the sphere mesh for bow and dagger — only show ring particles
                 this.chargeOrb.userData._hideSphere = !!(this.isBowRangerKit || this.isDaggerKit);
                 this.chargeOrb.userData.orbTime = 0;
                 // Tightening ring of embers
-                const ringCount = 36;
+                const ringCount = co.ringCount ?? 36;
                 const ringPos = new Float32Array(ringCount * 3);
                 const ringGeo = new THREE.BufferGeometry();
                 ringGeo.setAttribute('position', new THREE.BufferAttribute(ringPos, 3));
                 const ringMat = new THREE.PointsMaterial({
-                    size: 0.04,
-                    color: this.isFrostKit ? 0x44aaff : (this.isBowRangerKit ? 0x8844ff : (this.isDaggerKit ? 0x44ff70 : 0xaa0a0a)),
+                    size: co.ringSize ?? 0.04,
+                    color: co.ringColor ?? 0xaa0a0a,
                     transparent: true,
-                    opacity: 0.9,
+                    opacity: co.ringOpacity ?? 0.9,
                     depthWrite: false,
                     blending: THREE.AdditiveBlending
                 });
@@ -693,45 +697,54 @@ export class CombatSystem {
                 this.chargeOrb.add(ring);
                 this.chargeOrb.userData.ringGeo = ringGeo;
                 this.chargeOrb.userData.ringMat = ringMat;
+                this.chargeOrb.userData.ringCount = ringCount;
                 this.scene.add(this.chargeOrb);
             }
             this.chargeOrb.userData.orbTime += deltaTime;
             const t = Math.min(1, combat.chargeTimer / this.chargeDuration);
-            const scale = (this.isBowRangerKit) ? (0.55 + 2.35 * t) : (0.2 + 1.6 * t);
+            const sr = co.scaleRange || [0.2, 1.8];
+            const scale = sr[0] + (sr[1] - sr[0]) * t;
             this.chargeOrb.scale.setScalar(scale);
             const wpos = this.character.getWeaponPosition();
             const wdir = this.character.getForwardDirection();
+            const fwdOff = co.forwardOffset ?? 0.4;
             if (this.isBowRangerKit) {
                 this.chargeOrb.position.set(wpos.x, wpos.y + 0.32, wpos.z);
             } else {
-                this.chargeOrb.position.set(wpos.x + wdir.x * 0.4, wpos.y + wdir.y * 0.4, wpos.z + wdir.z * 0.4);
+                this.chargeOrb.position.set(wpos.x + wdir.x * fwdOff, wpos.y + wdir.y * fwdOff, wpos.z + wdir.z * fwdOff);
             }
             // Pulse: brightness and alpha increase with charge
-            const pulse = 0.95 + 0.15 * Math.sin(this.chargeOrb.userData.orbTime * 6);
+            const pulseCfg = co.pulse || {};
+            const pulse = (pulseCfg.base ?? 0.95) + (pulseCfg.amp ?? 0.15) * Math.sin(this.chargeOrb.userData.orbTime * (pulseCfg.freq ?? 6));
             if (this.chargeOrb.userData._hideSphere) {
                 // Bow/dagger: sphere is hidden, only ring particles show
                 this.chargeOrb.material.opacity = 0;
                 this.chargeOrb.material.visible = false;
             } else if (this.chargeOrb.material.uniforms) {
+                const alphaR = co.alphaRange || [0.75, 1.0];
+                const brightR = co.brightnessRange || [0.9, 1.5];
                 this.chargeOrb.material.uniforms.time.value = this.chargeOrb.userData.orbTime;
-                this.chargeOrb.material.uniforms.alpha.value = 0.75 + 0.25 * t * pulse;
-                this.chargeOrb.material.uniforms.coreBrightness.value = 0.9 + 0.6 * t * pulse;
-            } else if (this.isBowRangerKit) {
+                this.chargeOrb.material.uniforms.alpha.value = alphaR[0] + (alphaR[1] - alphaR[0]) * t * pulse;
+                this.chargeOrb.material.uniforms.coreBrightness.value = brightR[0] + (brightR[1] - brightR[0]) * t * pulse;
+            } else if (this.chargeOrb.material.opacity !== undefined) {
                 this.chargeOrb.material.opacity = 0.6 + 0.35 * t;
-                this.chargeOrb.material.emissiveIntensity = 1.2 + 1.6 * t;
+                if (this.chargeOrb.material.emissiveIntensity !== undefined) this.chargeOrb.material.emissiveIntensity = 1.2 + 1.6 * t;
             }
             // Ring tightens and brightens with charge
-            const ringRadius = (this.isBowRangerKit) ? (0.95 * (1.25 - 0.8 * t)) : (0.5 * (1.2 - 0.9 * t));
+            const rrRange = co.ringRadiusRange || [0.06, 0.6];
+            const ringRadius = rrRange[1] - (rrRange[1] - rrRange[0]) * t;
             const ringGeo = this.chargeOrb.userData.ringGeo;
             const posAttr = ringGeo.getAttribute('position');
-            for (let i = 0; i < 36; i++) {
-                const a = (i / 36) * Math.PI * 2 + this.chargeOrb.userData.orbTime * 2;
+            const rc = this.chargeOrb.userData.ringCount || 36;
+            for (let i = 0; i < rc; i++) {
+                const a = (i / rc) * Math.PI * 2 + this.chargeOrb.userData.orbTime * 2;
                 posAttr.array[i * 3] = Math.cos(a) * ringRadius;
                 posAttr.array[i * 3 + 1] = Math.sin(a) * ringRadius;
                 posAttr.array[i * 3 + 2] = 0;
             }
             posAttr.needsUpdate = true;
-            this.chargeOrb.userData.ringMat.opacity = (this.isBowRangerKit) ? (0.78 + 0.22 * t) : (0.5 + 0.5 * t);
+            const roRange = co.ringOpacityRange || [0.5, 1.0];
+            this.chargeOrb.userData.ringMat.opacity = roRange[0] + (roRange[1] - roRange[0]) * t;
         } else {
             if (this.chargeOrb) {
                 this.scene.remove(this.chargeOrb);
@@ -934,6 +947,8 @@ export class CombatSystem {
     }
 
     spawnDaggerBladeWave() {
+        const vp = this._vfx.projectile || {};
+        const bv = vp.basic || {};
         const wp = this.character.getWeaponPosition().clone();
         const dir = this.character.getForwardDirection().clone().normalize();
         const startPos = wp.addScaledVector(dir, 0.8);
@@ -944,8 +959,8 @@ export class CombatSystem {
 
         // Long blade shape — tapered katana energy wave
         const bladeShape = new THREE.Shape();
-        const len = 3.2;   // long reach
-        const width = 0.55; // thin blade
+        const len = bv.bladeLen ?? 3.2;
+        const width = bv.bladeWidth ?? 0.55;
         // Tip (sharp point forward)
         bladeShape.moveTo(len * 0.5, 0);
         // Top edge — slight outward curve
@@ -962,9 +977,9 @@ export class CombatSystem {
         group.lookAt(startPos.clone().add(dir));
         group.rotateZ(slashAngle);
 
-        // Core blade — bright toxic green
+        // Core blade
         const mat = new THREE.MeshBasicMaterial({
-            color: 0x33ff77,
+            color: bv.coreColor ?? 0x33ff77,
             transparent: true,
             opacity: 0.95,
             side: THREE.DoubleSide,
@@ -973,11 +988,11 @@ export class CombatSystem {
         });
         group.add(new THREE.Mesh(geom, mat));
 
-        // Outer glow — wider, softer green
+        // Outer glow
         const glowGeom = new THREE.ShapeGeometry(bladeShape, 10);
         glowGeom.rotateX(-Math.PI / 2);
         const glowMat = new THREE.MeshBasicMaterial({
-            color: 0x22cc66,
+            color: bv.glowColor ?? 0x22cc66,
             transparent: true,
             opacity: 0.3,
             side: THREE.DoubleSide,
@@ -985,20 +1000,20 @@ export class CombatSystem {
             blending: THREE.AdditiveBlending
         });
         const glowMesh = new THREE.Mesh(glowGeom, glowMat);
-        glowMesh.scale.set(1.35, 1.0, 1.6);
+        glowMesh.scale.set(bv.glowScale ?? 1.35, 1.0, 1.6);
         group.add(glowMesh);
 
         this.scene.add(group);
 
         if (this.particleSystem) {
-            this.particleSystem.emitPoisonBurst(startPos.clone(), 6);
+            this.particleSystem.emitPoisonBurst(startPos.clone(), bv.launchSparks ?? 6);
         }
 
         this.projectiles.push({
             mesh: group,
-            velocity: dir.multiplyScalar(30),
+            velocity: dir.multiplyScalar(bv.speed ?? 30),
             lifetime: 0,
-            maxLifetime: 0.2,
+            maxLifetime: bv.maxLifetime ?? 0.2,
             isDaggerBlade: true,
             isDaggerSlash: true,
             hitSet: new Set(),
@@ -1009,12 +1024,15 @@ export class CombatSystem {
 
     /** Charged attack: twin crossing blades (X pattern) with bigger VFX */
     spawnDaggerChargedSlash() {
+        const vp = this._vfx.projectile || {};
+        const cv = vp.charged || {};
         const wp = this.character.getWeaponPosition().clone();
         const dir = this.character.getForwardDirection().clone().normalize();
         const startPos = wp.addScaledVector(dir, 0.6);
 
-        const len = 3.8;
-        const width = 0.7;
+        const len = cv.bladeLen ?? 3.8;
+        const width = cv.bladeWidth ?? 0.7;
+        const spreadAngle = cv.spreadAngle ?? 0.55;
         for (let side = -1; side <= 1; side += 2) {
             const bladeShape = new THREE.Shape();
             bladeShape.moveTo(len * 0.5, 0);
@@ -1027,10 +1045,10 @@ export class CombatSystem {
             const group = new THREE.Group();
             group.position.copy(startPos);
             group.lookAt(startPos.clone().add(dir));
-            group.rotateZ(side * 0.55);
+            group.rotateZ(side * spreadAngle);
 
             const mat = new THREE.MeshBasicMaterial({
-                color: 0x55ff90,
+                color: cv.coreColor ?? 0x55ff90,
                 transparent: true,
                 opacity: 0.95,
                 side: THREE.DoubleSide,
@@ -1042,7 +1060,7 @@ export class CombatSystem {
             const glowGeom = new THREE.ShapeGeometry(bladeShape, 10);
             glowGeom.rotateX(-Math.PI / 2);
             const glowMat = new THREE.MeshBasicMaterial({
-                color: 0x22cc66,
+                color: cv.glowColor ?? 0x22cc66,
                 transparent: true,
                 opacity: 0.35,
                 side: THREE.DoubleSide,
@@ -1050,15 +1068,15 @@ export class CombatSystem {
                 blending: THREE.AdditiveBlending
             });
             const glow = new THREE.Mesh(glowGeom, glowMat);
-            glow.scale.set(1.3, 1.0, 1.5);
+            glow.scale.set(cv.glowScale ?? 1.3, 1.0, 1.5);
             group.add(glow);
 
             this.scene.add(group);
             this.projectiles.push({
                 mesh: group,
-                velocity: dir.clone().multiplyScalar(32),
+                velocity: dir.clone().multiplyScalar(cv.speed ?? 32),
                 lifetime: 0,
-                maxLifetime: 0.24,
+                maxLifetime: cv.maxLifetime ?? 0.24,
                 isDaggerBlade: true,
                 isDaggerSlash: true,
                 isChargedSlash: true,
@@ -1069,8 +1087,8 @@ export class CombatSystem {
         }
 
         if (this.particleSystem) {
-            this.particleSystem.emitPoisonBurst(startPos.clone(), 16);
-            this.particleSystem.emitShadowStepBurst(startPos.clone(), 12);
+            this.particleSystem.emitPoisonBurst(startPos.clone(), cv.launchSparks ?? 16);
+            this.particleSystem.emitShadowStepBurst(startPos.clone(), cv.launchEmbers ?? 12);
         }
         if (this.onProjectileHit) this.onProjectileHit({ daggerSlashImpact: true });
     }
@@ -1107,18 +1125,20 @@ export class CombatSystem {
         const dir = this._fbDir;
 
         if (this.particleSystem) {
+            const projVfx = this._vfx.projectile || {};
+            const pv = isCharged ? (projVfx.charged || {}) : (projVfx.basic || {});
             if (this.isFrostKit) {
-                this.particleSystem.emitIceBurst(startPos, isCharged ? 10 : 5);
+                this.particleSystem.emitIceBurst(startPos, pv.launchSparks ?? (isCharged ? 10 : 5));
             } else {
-                this.particleSystem.emitSparks(startPos, isCharged ? 10 : 5);
-                this.particleSystem.emitEmbers(startPos, isCharged ? 6 : 3);
+                this.particleSystem.emitSparks(startPos, pv.launchSparks ?? (isCharged ? 10 : 5));
+                this.particleSystem.emitEmbers(startPos, pv.launchEmbers ?? (isCharged ? 6 : 3));
             }
         }
 
         const speed = isCharged ? this.chargedSpeed : this.basicSpeed;
         const damage = Math.floor((isCharged ? this.chargedDamage : this.basicDamage) * this._consumeNextAttackMultiplier());
         const maxLifetime = isCharged ? this.chargedLifetime : this.basicLifetime;
-        const releaseBurst = isCharged ? 0.15 : 0;
+        const releaseBurst = isCharged ? (this._vfx.projectile?.charged?.releaseBurst ?? 0.15) : 0;
 
         // Frost kit: create ice javelins (no pool reuse for now)
         if (this.isFrostKit && this.frostCombat) {
@@ -1182,7 +1202,7 @@ export class CombatSystem {
             }
 
             const lifePct = 1.0 - p.lifetime / p.maxLifetime;
-            const alpha = 0.92 * lifePct;
+            const alpha = (this._vfx.projectile?.fadeAlpha ?? 0.92) * lifePct;
             if (p.isBowArrow) {
                 // Bow arrows: fade materials and emit trail sparks
                 if (p.materials) {
@@ -1208,7 +1228,7 @@ export class CombatSystem {
                     p.materials.forEach(mat => { if (mat.uniforms?.alpha) mat.uniforms.alpha.value = alpha; });
                 } else {
                     p.materials.forEach((mat, idx) => {
-                        const layerAlpha = idx === 0 ? alpha * 0.5 : alpha;
+                        const layerAlpha = idx === 0 ? alpha * (this._vfx.projectile?.outerAlphaRatio ?? 0.5) : alpha;
                         if (p.isFrost) {
                             updateIceMaterial(mat, p.lifetime, layerAlpha);
                         } else {
@@ -1220,6 +1240,8 @@ export class CombatSystem {
 
             if (p.lifetime >= p.maxLifetime) {
                 if (this.particleSystem) {
+                    const epVfx = this._vfx.projectile || {};
+                    const epv = p.isCharged ? (epVfx.charged || {}) : (epVfx.basic || {});
                     if (p.isBowArrow) {
                         this.particleSystem.emitSparks(p.mesh.position.clone(), p.isCharged ? 6 : 3);
                     } else if (p.isDaggerBlade) {
@@ -1227,7 +1249,7 @@ export class CombatSystem {
                     } else if (p.isFrost) {
                         this.particleSystem.emitIceBurst(p.mesh.position, p.isCharged ? 8 : 3);
                     } else {
-                        this.particleSystem.emitSmoke(p.mesh.position, p.isCharged ? 3 : 1);
+                        this.particleSystem.emitSmoke(p.mesh.position, epv.expireSmoke ?? (p.isCharged ? 3 : 1));
                     }
                 }
                 this.disposeProjectile(p);
@@ -1261,7 +1283,8 @@ export class CombatSystem {
                 const enemy = enemyMesh.userData?.enemy;
                 if (!enemy || enemy.health <= 0 || p.hitSet.has(enemy)) continue;
                 const modelRadius = enemy.hitRadius ?? (enemy.isBoss ? 2.5 : 0.8);
-                const hitRadius = modelRadius + (p.isCharged ? 0.6 : 0.3);
+                const hrPad = this._vfx.projectile?.hitRadiusPadding || {};
+                const hitRadius = modelRadius + (p.isCharged ? (hrPad.charged ?? 0.6) : (hrPad.basic ?? 0.3));
                 // Use XZ (horizontal) distance — prevents Y offset between
                 // projectile flight height and mesh root from shrinking the hitbox
                 const dx = fireballPos.x - this._enemyPos.x;
@@ -1308,6 +1331,8 @@ export class CombatSystem {
                     }
                     this.gameState.emit('damageNumber', { position: this._enemyPos.clone(), damage: projDmg, isCritical: projCrit, isBackstab: projBack, anchorId: this._getDamageAnchorId(enemy) });
                     if (this.particleSystem) {
+                        const hitVfx = this._vfx.projectile || {};
+                        const hpv = p.isCharged ? (hitVfx.charged || {}) : (hitVfx.basic || {});
                         if (p.isBowArrow) {
                             this.particleSystem.emitSparks(fireballPos.clone(), p.isCharged ? 8 : 4);
                             if (this.particleSystem.emitVioletBurst) this.particleSystem.emitVioletBurst(fireballPos, p.isCharged ? 6 : 3);
@@ -1316,7 +1341,7 @@ export class CombatSystem {
                             this.particleSystem.emitIceShatter(fireballPos, p.isCharged ? 8 : 4);
                         } else {
                             this.particleSystem.emitHitEffect(fireballPos);
-                            this.particleSystem.emitEmbers(fireballPos, p.isCharged ? 6 : 3);
+                            this.particleSystem.emitEmbers(fireballPos, hpv.hitEmbers ?? (p.isCharged ? 6 : 3));
                         }
                     }
                     if (this.onProjectileHit) {
@@ -1338,18 +1363,22 @@ export class CombatSystem {
         if (!worldPosition) return;
         if (this.crimsonEruptionCooldown > 0) return;
         if (!this.crimsonEruptionPreview) {
+            const vq = this._vfx.abilityQ || {};
+            const pr = vq.previewRing || {};
             const r = this.crimsonEruptionRadius;
-            const ringGeo = new THREE.RingGeometry(r - 0.35, r, 48);
+            const inset = pr.inset ?? 0.35;
+            const segments = pr.segments ?? 48;
+            const ringGeo = new THREE.RingGeometry(r - inset, r, segments);
             const mat = new THREE.MeshBasicMaterial({
-                color: 0x880808,
+                color: pr.color ?? 0x880808,
                 transparent: true,
-                opacity: 0.5,
+                opacity: pr.opacity ?? 0.5,
                 side: THREE.DoubleSide,
                 depthWrite: false
             });
             this.crimsonEruptionPreview = new THREE.Mesh(ringGeo, mat);
             this.crimsonEruptionPreview.rotation.x = -Math.PI / 2;
-            this.crimsonEruptionPreview.position.y = 0.02;
+            this.crimsonEruptionPreview.position.y = pr.groundY ?? 0.02;
             this.crimsonEruptionPreview.visible = false;
             this.scene.add(this.crimsonEruptionPreview);
         }
@@ -1545,21 +1574,25 @@ export class CombatSystem {
             this.crimsonEruptionVfx.geometry?.dispose();
             this.crimsonEruptionVfx.material?.dispose();
         }
-        const discGeo = new THREE.CircleGeometry(1, 48);
+        const vq = this._vfx.abilityQ || {};
+        const discCfg = vq.disc || {};
+        const discSegs = discCfg.segments ?? 48;
+        const discGeo = new THREE.CircleGeometry(1, discSegs);
+        const discMatParams = discCfg.material || {};
         const mat = createBloodFireMaterial({
-            coreBrightness: 2.2,
-            plasmaSpeed: 12,
-            isCharged: 1.0,
-            layerScale: 2.5,
-            rimPower: 3.0,
-            alpha: 0.9,
-            redTint: 0.92
+            coreBrightness: discMatParams.coreBrightness ?? 2.2,
+            plasmaSpeed: discMatParams.plasmaSpeed ?? 12,
+            isCharged: discMatParams.isCharged ?? 1.0,
+            layerScale: discMatParams.layerScale ?? 2.5,
+            rimPower: discMatParams.rimPower ?? 3.0,
+            alpha: discMatParams.alpha ?? 0.9,
+            redTint: discMatParams.redTint ?? 0.92
         });
         mat.side = THREE.DoubleSide;
         const disc = new THREE.Mesh(discGeo, mat);
         disc.rotation.x = -Math.PI / 2;
         disc.position.copy(center);
-        disc.position.y = 0.02;
+        disc.position.y = discCfg.groundY ?? 0.02;
         disc.scale.setScalar(0);
         disc.frustumCulled = false;
         const group = new THREE.Group();
@@ -1571,7 +1604,8 @@ export class CombatSystem {
             material: mat,
             geometry: discGeo,
             radius,
-            duration: 1.35,
+            duration: vq.duration ?? 1.35,
+            expandDuration: vq.expandDuration ?? 0.22,
             elapsed: 0
         };
     }
@@ -1608,16 +1642,20 @@ export class CombatSystem {
     }
 
     _createUltimateOrb() {
-        const radius = 0.52;
-        const sphereGeo = new THREE.SphereGeometry(radius, 16, 16);
+        const vf = this._vfx.abilityF || {};
+        const radius = vf.orbRadius ?? 0.52;
+        const orbSegs = vf.orbSegments ?? 16;
+        const sphereGeo = new THREE.SphereGeometry(radius, orbSegs, orbSegs);
         const orbMat = this._createUltimateOrbMaterial();
         orbMat.uniforms.uRadius.value = radius;
         const mesh = new THREE.Mesh(sphereGeo, orbMat);
         mesh.castShadow = false;
         const group = new THREE.Group();
         group.frustumCulled = false;
-        const orbLight = new THREE.PointLight(0xc1081a, 0, 25, 2.5);
-        const outerGlow = new THREE.PointLight(0x7a0010, 0, 16, 1.2);
+        const lightCfg = vf.light || {};
+        const glowCfg = vf.outerGlow || {};
+        const orbLight = new THREE.PointLight(lightCfg.color ?? 0xc1081a, 0, lightCfg.distance ?? 25, lightCfg.decay ?? 2.5);
+        const outerGlow = new THREE.PointLight(glowCfg.color ?? 0x7a0010, 0, glowCfg.distance ?? 16, glowCfg.decay ?? 1.2);
         group.add(mesh); group.add(orbLight); group.add(outerGlow);
         return { group, orbMat, sphereGeo, orbLight, outerGlow, velocity: new THREE.Vector3() };
     }
@@ -1625,28 +1663,32 @@ export class CombatSystem {
     spawnUltimateSlash(position, direction) {
         if (this.ultimateSlash) return;
         if (!this._ultimatePool) this._ultimatePool = this._createUltimateOrb();
+        const vf = this._vfx.abilityF || {};
+        const lightCfg = vf.light || {};
+        const glowCfg = vf.outerGlow || {};
         const u = this._ultimatePool;
         u.group.position.copy(position);
         u.group.scale.setScalar(1);
-        u.velocity.copy(direction).normalize().multiplyScalar(32);
+        u.velocity.copy(direction).normalize().multiplyScalar(vf.speed ?? 32);
         u.orbMat.uniforms.time.value = 0;
-        u.orbMat.uniforms.alpha.value = 0.92;
-        u.orbLight.intensity = 38;
-        u.outerGlow.intensity = 14;
+        u.orbMat.uniforms.alpha.value = vf.launchAlpha ?? 0.92;
+        u.orbLight.intensity = lightCfg.intensityBase ?? 38;
+        u.outerGlow.intensity = glowCfg.intensityBase ?? 14;
         this.scene.add(u.group);
 
         this.ultimateSlash = {
             mesh: u.group, velocity: u.velocity,
-            lifetime: 0, maxLifetime: 2.4,
-            baseDamage: 280, scaleStart: 0.28, scaleEnd: 4.5, growthDuration: 0.8,
+            lifetime: 0, maxLifetime: vf.maxLifetime ?? 2.4,
+            baseDamage: vf.baseDamage ?? 280,
+            scaleStart: vf.scaleStart ?? 0.28, scaleEnd: vf.scaleEnd ?? 4.5, growthDuration: vf.growthDuration ?? 0.8,
             materials: [u.orbMat], timeScales: [1], geometries: [],
             light: u.orbLight, outerGlow: u.outerGlow, hitOnce: false, _pooled: true
         };
         this._ultimateHitSet.clear();
         if (this.particleSystem) {
             this.particleSystem.emitUltimateLaunch(position);
-            this.particleSystem.emitSparks(position, 15);
-            this.particleSystem.emitEmbers(position, 10);
+            this.particleSystem.emitSparks(position, vf.launchSparks ?? 15);
+            this.particleSystem.emitEmbers(position, vf.launchEmbers ?? 10);
         }
     }
 
@@ -1660,7 +1702,8 @@ export class CombatSystem {
         const growthT = Math.min(1, s.lifetime / s.growthDuration);
         const smoothT = growthT * growthT * (3 - 2 * growthT);
         const baseScale = s.scaleStart + (s.scaleEnd - s.scaleStart) * smoothT;
-        const pulse = 1 + 0.08 * Math.sin(s.lifetime * 14);
+        const vfPulse = (this._vfx.abilityF || {}).pulse || {};
+        const pulse = 1 + (vfPulse.amp ?? 0.08) * Math.sin(s.lifetime * (vfPulse.freq ?? 14));
         s.currentScale = baseScale * pulse;
         s.mesh.scale.setScalar(s.currentScale);
 
@@ -1677,8 +1720,10 @@ export class CombatSystem {
                 else if (mat.opacity !== undefined) mat.opacity = 0.9 * lifePct;
             });
         }
-        if (s.light) s.light.intensity = (38 + 10 * Math.sin(s.lifetime * 10)) * lifePct;
-        if (s.outerGlow) s.outerGlow.intensity = (14 + 4 * Math.sin(s.lifetime * 8)) * lifePct;
+        const vfLight = (this._vfx.abilityF || {}).light || {};
+        const vfGlow = (this._vfx.abilityF || {}).outerGlow || {};
+        if (s.light) s.light.intensity = ((vfLight.intensityBase ?? 38) + (vfLight.intensityPulse ?? 10) * Math.sin(s.lifetime * (vfLight.pulseFreq ?? 10))) * lifePct;
+        if (s.outerGlow) s.outerGlow.intensity = ((vfGlow.intensityBase ?? 14) + (vfGlow.intensityPulse ?? 4) * Math.sin(s.lifetime * (vfGlow.pulseFreq ?? 8))) * lifePct;
 
         // Trail every 2nd frame + reuse dir to avoid allocations and reduce lag
         if (this.particleSystem && s.lifetime < s.maxLifetime - 0.1) {
@@ -1686,8 +1731,9 @@ export class CombatSystem {
             if (trailTick % 2 === 0) {
                 if (!this._ultimateTrailDir) this._ultimateTrailDir = new THREE.Vector3();
                 this._ultimateTrailDir.copy(s.velocity).normalize();
-                this.particleSystem.emitOrbTrail(s.mesh.position, this._ultimateTrailDir, 14);
-                this.particleSystem.emitSlashTrail(s.mesh.position, this._ultimateTrailDir, 6);
+                const vfTrail = this._vfx.abilityF || {};
+                this.particleSystem.emitOrbTrail(s.mesh.position, this._ultimateTrailDir, vfTrail.trailOrbs ?? 14);
+                this.particleSystem.emitSlashTrail(s.mesh.position, this._ultimateTrailDir, vfTrail.trailSlash ?? 6);
             }
         }
 
@@ -1732,11 +1778,13 @@ export class CombatSystem {
 
     spawnBloodCrescend(position, direction, chargesUsed, multiplier) {
         if (this.bloodCrescend) return;
+        const cr = (this._vfx.abilityE || {}).crescend || {};
 
         const stackRatio = Math.min(1, Math.max(0, chargesUsed / 8));
         const stackScale = 1 + 1.1 * Math.pow(stackRatio, 1.35);
-        const bladeLen = (2.2 + chargesUsed * 0.5) * stackScale;
-        const bladeWidth = (0.74 + chargesUsed * 0.16) * (0.92 + 0.45 * stackScale);
+        const bladeLen = ((cr.bladeLenBase ?? 2.2) + chargesUsed * (cr.bladeLenPerCharge ?? 0.5)) * stackScale;
+        const bwScale = cr.bladeWidthScale || [0.92, 0.45];
+        const bladeWidth = ((cr.bladeWidthBase ?? 0.74) + chargesUsed * (cr.bladeWidthPerCharge ?? 0.16)) * (bwScale[0] + bwScale[1] * stackScale);
         const makeCrescentShape = (length, width, insetMul = 0.48) => {
             const tipX = length * 0.5;
             const tailX = -length * 0.5;
@@ -1750,27 +1798,30 @@ export class CombatSystem {
             return shape;
         };
 
-        const geoOuter = new THREE.ShapeGeometry(makeCrescentShape(bladeLen, bladeWidth, 0.44), 42);
+        const outerCfg = cr.outer || {};
+        const geoOuter = new THREE.ShapeGeometry(makeCrescentShape(bladeLen, bladeWidth, 0.44), cr.outerSegments ?? 42);
         const matOuter = createBloodFireMaterial({
-            coreBrightness: 1.55 + chargesUsed * 0.18 + stackScale * 0.18,
-            plasmaSpeed: 7.0 + stackScale * 0.6,
+            coreBrightness: (outerCfg.coreBrightnessBase ?? 1.55) + chargesUsed * (outerCfg.coreBrightnessPerCharge ?? 0.18) + stackScale * 0.18,
+            plasmaSpeed: (outerCfg.plasmaSpeedBase ?? 7.0) + stackScale * 0.6,
             isCharged: 1.0,
-            layerScale: 1.36,
-            rimPower: 1.5,
-            alpha: Math.min(1.0, 0.96 + stackScale * 0.04),
-            redTint: 0.95
+            layerScale: outerCfg.layerScale ?? 1.36,
+            rimPower: outerCfg.rimPower ?? 1.5,
+            alpha: Math.min(1.0, (outerCfg.alphaBase ?? 0.96) + stackScale * 0.04),
+            redTint: outerCfg.redTint ?? 0.95
         });
         const meshOuter = new THREE.Mesh(geoOuter, matOuter);
 
-        const geoInner = new THREE.ShapeGeometry(makeCrescentShape(bladeLen * 0.86, bladeWidth * 0.74, 0.5), 34);
+        const innerScale = cr.innerScale || [0.86, 0.74];
+        const geoInner = new THREE.ShapeGeometry(makeCrescentShape(bladeLen * innerScale[0], bladeWidth * innerScale[1], 0.5), cr.innerSegments ?? 34);
         const matInner = new THREE.MeshBasicMaterial({
-            color: 0xff4a4a, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false
+            color: cr.innerColor ?? 0xff4a4a, transparent: true, opacity: cr.innerOpacity ?? 0.5, side: THREE.DoubleSide, depthWrite: false
         });
         const meshInner = new THREE.Mesh(geoInner, matInner);
 
-        const geoCore = new THREE.ShapeGeometry(makeCrescentShape(bladeLen * 0.68, bladeWidth * 0.5, 0.54), 28);
+        const coreScale = cr.coreScale || [0.68, 0.50];
+        const geoCore = new THREE.ShapeGeometry(makeCrescentShape(bladeLen * coreScale[0], bladeWidth * coreScale[1], 0.54), cr.coreSegments ?? 28);
         const matCore = new THREE.MeshBasicMaterial({
-            color: 0xffc0a0, transparent: true, opacity: 0.32, side: THREE.DoubleSide, depthWrite: false
+            color: cr.coreColor ?? 0xffc0a0, transparent: true, opacity: cr.coreOpacity ?? 0.32, side: THREE.DoubleSide, depthWrite: false
         });
         const meshCore = new THREE.Mesh(geoCore, matCore);
 
@@ -1792,7 +1843,7 @@ export class CombatSystem {
         group.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), dirNorm);
         this.scene.add(group);
 
-        const speed = 25 + chargesUsed * 1.45;
+        const speed = (cr.speedBase ?? 25) + chargesUsed * (cr.speedPerCharge ?? 1.45);
         const baseDamage = 85 + chargesUsed * 36;
         const totalDamage = Math.floor(baseDamage * (multiplier ?? 1) * this._consumeNextAttackMultiplier());
 
@@ -1800,8 +1851,8 @@ export class CombatSystem {
             mesh: group,
             velocity: dirNorm.clone().multiplyScalar(speed),
             lifetime: 0,
-            maxLifetime: 1.2 + chargesUsed * 0.07 + stackScale * 0.08,
-            hitRadius: 2.05 + chargesUsed * 0.34 + stackScale * 0.5,
+            maxLifetime: (cr.lifetimeBase ?? 1.2) + chargesUsed * (cr.lifetimePerCharge ?? 0.07) + stackScale * 0.08,
+            hitRadius: (cr.hitRadiusBase ?? 2.05) + chargesUsed * (cr.hitRadiusPerCharge ?? 0.34) + stackScale * 0.5,
             damage: totalDamage,
             chargesUsed,
             materials: [matOuter, matInner, matCore],
@@ -1811,9 +1862,9 @@ export class CombatSystem {
         };
 
         if (this.particleSystem) {
-            this.particleSystem.emitSparks(position, 14 + chargesUsed * 3);
-            this.particleSystem.emitEmbers(position, 10 + chargesUsed * 2);
-            this.particleSystem.emitSlashTrail(position, dirNorm, 10 + chargesUsed * 2);
+            this.particleSystem.emitSparks(position, (cr.launchSparksBase ?? 14) + chargesUsed * (cr.launchSparksPerCharge ?? 3));
+            this.particleSystem.emitEmbers(position, (cr.launchEmbersBase ?? 10) + chargesUsed * (cr.launchEmbersPerCharge ?? 2));
+            this.particleSystem.emitSlashTrail(position, dirNorm, (cr.launchTrailBase ?? 10) + chargesUsed * (cr.launchTrailPerCharge ?? 2));
         }
     }
 
@@ -1825,9 +1876,10 @@ export class CombatSystem {
         const lifePct = 1 - c.lifetime / c.maxLifetime;
 
         // Blood crescend: shader-based animation (blood mage only now)
+        const crPulse = ((this._vfx.abilityE || {}).crescend || {}).pulse || {};
         const scaleBoost = c.stackScale ?? 1;
-        const pulse = 1 + (0.22 + 0.08 * (scaleBoost - 1)) * Math.sin(c.lifetime * 24);
-        c.mesh.scale.set((1 + 0.2 * Math.sin(c.lifetime * 16)) * scaleBoost, pulse * scaleBoost, scaleBoost);
+        const pulse = 1 + ((crPulse.base ?? 0.22) + 0.08 * (scaleBoost - 1)) * Math.sin(c.lifetime * (crPulse.freq ?? 24));
+        c.mesh.scale.set((1 + 0.2 * Math.sin(c.lifetime * (crPulse.scaleFreq ?? 16))) * scaleBoost, pulse * scaleBoost, scaleBoost);
 
         const fireMat = c.materials[0];
         if (fireMat?.uniforms) updateBloodFireMaterial(fireMat, c.lifetime * 10, Math.max(0, 0.98 * lifePct));
@@ -1899,6 +1951,11 @@ export class CombatSystem {
 
     _createLifeDrainBeam() {
         if (this.lifeDrainBeam) return;
+        const ld = this._vfx.lifeDrain || {};
+        const coreCfg = ld.core || {};
+        const outerCfg = ld.outer || {};
+        const strandCfg = ld.strand || {};
+        const lightCfg = ld.light || {};
         const group = new THREE.Group();
         group.visible = false;
         const numSegments = this._drainZapNumPointsMax - 1;
@@ -1906,41 +1963,41 @@ export class CombatSystem {
         const allGeoms = [];
         for (let s = 0; s < numSegments; s++) {
             const segGroup = new THREE.Group();
-            const coreGeom = new THREE.CylinderGeometry(0.007, 0.013, 1, 8);
+            const coreGeom = new THREE.CylinderGeometry(coreCfg.radiusTop ?? 0.007, coreCfg.radiusBot ?? 0.013, 1, coreCfg.segments ?? 8);
             const coreMat = createBloodFireMaterial({
-                coreBrightness: 1.5,
-                plasmaSpeed: 10,
-                isCharged: 0.4,
-                layerScale: 1.3,
-                rimPower: 2.2,
-                redTint: 0.92
+                coreBrightness: coreCfg.coreBrightness ?? 1.5,
+                plasmaSpeed: coreCfg.plasmaSpeed ?? 10,
+                isCharged: coreCfg.isCharged ?? 0.4,
+                layerScale: coreCfg.layerScale ?? 1.3,
+                rimPower: coreCfg.rimPower ?? 2.2,
+                redTint: coreCfg.redTint ?? 0.92
             });
             coreMat.side = THREE.DoubleSide;
-            coreMat.uniforms.alpha.value = 0.88;
+            coreMat.uniforms.alpha.value = coreCfg.alpha ?? 0.88;
             segGroup.add(new THREE.Mesh(coreGeom, coreMat));
-            const outerGeom = new THREE.CylinderGeometry(0.019, 0.028, 1, 8);
+            const outerGeom = new THREE.CylinderGeometry(outerCfg.radiusTop ?? 0.019, outerCfg.radiusBot ?? 0.028, 1, outerCfg.segments ?? 8);
             const outerMat = createBloodFireMaterial({
-                coreBrightness: 0.9,
-                plasmaSpeed: 6,
-                isCharged: 0.3,
-                layerScale: 0.9,
-                rimPower: 1.6,
-                redTint: 0.92
+                coreBrightness: outerCfg.coreBrightness ?? 0.9,
+                plasmaSpeed: outerCfg.plasmaSpeed ?? 6,
+                isCharged: outerCfg.isCharged ?? 0.3,
+                layerScale: outerCfg.layerScale ?? 0.9,
+                rimPower: outerCfg.rimPower ?? 1.6,
+                redTint: outerCfg.redTint ?? 0.92
             });
             outerMat.side = THREE.DoubleSide;
-            outerMat.uniforms.alpha.value = 0.5;
+            outerMat.uniforms.alpha.value = outerCfg.alpha ?? 0.5;
             segGroup.add(new THREE.Mesh(outerGeom, outerMat));
-            const strandGeom = new THREE.CylinderGeometry(0.0025, 0.0045, 1, 6);
+            const strandGeom = new THREE.CylinderGeometry(strandCfg.radiusTop ?? 0.0025, strandCfg.radiusBot ?? 0.0045, 1, strandCfg.segments ?? 6);
             const strandMat = createBloodFireMaterial({
-                coreBrightness: 1.4,
-                plasmaSpeed: 12,
-                isCharged: 0.5,
-                layerScale: 1.6,
-                rimPower: 2.4,
-                redTint: 0.92
+                coreBrightness: strandCfg.coreBrightness ?? 1.4,
+                plasmaSpeed: strandCfg.plasmaSpeed ?? 12,
+                isCharged: strandCfg.isCharged ?? 0.5,
+                layerScale: strandCfg.layerScale ?? 1.6,
+                rimPower: strandCfg.rimPower ?? 2.4,
+                redTint: strandCfg.redTint ?? 0.92
             });
             strandMat.side = THREE.DoubleSide;
-            strandMat.uniforms.alpha.value = 0.9;
+            strandMat.uniforms.alpha.value = strandCfg.alpha ?? 0.9;
             segGroup.add(new THREE.Mesh(strandGeom, strandMat));
             group.add(segGroup);
             this._drainBeamSegments.push(segGroup);
@@ -1951,7 +2008,7 @@ export class CombatSystem {
         this._drainBeamGeoms = allGeoms;
         this.lifeDrainBeam = group;
         this.scene.add(this.lifeDrainBeam);
-        const drainLight = new THREE.PointLight(0xaa0a0a, 0, 14, 2);
+        const drainLight = new THREE.PointLight(lightCfg.color ?? 0xaa0a0a, 0, lightCfg.distance ?? 14, lightCfg.decay ?? 2);
         this._drainTargetLight = drainLight;
         this.scene.add(drainLight);
     }
@@ -1970,8 +2027,10 @@ export class CombatSystem {
         if (this._drainRight.lengthSq() < 0.01) this._drainRight.crossVectors(dir, this._drainFallbackUp).normalize();
         this._drainUp.crossVectors(this._drainRight, dir).normalize();
         const t = this.lifeDrainBeamTime || 0;
-        const seed = t * 18;
-        const amp = 0.25 + 0.028 * Math.min(dist, 12);
+        const ldVfx = this._vfx.lifeDrain || {};
+        const waverCfg = ldVfx.waver || {};
+        const seed = t * (waverCfg.seedMult ?? 18);
+        const amp = (waverCfg.ampBase ?? 0.25) + (waverCfg.ampPerDist ?? 0.028) * Math.min(dist, 12);
         const maxPoints = this._drainZapNumPointsMax;
         const maxSegLen = this._drainMaxSegmentLength;
         const n = Math.min(maxPoints, Math.max(12, 1 + Math.ceil(dist / maxSegLen)));
@@ -2001,7 +2060,8 @@ export class CombatSystem {
             segs[j].visible = true;
         }
         this.lifeDrainBeam.visible = true;
-        const pulse = 0.88 + 0.08 * Math.sin(t * 14);
+        const pulseCfg = ldVfx.pulse || {};
+        const pulse = (pulseCfg.base ?? 0.88) + (pulseCfg.amp ?? 0.08) * Math.sin(t * (pulseCfg.freq ?? 14));
         if (this._drainBeamMats && this._drainBeamMats.length) {
             this._drainBeamMats.forEach((mat, i) => {
                 const speed = [8, 5, 12][i % 3];
@@ -2010,9 +2070,10 @@ export class CombatSystem {
             });
         }
         if (this._drainTargetLight) {
+            const lightCfg = ldVfx.light || {};
             this._drainTargetLight.position.copy(this._enemyPos);
-            this._drainTargetLight.intensity = 22 + 8 * Math.sin(t * 18);
-            this._drainTargetLight.color.setHex(0xaa0a0a);
+            this._drainTargetLight.intensity = (lightCfg.intensityBase ?? 22) + (lightCfg.intensityPulse ?? 8) * Math.sin(t * (lightCfg.pulseFreq ?? 18));
+            this._drainTargetLight.color.setHex(lightCfg.color ?? 0xaa0a0a);
         }
     }
 

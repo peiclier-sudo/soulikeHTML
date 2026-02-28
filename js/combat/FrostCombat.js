@@ -12,15 +12,13 @@ import * as THREE from 'three';
 import { createIceMaterial, updateIceMaterial } from '../shaders/IceShader.js';
 import { createIceVFX } from '../effects/IceVFX.js';
 
-// ── Frost stack colors (dark blue → bright cyan) ──
-const FROST_STACK_COLORS = [0x0a1a3a, 0x1a3a6a, 0x2255aa, 0x3377cc, 0x44aaee, 0x66ccff, 0x88ddff, 0xccf0ff];
-
-/** Y position for stalactite ground impact (tip of cone at ground level + half height) */
-function spikeGroundY() { return 2.5; }
+// ── Default frost stack colors (dark blue → bright cyan) ──
+const DEFAULT_FROST_STACK_COLORS = [0x0a1a3a, 0x1a3a6a, 0x2255aa, 0x3377cc, 0x44aaee, 0x66ccff, 0x88ddff, 0xccf0ff];
 
 export class FrostCombat {
     constructor(combatSystem) {
         this.cs = combatSystem;              // parent CombatSystem
+        this._vfx = this.cs.gameState.selectedKit?.vfx || {};
         this.scene = combatSystem.scene;
         this.character = combatSystem.character;
         this.gameState = combatSystem.gameState;
@@ -120,9 +118,10 @@ export class FrostCombat {
         if (this.particleSystem) {
             const mesh = this._getEnemyMesh(enemy);
             if (mesh) {
+                const fi = this._vfx.frostIndicator ?? {};
                 mesh.getWorldPosition(this._enemyPos);
-                this.particleSystem.emitIceBurst(this._enemyPos, 40);
-                this.particleSystem.emitIceShatter(this._enemyPos, 25);
+                this.particleSystem.emitIceBurst(this._enemyPos, fi.freezeBurst ?? 40);
+                this.particleSystem.emitIceShatter(this._enemyPos, fi.freezeShatter ?? 25);
             }
         }
     }
@@ -152,25 +151,28 @@ export class FrostCombat {
     }
 
     _createFrostIndicator() {
+        const fi = this._vfx.frostIndicator ?? {};
         const group = new THREE.Group();
         const maxStacks = 8;
-        const circleRadius = 1.6;
-        const arcSpan = (140 * Math.PI) / 180;
+        const circleRadius = fi.circleRadius ?? 1.6;
+        const arcSpan = ((fi.arcSpan ?? 140) * Math.PI) / 180;
         const startAngle = -arcSpan / 2;
-        const innerGeo = new THREE.SphereGeometry(0.055, 6, 6);
-        const outerGeo = new THREE.SphereGeometry(0.08, 6, 6);
+        const innerOrb = fi.innerOrb ?? {};
+        const outerOrb = fi.outerOrb ?? {};
+        const innerGeo = new THREE.SphereGeometry(innerOrb.radius ?? 0.055, innerOrb.segments ?? 6, innerOrb.segments ?? 6);
+        const outerGeo = new THREE.SphereGeometry(outerOrb.radius ?? 0.08, outerOrb.segments ?? 6, outerOrb.segments ?? 6);
 
         const innerMat = createIceMaterial({
-            coreBrightness: 1.4,
-            iceSpeed: 4.0,
-            isCharged: 0.5,
-            layerScale: 1.2,
-            alpha: 0.95
+            coreBrightness: innerOrb.coreBrightness ?? 1.4,
+            iceSpeed: innerOrb.iceSpeed ?? 4.0,
+            isCharged: innerOrb.isCharged ?? 0.5,
+            layerScale: innerOrb.layerScale ?? 1.2,
+            alpha: innerOrb.alpha ?? 0.95
         });
         const outerMat = new THREE.MeshBasicMaterial({
-            color: 0x0a2a5a,
+            color: outerOrb.color ?? 0x0a2a5a,
             transparent: true,
-            opacity: 0.7,
+            opacity: outerOrb.opacity ?? 0.7,
             depthWrite: false
         });
 
@@ -198,19 +200,25 @@ export class FrostCombat {
 
     /** Update frost indicators to follow enemies. Call each frame. */
     updateFrostIndicators(deltaTime) {
+        const fi = this._vfx.frostIndicator ?? {};
+        const yOff = fi.yOffset ?? 1.8;
+        const rotSpd = fi.rotationSpeed ?? 1.5;
+        const pAmp = fi.pulseScale?.amp ?? 0.08;
+        const pFreq = fi.pulseScale?.freq ?? 5;
+        const decay = fi.decayTime ?? 10000;
         const t = performance.now() / 1000;
         for (const [enemy, indicator] of this.frostIndicators) {
             if (!indicator.visible) continue;
             const mesh = this._getEnemyMesh(enemy);
             if (!mesh) continue;
             mesh.getWorldPosition(this._enemyPos);
-            indicator.position.set(this._enemyPos.x, this._enemyPos.y + 1.8, this._enemyPos.z);
-            indicator.rotation.y += deltaTime * 1.5;
+            indicator.position.set(this._enemyPos.x, this._enemyPos.y + yOff, this._enemyPos.z);
+            indicator.rotation.y += deltaTime * rotSpd;
 
             // Animate visible orbs
             indicator.children.forEach((orbGroup, i) => {
                 if (!orbGroup.visible) return;
-                const pulse = 1 + 0.08 * Math.sin(t * 5 + i * 1.3);
+                const pulse = 1 + pAmp * Math.sin(t * pFreq + i * 1.3);
                 orbGroup.scale.setScalar(pulse);
                 const inner = orbGroup.children[0];
                 if (inner?.userData?.iceMat?.uniforms) {
@@ -219,14 +227,14 @@ export class FrostCombat {
             });
         }
 
-        // Decay: lose all stacks after 10s of no new stacks
+        // Decay: lose all stacks after configured time of no new stacks
         this._frostDecayCheckInterval += deltaTime;
         if (this._frostDecayCheckInterval >= 1.0) {
             this._frostDecayCheckInterval = 0;
             const now = Date.now();
             for (const [enemy, indicator] of this.frostIndicators) {
                 const data = this.frostStacks.get(enemy);
-                if (data && data.stacks > 0 && now - data.lastTime >= 10000) {
+                if (data && data.stacks > 0 && now - data.lastTime >= decay) {
                     data.stacks = 0;
                     this._updateFrostIndicator(enemy, 0);
                 }
@@ -246,8 +254,11 @@ export class FrostCombat {
     // ═══════════════════════════════════════════════════════════
 
     createIceProjectile(isCharged, startPos, dir) {
-        const length = isCharged ? 1.4 : 0.7;
-        const radius = isCharged ? 0.18 : 0.09;
+        const vp = this._vfx.projectile ?? {};
+        const tier = isCharged ? (vp.charged ?? {}) : (vp.basic ?? {});
+        const length = isCharged ? (tier.length ?? 1.4) : (tier.length ?? 0.7);
+        const radius = isCharged ? (tier.radius ?? 0.18) : (tier.radius ?? 0.09);
+        const coneSides = tier.coneSides ?? 6;
         const speed = isCharged ? this.cs.chargedSpeed : this.cs.basicSpeed;
         const group = new THREE.Group();
         group.position.copy(startPos);
@@ -257,30 +268,33 @@ export class FrostCombat {
         const geometries = [];
 
         // Javelin body (elongated cone)
-        const javelinGeo = new THREE.ConeGeometry(radius, length, 6);
+        const outerCfg = tier.outer ?? {};
+        const javelinGeo = new THREE.ConeGeometry(radius, length, coneSides);
         javelinGeo.rotateX(-Math.PI / 2); // point forward
         const javelinMat = createIceMaterial({
-            coreBrightness: isCharged ? 1.6 : 1.2,
-            iceSpeed: isCharged ? 4.5 : 3.5,
-            isCharged: isCharged ? 1.0 : 0.0,
-            layerScale: isCharged ? 0.8 : 1.0,
-            rimPower: isCharged ? 2.5 : 2.0
+            coreBrightness: outerCfg.coreBrightness ?? (isCharged ? 1.6 : 1.2),
+            iceSpeed: outerCfg.iceSpeed ?? (isCharged ? 4.5 : 3.5),
+            isCharged: outerCfg.isCharged ?? (isCharged ? 1.0 : 0.0),
+            layerScale: outerCfg.layerScale ?? (isCharged ? 0.8 : 1.0),
+            rimPower: outerCfg.rimPower ?? (isCharged ? 2.5 : 2.0)
         });
-        javelinMat.uniforms.alpha.value = isCharged ? 0.85 : 0.8;
+        javelinMat.uniforms.alpha.value = outerCfg.alpha ?? (isCharged ? 0.85 : 0.8);
         const javelin = new THREE.Mesh(javelinGeo, javelinMat);
         group.add(javelin);
         materials.push(javelinMat);
         geometries.push(javelinGeo);
 
         // Inner core glow
-        const coreGeo = new THREE.ConeGeometry(radius * 0.5, length * 0.7, 6);
+        const coreCfg = tier.core ?? {};
+        const coreScale = tier.coreScale ?? [0.5, 0.7];
+        const coreGeo = new THREE.ConeGeometry(radius * coreScale[0], length * coreScale[1], coneSides);
         coreGeo.rotateX(-Math.PI / 2);
         const coreMat = createIceMaterial({
-            coreBrightness: isCharged ? 2.5 : 2.0,
-            iceSpeed: isCharged ? 7.0 : 5.5,
-            isCharged: isCharged ? 1.0 : 0.0,
-            layerScale: isCharged ? 1.5 : 1.2,
-            rimPower: 2.0
+            coreBrightness: coreCfg.coreBrightness ?? (isCharged ? 2.5 : 2.0),
+            iceSpeed: coreCfg.iceSpeed ?? (isCharged ? 7.0 : 5.5),
+            isCharged: coreCfg.isCharged ?? (isCharged ? 1.0 : 0.0),
+            layerScale: coreCfg.layerScale ?? (isCharged ? 1.5 : 1.2),
+            rimPower: coreCfg.rimPower ?? 2.0
         });
         const core = new THREE.Mesh(coreGeo, coreMat);
         group.add(core);
@@ -299,7 +313,7 @@ export class FrostCombat {
             mesh: group, velocity, lifetime: 0,
             maxLifetime: isCharged ? this.cs.chargedLifetime : this.cs.basicLifetime,
             damage: isCharged ? this.cs.chargedDamage : this.cs.basicDamage,
-            releaseBurst: isCharged ? 0.15 : 0,
+            releaseBurst: isCharged ? (tier.releaseBurst ?? 0.15) : 0,
             isCharged: !!isCharged,
             isFrost: true,
             materials, geometries, vfx,
@@ -314,32 +328,39 @@ export class FrostCombat {
     castIceClaw() {
         if (this.iceClaws.length > 0 || this.iceClawCooldown > 0) return false;
 
+        const vq = this._vfx.abilityQ ?? {};
         const startPos = this.character.getWeaponPosition();
         const forward = this.character.getForwardDirection().clone();
         forward.y = 0;
         if (forward.lengthSq() < 0.0001) forward.set(0, 0, -1);
         forward.normalize();
 
-        const target = this._findNearestEnemy(startPos, 22);
+        const target = this._findNearestEnemy(startPos, vq.homingRadius ?? 22);
 
         // 3 crescent arcs in a claw pattern:
         //   ━━━  horizontal center slash
         //    ╲   diagonal right (tilted +40°)
         //    ╱   diagonal left  (tilted -40°)
         // Staggered spawn for a raking swipe feel
-        const bladeConfigs = [
+        const bladeConfigs = vq.bladeConfigs ?? [
             { rotZ: 0,     stagger: 0    },  // ━ horizontal
             { rotZ:  0.70, stagger: 0.04 },  // ╲ diagonal
             { rotZ: -0.70, stagger: 0.08 },  // ╱ diagonal
         ];
 
+        const blade = vq.blade ?? {};
         for (let i = 0; i < 3; i++) {
             const cfg = bladeConfigs[i];
 
             // Wide crescent arc — looks like a slash mark
-            const bladeGeo = new THREE.RingGeometry(0.7, 1.5, 14, 1, -Math.PI * 0.35, Math.PI * 0.7);
+            const bladeGeo = new THREE.RingGeometry(
+                blade.innerRadius ?? 0.7,
+                blade.outerRadius ?? 1.5,
+                blade.segments ?? 14,
+                1, -Math.PI * 0.35, Math.PI * 0.7
+            );
             const bladeMat = new THREE.MeshBasicMaterial({
-                color: 0x88ddff,
+                color: blade.color ?? 0x88ddff,
                 transparent: true,
                 opacity: 0.0,
                 side: THREE.DoubleSide,
@@ -348,7 +369,7 @@ export class FrostCombat {
             });
 
             const mesh = new THREE.Mesh(bladeGeo, bladeMat);
-            mesh.position.copy(startPos).addScaledVector(forward, 0.4);
+            mesh.position.copy(startPos).addScaledVector(forward, vq.spawnOffset ?? 0.4);
 
             // Orient crescent to face forward direction
             const quat = new THREE.Quaternion().setFromUnitVectors(
@@ -359,32 +380,32 @@ export class FrostCombat {
             const tilt = new THREE.Quaternion().setFromAxisAngle(forward, cfg.rotZ);
             mesh.quaternion.premultiply(tilt);
 
-            mesh.scale.setScalar(0.15); // starts tiny, swipes up
+            mesh.scale.setScalar(vq.initialScale ?? 0.15); // starts tiny, swipes up
             this.scene.add(mesh);
 
             this.iceClaws.push({
                 mesh,
                 dir: forward.clone(),
-                velocity: forward.clone().multiplyScalar(20),
+                velocity: forward.clone().multiplyScalar(vq.speed ?? 20),
                 lifetime: -cfg.stagger,
-                maxLifetime: 0.75,
+                maxLifetime: vq.maxLifetime ?? 0.75,
                 damage: this.iceClawDamage,
                 hitSet: new Set(),
                 material: bladeMat,
                 geometry: bladeGeo,
                 target,
                 homing: !!target,
-                homingStrength: 9 + i * 2,
+                homingStrength: (vq.homingStrengthBase ?? 9) + i * (vq.homingStrengthStep ?? 2),
                 index: i,
                 _trailTick: 0,
-                swipeDur: 0.12,
+                swipeDur: vq.swipeDuration ?? 0.12,
             });
         }
 
         this.iceClawCooldown = this.iceClawCooldownDuration;
 
         if (this.particleSystem) {
-            this.particleSystem.emitIceBurst(startPos, 8);
+            this.particleSystem.emitIceBurst(startPos, vq.spawnBurst ?? 8);
         }
         if (this.cs.onProjectileHit) this.cs.onProjectileHit({ whipWindup: true });
         return true;
@@ -404,6 +425,10 @@ export class FrostCombat {
     }
 
     updateIceClaws(deltaTime) {
+        const vq = this._vfx.abilityQ ?? {};
+        const spinRate = vq.spinRate ?? 2.5;
+        const trailInterval = vq.trailInterval ?? 4;
+        const initScale = vq.initialScale ?? 0.15;
         for (let i = this.iceClaws.length - 1; i >= 0; i--) {
             const b = this.iceClaws[i];
             b.lifetime += deltaTime;
@@ -411,10 +436,10 @@ export class FrostCombat {
 
             const age = b.lifetime;
 
-            // Swipe-in: scale 0.15 → 1.0 with ease-out
+            // Swipe-in: scale initScale → 1.0 with ease-out
             const swipeT = Math.min(1, age / b.swipeDur);
             const eased = 1 - (1 - swipeT) * (1 - swipeT);
-            const scale = 0.15 + 0.85 * eased;
+            const scale = initScale + (1 - initScale) * eased;
             b.mesh.scale.setScalar(scale);
 
             // Opacity: fade in on swipe, hold, fade out in last 25%
@@ -444,11 +469,11 @@ export class FrostCombat {
             }
 
             b.mesh.position.addScaledVector(b.velocity, deltaTime);
-            b.mesh.rotateZ(deltaTime * 2.5); // gentle spin for flair
+            b.mesh.rotateZ(deltaTime * spinRate); // gentle spin for flair
 
             // Trail — lightweight
             b._trailTick++;
-            if (this.particleSystem && b._trailTick % 4 === 0 && lifePct > 0.15) {
+            if (this.particleSystem && b._trailTick % trailInterval === 0 && lifePct > 0.15) {
                 this.particleSystem.emitIceTrail(b.mesh.position, 1);
             }
 
@@ -469,13 +494,13 @@ export class FrostCombat {
                         position: this._enemyPos.clone(), damage, isCritical, isBackstab,
                         kind: 'ability', anchorId: this.cs._getDamageAnchorId(enemy)
                     });
-                    if (this.particleSystem) this.particleSystem.emitIceShatter(this._enemyPos, 5);
+                    if (this.particleSystem) this.particleSystem.emitIceShatter(this._enemyPos, vq.hitShatter ?? 5);
                     if (this.cs.onProjectileHit) this.cs.onProjectileHit({ charged: true, isBoss: !!enemy.isBoss });
                 }
             }
 
             if (age >= b.maxLifetime) {
-                if (this.particleSystem) this.particleSystem.emitIceShatter(bladePos, 3);
+                if (this.particleSystem) this.particleSystem.emitIceShatter(bladePos, vq.expiryShatter ?? 3);
                 this.scene.remove(b.mesh);
                 b.geometry.dispose();
                 b.material.dispose();
@@ -494,6 +519,7 @@ export class FrostCombat {
     executeFrostBeam(chargesUsed, multiplier) {
         if (this.frostBeam) return;
 
+        const ve = this._vfx.abilityE ?? {};
         const weaponPos = this.character.getWeaponPosition();
         const dir = this.character.getForwardDirection().clone();
         dir.y = 0;
@@ -501,20 +527,21 @@ export class FrostCombat {
         dir.normalize();
 
         // Create beam visual - width scales with blood charges spent
-        const beamLength = 12;
-        const beamWidthBase = 0.15 + chargesUsed * 0.03;
-        const beamWidthTip = 0.35 + chargesUsed * 0.05;
-        const beamGeo = new THREE.CylinderGeometry(beamWidthBase, beamWidthTip, beamLength, 8);
+        const beamLength = ve.beamLength ?? 12;
+        const beamWidthBase = (ve.beamWidthBaseStart ?? 0.15) + chargesUsed * (ve.beamWidthBasePerCharge ?? 0.03);
+        const beamWidthTip = (ve.beamWidthTipStart ?? 0.35) + chargesUsed * (ve.beamWidthTipPerCharge ?? 0.05);
+        const beamGeo = new THREE.CylinderGeometry(beamWidthBase, beamWidthTip, beamLength, ve.outerSegments ?? 8);
         beamGeo.rotateX(Math.PI / 2);
         beamGeo.translate(0, 0, beamLength / 2);
+        const outerCfg = ve.outer ?? {};
         const beamMat = createIceMaterial({
-            coreBrightness: 2.2 + chargesUsed * 0.15,
-            iceSpeed: 8.0,
-            isCharged: 1.0,
-            layerScale: 1.0,
-            rimPower: 1.5
+            coreBrightness: (outerCfg.coreBrightnessBase ?? 2.2) + chargesUsed * (outerCfg.coreBrightnessPerCharge ?? 0.15),
+            iceSpeed: outerCfg.iceSpeed ?? 8.0,
+            isCharged: outerCfg.isCharged ?? 1.0,
+            layerScale: outerCfg.layerScale ?? 1.0,
+            rimPower: outerCfg.rimPower ?? 1.5
         });
-        beamMat.uniforms.alpha.value = 0.85;
+        beamMat.uniforms.alpha.value = outerCfg.alpha ?? 0.85;
 
         const beamMesh = new THREE.Mesh(beamGeo, beamMat);
         beamMesh.position.copy(weaponPos);
@@ -523,21 +550,29 @@ export class FrostCombat {
         this.scene.add(beamMesh);
 
         // Inner core beam
-        const coreGeo = new THREE.CylinderGeometry(0.06, 0.18, beamLength * 0.95, 6);
+        const ic = ve.innerCore ?? {};
+        const coreGeo = new THREE.CylinderGeometry(
+            ic.radiusTop ?? 0.06,
+            ic.radiusBot ?? 0.18,
+            beamLength * (ic.lengthRatio ?? 0.95),
+            ic.segments ?? 6
+        );
         coreGeo.rotateX(Math.PI / 2);
         coreGeo.translate(0, 0, beamLength / 2);
+        const coreCfg = ve.core ?? {};
         const coreMat = createIceMaterial({
-            coreBrightness: 3.0,
-            iceSpeed: 12.0,
-            isCharged: 1.0,
-            layerScale: 1.6
+            coreBrightness: coreCfg.coreBrightness ?? 3.0,
+            iceSpeed: coreCfg.iceSpeed ?? 12.0,
+            isCharged: coreCfg.isCharged ?? 1.0,
+            layerScale: coreCfg.layerScale ?? 1.6
         });
         const coreMesh = new THREE.Mesh(coreGeo, coreMat);
         coreMesh.position.copy(weaponPos);
         coreMesh.quaternion.copy(quat);
         this.scene.add(coreMesh);
 
-        const light = new THREE.PointLight(0x66ccff, 12, 14, 2);
+        const lt = ve.light ?? {};
+        const light = new THREE.PointLight(lt.color ?? 0x66ccff, lt.intensity ?? 12, lt.distance ?? 14, lt.decay ?? 2);
         light.position.copy(weaponPos);
         this.scene.add(light);
 
@@ -579,8 +614,8 @@ export class FrostCombat {
                 anchorId: this.cs._getDamageAnchorId(enemy)
             });
             if (this.particleSystem) {
-                this.particleSystem.emitIceBurst(this._enemyPos, 20 + frostStacks * 4);
-                this.particleSystem.emitIceShatter(this._enemyPos, 10 + frostStacks * 3);
+                this.particleSystem.emitIceBurst(this._enemyPos, (ve.hitBurstBase ?? 20) + frostStacks * (ve.hitBurstPerStack ?? 4));
+                this.particleSystem.emitIceShatter(this._enemyPos, (ve.hitShatterBase ?? 10) + frostStacks * (ve.hitShatterPerStack ?? 3));
             }
         }
 
@@ -588,11 +623,11 @@ export class FrostCombat {
             beamMesh, coreMesh, light,
             materials: [beamMat, coreMat],
             geometries: [beamGeo, coreGeo],
-            timer: this.frostBeamDuration
+            timer: ve.duration ?? this.frostBeamDuration
         };
 
         if (this.particleSystem) {
-            this.particleSystem.emitIceBurst(weaponPos, 25);
+            this.particleSystem.emitIceBurst(weaponPos, ve.spawnBurst ?? 25);
         }
         if (this.cs.onProjectileHit) {
             this.cs.onProjectileHit({ whipHit: true, bloodflailCharges: chargesUsed, punchFinish: true });
@@ -606,14 +641,17 @@ export class FrostCombat {
 
     updateFrostBeam(deltaTime) {
         if (!this.frostBeam) return;
+        const ve = this._vfx.abilityE ?? {};
+        const fadeCfg = ve.fade ?? {};
         this.frostBeam.timer -= deltaTime;
-        const t = 1 - this.frostBeam.timer / this.frostBeamDuration;
+        const duration = ve.duration ?? this.frostBeamDuration;
+        const t = 1 - this.frostBeam.timer / duration;
 
         // Fade out
         const alpha = Math.max(0, 1 - t * t);
         this.frostBeam.materials.forEach(mat => updateIceMaterial(mat, performance.now() / 1000 * 8, alpha * 0.85));
         if (this.frostBeam.light) {
-            this.frostBeam.light.intensity = 30 * alpha;
+            this.frostBeam.light.intensity = (fadeCfg.lightIntensity ?? 30) * alpha;
         }
 
         // Scale down as it fades
@@ -656,12 +694,18 @@ export class FrostCombat {
     updateStalactitePreview(worldPosition) {
         if (!this.stalactiteTargeting) return;
         if (!this.stalactitePreview) {
+            const vx = this._vfx.abilityX ?? {};
+            const pr = vx.previewRing ?? {};
             const r = this.stalactiteRadius;
-            const ringGeo = new THREE.RingGeometry(r - 0.3, r + 0.15, 48);
+            const ringGeo = new THREE.RingGeometry(
+                r - (pr.innerOffset ?? 0.3),
+                r + (pr.outerOffset ?? 0.15),
+                pr.segments ?? 48
+            );
             const mat = new THREE.MeshBasicMaterial({
-                color: 0x44aaff,
+                color: pr.color ?? 0x44aaff,
                 transparent: true,
-                opacity: 0.5,
+                opacity: pr.opacity ?? 0.5,
                 side: THREE.DoubleSide,
                 depthWrite: false,
                 blending: THREE.AdditiveBlending
@@ -694,34 +738,39 @@ export class FrostCombat {
         this.hideStalactitePreview();
         this.stalactiteCooldown = this.stalactiteCooldownDuration;
 
+        const vx = this._vfx.abilityX ?? {};
         const center = targetPos.clone();
         center.y = 0;
 
         // Create falling stalactite mesh (pointed cone)
-        const spikeHeight = 5.0;
-        const spikeRadius = 0.8;
-        const spikeGeo = new THREE.ConeGeometry(spikeRadius, spikeHeight, 6);
+        const spikeCfg = vx.spike ?? {};
+        const spikeHeight = spikeCfg.height ?? 5.0;
+        const spikeRadius = spikeCfg.radius ?? 0.8;
+        const spikeGeo = new THREE.ConeGeometry(spikeRadius, spikeHeight, spikeCfg.coneSides ?? 6);
         // Point downward
         spikeGeo.rotateX(Math.PI);
+        const spikeMatCfg = spikeCfg.material ?? {};
         const spikeMat = createIceMaterial({
-            coreBrightness: 1.8,
-            iceSpeed: 3.0,
-            isCharged: 1.0,
-            layerScale: 0.5,
-            rimPower: 2.5,
-            displaceAmount: 0.6
+            coreBrightness: spikeMatCfg.coreBrightness ?? 1.8,
+            iceSpeed: spikeMatCfg.iceSpeed ?? 3.0,
+            isCharged: spikeMatCfg.isCharged ?? 1.0,
+            layerScale: spikeMatCfg.layerScale ?? 0.5,
+            rimPower: spikeMatCfg.rimPower ?? 2.5,
+            displaceAmount: spikeMatCfg.displaceAmount ?? 0.6
         });
-        spikeMat.uniforms.alpha.value = 0.85;
+        spikeMat.uniforms.alpha.value = spikeMatCfg.alpha ?? 0.85;
         const spikeMesh = new THREE.Mesh(spikeGeo, spikeMat);
-        spikeMesh.position.set(center.x, 20, center.z); // start high above
+        const spawnH = vx.spawnHeight ?? 20;
+        spikeMesh.position.set(center.x, spawnH, center.z); // start high above
         this.scene.add(spikeMesh);
 
         // Shadow/warning circle on ground
-        const shadowGeo = new THREE.CircleGeometry(this.stalactiteRadius, 32);
+        const shadowCfg = vx.shadow ?? {};
+        const shadowGeo = new THREE.CircleGeometry(this.stalactiteRadius, shadowCfg.segments ?? 32);
         const shadowMat = new THREE.MeshBasicMaterial({
-            color: 0x44aaff,
+            color: shadowCfg.color ?? 0x44aaff,
             transparent: true,
-            opacity: 0.3,
+            opacity: shadowCfg.opacity ?? 0.3,
             side: THREE.DoubleSide,
             depthWrite: false,
             blending: THREE.AdditiveBlending
@@ -732,7 +781,8 @@ export class FrostCombat {
         this.scene.add(shadow);
 
         // Point light
-        const light = new THREE.PointLight(0x66ccff, 10, 16, 2);
+        const ltCfg = vx.light ?? {};
+        const light = new THREE.PointLight(ltCfg.color ?? 0x66ccff, ltCfg.intensity ?? 10, ltCfg.distance ?? 16, ltCfg.decay ?? 2);
         light.position.set(center.x, 10, center.z);
         this.scene.add(light);
 
@@ -744,19 +794,20 @@ export class FrostCombat {
             geometries: [spikeGeo, shadowGeo],
             phase: 'falling', // 'falling' → 'impact' → 'fade'
             fallTimer: 0,
-            fallDuration: 0.35,  // fast drop
+            fallDuration: vx.fallDuration ?? 0.35,  // fast drop
             impactTimer: 0,
-            impactDuration: 0.8
+            impactDuration: vx.impactDuration ?? 0.8
         };
 
         if (this.particleSystem) {
-            this.particleSystem.emitIceTrail(new THREE.Vector3(center.x, 15, center.z), 8);
+            this.particleSystem.emitIceTrail(new THREE.Vector3(center.x, 15, center.z), vx.trailCount ?? 8);
         }
         if (this.cs.onProjectileHit) this.cs.onProjectileHit({ whipWindup: true });
     }
 
     updateStalactite(deltaTime) {
         if (!this.stalactiteActive) return;
+        const vx = this._vfx.abilityX ?? {};
         const s = this.stalactiteActive;
 
         if (s.phase === 'falling') {
@@ -764,8 +815,8 @@ export class FrostCombat {
             const t = Math.min(1, s.fallTimer / s.fallDuration);
             // Accelerate downward (easeInQuad)
             const eased = t * t;
-            const startY = 20;
-            const endY = spikeGroundY(s.center);
+            const startY = vx.spawnHeight ?? 20;
+            const endY = vx.groundY ?? 2.5;
             s.mesh.position.y = startY + (endY - startY) * eased;
             s.light.position.y = s.mesh.position.y + 2;
 
@@ -781,7 +832,7 @@ export class FrostCombat {
 
             // Trail particles while falling - throttle for performance
             s._trailTick = (s._trailTick || 0) + 1;
-            if (this.particleSystem && s._trailTick % 2 === 0) {
+            if (this.particleSystem && s._trailTick % (vx.trailInterval ?? 2) === 0) {
                 this.particleSystem.emitIceTrail(s.mesh.position, 2);
             }
 
@@ -803,7 +854,7 @@ export class FrostCombat {
             s.light.intensity = 25 * lifePct;
 
             // Sink slightly
-            s.mesh.position.y -= deltaTime * 0.5;
+            s.mesh.position.y -= deltaTime * (vx.sinkRate ?? 0.5);
 
             if (s.impactTimer <= 0) {
                 // Cleanup
@@ -852,8 +903,9 @@ export class FrostCombat {
 
         // VFX explosion
         if (this.particleSystem) {
-            this.particleSystem.emitIceShatter(center, 50);
-            this.particleSystem.emitIceBurst(center, 40);
+            const vx = this._vfx.abilityX ?? {};
+            this.particleSystem.emitIceShatter(center, vx.impactShatter ?? 50);
+            this.particleSystem.emitIceBurst(center, vx.impactBurst ?? 40);
         }
 
         if (hitCount > 0 && this.cs.onProjectileHit) {
@@ -877,12 +929,18 @@ export class FrostCombat {
     updateBlizzardPreview(worldPosition) {
         if (!this.blizzardTargeting) return;
         if (!this.blizzardPreview) {
+            const vf = this._vfx.abilityF ?? {};
+            const pr = vf.previewRing ?? {};
             const r = this.blizzardRadius;
-            const ringGeo = new THREE.RingGeometry(r - 0.35, r + 0.2, 48);
+            const ringGeo = new THREE.RingGeometry(
+                r - (pr.innerOffset ?? 0.35),
+                r + (pr.outerOffset ?? 0.2),
+                pr.segments ?? 48
+            );
             const mat = new THREE.MeshBasicMaterial({
-                color: 0x44aaff,
+                color: pr.color ?? 0x44aaff,
                 transparent: true,
-                opacity: 0.45,
+                opacity: pr.opacity ?? 0.45,
                 side: THREE.DoubleSide,
                 depthWrite: false,
                 blending: THREE.AdditiveBlending
@@ -913,15 +971,21 @@ export class FrostCombat {
         this.blizzardTargeting = false;
         this.hideBlizzardPreview();
 
+        const vf = this._vfx.abilityF ?? {};
         const center = position.clone();
-        center.y = 0.1;
+        center.y = vf.centerY ?? 0.1;
 
         // Visual: ground ring + storm particles
-        const ringGeo = new THREE.RingGeometry(this.blizzardRadius - 0.3, this.blizzardRadius + 0.2, 64);
+        const ar = vf.activeRing ?? {};
+        const ringGeo = new THREE.RingGeometry(
+            this.blizzardRadius - (ar.innerOffset ?? 0.3),
+            this.blizzardRadius + (ar.outerOffset ?? 0.2),
+            ar.segments ?? 64
+        );
         const ringMat = new THREE.MeshBasicMaterial({
-            color: 0x44aaff,
+            color: ar.color ?? 0x44aaff,
             transparent: true,
-            opacity: 0.5,
+            opacity: ar.opacity ?? 0.5,
             side: THREE.DoubleSide,
             blending: THREE.AdditiveBlending,
             depthWrite: false
@@ -933,15 +997,17 @@ export class FrostCombat {
         this.scene.add(ring);
 
         // Fill disc
-        const discGeo = new THREE.CircleGeometry(this.blizzardRadius, 48);
+        const dc = vf.disc ?? {};
+        const dcMat = dc.material ?? {};
+        const discGeo = new THREE.CircleGeometry(this.blizzardRadius, dc.segments ?? 48);
         const discMat = createIceMaterial({
-            coreBrightness: 1.5,
-            iceSpeed: 10.0,
-            isCharged: 1.0,
-            layerScale: 2.0,
-            rimPower: 2.5
+            coreBrightness: dcMat.coreBrightness ?? 1.5,
+            iceSpeed: dcMat.iceSpeed ?? 10.0,
+            isCharged: dcMat.isCharged ?? 1.0,
+            layerScale: dcMat.layerScale ?? 2.0,
+            rimPower: dcMat.rimPower ?? 2.5
         });
-        discMat.uniforms.alpha.value = 0.3;
+        discMat.uniforms.alpha.value = dcMat.alpha ?? 0.3;
         discMat.side = THREE.DoubleSide;
         const disc = new THREE.Mesh(discGeo, discMat);
         disc.rotation.x = -Math.PI / 2;
@@ -949,7 +1015,8 @@ export class FrostCombat {
         disc.position.y = 0.08;
         this.scene.add(disc);
 
-        const light = new THREE.PointLight(0x44aaff, 15, 18, 2);
+        const lt = vf.light ?? {};
+        const light = new THREE.PointLight(lt.color ?? 0x44aaff, lt.intensity ?? 15, lt.distance ?? 18, lt.decay ?? 2);
         light.position.copy(center);
         light.position.y = 3;
         this.scene.add(light);
@@ -965,7 +1032,7 @@ export class FrostCombat {
         };
 
         if (this.particleSystem) {
-            this.particleSystem.emitIceBurst(center, 50);
+            this.particleSystem.emitIceBurst(center, vf.spawnBurst ?? 50);
         }
     }
 
