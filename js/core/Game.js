@@ -18,6 +18,8 @@ import { ParticleSystem } from '../effects/ParticleSystem.js';
 import { UIManager } from '../ui/UIManager.js';
 import { Boss } from '../entities/Boss.js';
 import { RunProgress } from './RunProgress.js';
+import { setBloodFireQuality } from '../shaders/BloodFireShader.js';
+import { setIceQuality } from '../shaders/IceShader.js';
 
 export class Game {
     constructor(canvas, assetLoader, kitId = 'blood_mage') {
@@ -802,13 +804,19 @@ export class Game {
                     this.qualitySettings.postProcessing = false;
                     return;
                 }
-                // Step 2: Lower DPR
+                // Step 2: Switch to fast shaders (no FBM noise)
+                if (!this._fastShaders) {
+                    this._fastShaders = true;
+                    setBloodFireQuality(true);
+                    setIceQuality(true);
+                }
+                // Step 3: Lower DPR
                 if (this._adaptiveDpr > 0.5) {
                     this._adaptiveDpr = Math.max(0.5, this._adaptiveDpr - 0.15);
                     this.renderer.setPixelRatio(this._adaptiveDpr);
                     return;
                 }
-                // Step 3: Disable shadows entirely
+                // Step 4: Disable shadows entirely
                 if (this.qualitySettings.shadows !== 'low') {
                     this.qualitySettings.shadows = 'low';
                     this.updateShadowQuality('low');
