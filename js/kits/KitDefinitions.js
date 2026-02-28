@@ -9,7 +9,7 @@
 
 export const CLASS_MAGE = 'mage';
 export const CLASS_ROGUE = 'rogue';
-export const CLASS_WARRIOR = 'warrior';
+export const CLASS_CHANGEFORM = 'changeform';
 
 /**
  * All 6 character kits.
@@ -1318,9 +1318,9 @@ export const CLASS_INFO = {
         description: 'Swift and deadly. Fast attacks, high mobility, and lethal precision.',
         icon: '\u{1F977}'
     },
-    [CLASS_WARRIOR]: {
-        name: 'Warrior',
-        description: 'Unyielding might. Heavy armor, powerful strikes, and unmatched resilience.',
-        icon: '\u{2694}'
+    [CLASS_CHANGEFORM]: {
+        name: 'Changeform',
+        description: 'Primal shapeshifters. Channel beast spirits for savage melee and untamed fury.',
+        icon: '\u{1F43E}'
     }
 };
