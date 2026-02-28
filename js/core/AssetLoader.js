@@ -29,7 +29,7 @@ export class AssetLoader {
     }
     
     async loadAll() {
-        const totalSteps = 8;
+        const totalSteps = 10;
         let currentStep = 0;
 
         const updateProgress = (message) => {
@@ -49,6 +49,10 @@ export class AssetLoader {
             updateProgress('Champion ready');
             await this.loadRogueModel();
             updateProgress('Rogue ready');
+            await this.loadWolfModel();
+            updateProgress('Wolf ready');
+            await this.loadBearModel();
+            updateProgress('Bear ready');
 
             // Step 3: Load boss model (Boss1_3k.glb)
             this.onProgress(currentStep / totalSteps, 'Loading boss...');
@@ -322,6 +326,179 @@ export class AssetLoader {
             this.assets.animations.character_3k_rogue_bow = empty;
             this.assets.animations.character_3k_rogue = empty;
             return null;
+        }
+    }
+
+    /**
+     * Load wolf changeform model (WolfV1.glb) with embedded locomotion-only animations.
+     * Animations: Idle, Jump, Run fast, Run left, Run right, Running, Walking.
+     */
+    async loadWolfModel() {
+        const url = './models/WolfV1.glb?v=1';
+        try {
+            const gltf = await this.loadGLTF(url);
+            const model = gltf.scene;
+            model.scale.setScalar(1.0);
+
+            model.traverse((child) => {
+                if (child.isMesh) {
+                    if (child.geometry?.isBufferGeometry) {
+                        child.geometry.computeVertexNormals();
+                        if (typeof child.geometry.normalizeNormals === 'function') child.geometry.normalizeNormals();
+                    }
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                    if (child.material) {
+                        const wasArr = Array.isArray(child.material);
+                        const mats = wasArr ? child.material : [child.material];
+                        child.material = mats.map((m) => {
+                            const mat = m.clone();
+                            mat.transparent = false; mat.opacity = 1.0; mat.alphaTest = 0.0;
+                            if ('alphaMap' in mat) mat.alphaMap = null;
+                            if ('transmission' in mat) mat.transmission = 0;
+                            if ('thickness' in mat) mat.thickness = 0;
+                            if ('premultipliedAlpha' in mat) mat.premultipliedAlpha = false;
+                            if ('blending' in mat) mat.blending = THREE.NormalBlending;
+                            if ('side' in mat) mat.side = THREE.FrontSide;
+                            mat.depthWrite = true; mat.depthTest = true; mat.flatShading = false;
+                            if ('metalness' in mat) mat.metalness = 0.02;
+                            if ('roughness' in mat) mat.roughness = 0.97;
+                            if ('envMapIntensity' in mat) mat.envMapIntensity = 0.0;
+                            if ('specularIntensity' in mat) mat.specularIntensity = 0.05;
+                            if ('clearcoat' in mat) mat.clearcoat = 0.0;
+                            if ('sheen' in mat) mat.sheen = 0.0;
+                            if (mat.map) { mat.map.premultiplyAlpha = false; mat.map.needsUpdate = true; }
+                            mat.needsUpdate = true;
+                            return mat;
+                        });
+                        if (!wasArr) child.material = child.material[0];
+                    }
+                }
+            });
+
+            this.assets.models.wolf = model;
+            this._buildLocoAnimData(gltf, 'wolf');
+            console.log('WolfV1 loaded successfully');
+            return model;
+        } catch (error) {
+            console.warn('WolfV1 model not found, werewolf kit will fall back to mage model:', error.message);
+            this.assets.models.wolf = null;
+            this.assets.animations.wolf = { clips: [], map: {} };
+            return null;
+        }
+    }
+
+    /**
+     * Load bear changeform model (BearV1.glb) with embedded locomotion-only animations.
+     * Animations: Idle, Jump, Run fast, Run left, Run right, Running, Walking.
+     */
+    async loadBearModel() {
+        const url = './models/BearV1.glb?v=1';
+        try {
+            const gltf = await this.loadGLTF(url);
+            const model = gltf.scene;
+            model.scale.setScalar(1.0);
+
+            model.traverse((child) => {
+                if (child.isMesh) {
+                    if (child.geometry?.isBufferGeometry) {
+                        child.geometry.computeVertexNormals();
+                        if (typeof child.geometry.normalizeNormals === 'function') child.geometry.normalizeNormals();
+                    }
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                    if (child.material) {
+                        const wasArr = Array.isArray(child.material);
+                        const mats = wasArr ? child.material : [child.material];
+                        child.material = mats.map((m) => {
+                            const mat = m.clone();
+                            mat.transparent = false; mat.opacity = 1.0; mat.alphaTest = 0.0;
+                            if ('alphaMap' in mat) mat.alphaMap = null;
+                            if ('transmission' in mat) mat.transmission = 0;
+                            if ('thickness' in mat) mat.thickness = 0;
+                            if ('premultipliedAlpha' in mat) mat.premultipliedAlpha = false;
+                            if ('blending' in mat) mat.blending = THREE.NormalBlending;
+                            if ('side' in mat) mat.side = THREE.FrontSide;
+                            mat.depthWrite = true; mat.depthTest = true; mat.flatShading = false;
+                            if ('metalness' in mat) mat.metalness = 0.02;
+                            if ('roughness' in mat) mat.roughness = 0.97;
+                            if ('envMapIntensity' in mat) mat.envMapIntensity = 0.0;
+                            if ('specularIntensity' in mat) mat.specularIntensity = 0.05;
+                            if ('clearcoat' in mat) mat.clearcoat = 0.0;
+                            if ('sheen' in mat) mat.sheen = 0.0;
+                            if (mat.map) { mat.map.premultiplyAlpha = false; mat.map.needsUpdate = true; }
+                            mat.needsUpdate = true;
+                            return mat;
+                        });
+                        if (!wasArr) child.material = child.material[0];
+                    }
+                }
+            });
+
+            this.assets.models.bear = model;
+            this._buildLocoAnimData(gltf, 'bear');
+            console.log('BearV1 loaded successfully');
+            return model;
+        } catch (error) {
+            console.warn('BearV1 model not found, bear kit will fall back to mage model:', error.message);
+            this.assets.models.bear = null;
+            this.assets.animations.bear = { clips: [], map: {} };
+            return null;
+        }
+    }
+
+    /**
+     * Shared helper: build locomotion-only animation data from a GLTF result.
+     * Used by wolf, bear, and any future loco-only models.
+     */
+    _buildLocoAnimData(gltf, key) {
+        const clips = gltf.animations || [];
+        const fallback = clips[0];
+
+        if (clips.length > 0) {
+            const byName = {};
+            const byNameLower = {};
+            clips.forEach(clip => {
+                byName[clip.name] = clip;
+                byNameLower[clip.name.toLowerCase()] = clip;
+            });
+            console.log(`${key} animations:`, clips.map(a => a.name));
+
+            const get = (...candidates) => {
+                for (const c of candidates) {
+                    const n = String(c || '').trim();
+                    if (!n) continue;
+                    if (byName[n]) return byName[n];
+                    const lower = n.toLowerCase();
+                    if (byNameLower[lower]) return byNameLower[lower];
+                }
+                return null;
+            };
+
+            const Idle     = get('Idle', 'idle');
+            const Walking  = get('Walking', 'walk');
+            const Running  = get('Running', 'run');
+            const RunFast  = get('RunFast', 'Run fast', 'Fast running', 'Running fast');
+            const RunLeft  = get('Run left', 'run left');
+            const RunRight = get('Run right', 'run right');
+            const Jump     = get('Jump', 'jump');
+
+            const locoMap = {
+                Idle:           Idle || fallback,
+                Walk:           Walking || Running || fallback,
+                Run:            Running || RunFast || fallback,
+                'Fast running': RunFast || Running || fallback,
+                'Run left':     RunLeft,
+                'Run right':    RunRight,
+                Jump:           Jump || fallback,
+                Death:          Idle || fallback,
+                Drink:          Idle || fallback,
+                'Roll dodge':   Jump || fallback
+            };
+
+            this.assets.animations[key] = { clips, map: locoMap, locoOnly: true };
+        } else {
+            this.assets.animations[key] = { clips: [], map: {} };
         }
     }
 
@@ -946,7 +1123,7 @@ export class AssetLoader {
             return null;
         }
         // Character models: return directly (skeletal mesh needs original)
-        const isCharacter = name === 'character' || name === 'character_3k_mage' || name === 'character_3k_rogue';
+        const isCharacter = name === 'character' || name === 'character_3k_mage' || name === 'character_3k_rogue' || name === 'wolf' || name === 'bear';
         if (isCharacter) return model;
         return model.clone();
     }

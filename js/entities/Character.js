@@ -404,7 +404,7 @@ export class Character {
 
     createCharacterMesh() {
         const modelKey = this.gameState?.selectedKit?.model || 'character_3k_mage';
-        const originalModel = this.assetLoader.getModel(modelKey);
+        const originalModel = this.assetLoader.getModel(modelKey) || this.assetLoader.getModel('character_3k_mage');
 
         if (originalModel) {
             // Use the original model directly (don't clone for skeletal animation)
@@ -415,6 +415,10 @@ export class Character {
             if (modelKey === 'character_3k_mage') {
                 this.mesh.scale.setScalar(7.5);
             } else if (modelKey === 'character_3k_rogue') {
+                this.mesh.scale.setScalar(0.7);
+            } else if (modelKey === 'wolf') {
+                this.mesh.scale.setScalar(0.7);
+            } else if (modelKey === 'bear') {
                 this.mesh.scale.setScalar(0.7);
             }
 
@@ -769,6 +773,12 @@ export class Character {
         // Don't create weapon if mesh doesn't exist
         if (!this.mesh) {
             console.warn('Cannot create weapon - no character mesh');
+            return;
+        }
+
+        // Changeform models (wolf, bear) use natural weapons – no mesh to attach
+        const modelKey = this.gameState?.selectedKit?.model;
+        if (modelKey === 'wolf' || modelKey === 'bear') {
             return;
         }
 
@@ -1487,12 +1497,12 @@ export class Character {
         if (!this.mesh) return;
         const bones = {};
         const wanted = {
-            spine: ['spine02', 'spine2'],
-            spine01: ['spine01', 'spine1'],
-            rArm: ['rightarm'],
-            rForeArm: ['rightforearm'],
-            lArm: ['leftarm'],
-            lForeArm: ['leftforearm']
+            spine: ['spine02', 'spine2', 'spine_02'],
+            spine01: ['spine01', 'spine1', 'spine_01'],
+            rArm: ['rightarm', 'frontrightleg', 'front_right_leg', 'rightshoulder'],
+            rForeArm: ['rightforearm', 'frontrightlower', 'front_right_lower'],
+            lArm: ['leftarm', 'frontleftleg', 'front_left_leg', 'leftshoulder'],
+            lForeArm: ['leftforearm', 'frontleftlower', 'front_left_lower']
         };
         this.mesh.traverse(child => {
             if (!child.isBone) return;

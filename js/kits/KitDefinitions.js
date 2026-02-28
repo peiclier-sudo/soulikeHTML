@@ -1098,7 +1098,8 @@ export const KIT_DEFINITIONS = {
             uiClass: 'kit-werewolf'
         },
 
-        model: 'character_3k_mage'
+        model: 'wolf',
+        animationKey: 'wolf'
     },
 
     // ─── CHANGEFORM 2: BEAR ──────────────────────────────────────
@@ -1319,7 +1320,8 @@ export const KIT_DEFINITIONS = {
             uiClass: 'kit-bear'
         },
 
-        model: 'character_3k_mage'
+        model: 'bear',
+        animationKey: 'bear'
     }
 };
 
