@@ -83,6 +83,7 @@ export class Character {
         this._combatSwingDir = 1;    // alternating slash direction (+1/-1)
         this._poseQ = new THREE.Quaternion();
         this._poseE = new THREE.Euler();
+        this._isBeastModel = false;  // true for wolf/bear quadruped rigs
         this._landSquashT = 0;       // landing squash timer (1→0)
         this.currentUpperState = 'none'; // Track to avoid resetting every frame
         this.chargedAttackAnimStarted = false; // Only start charged anim once per charge, never replay
@@ -1495,31 +1496,85 @@ export class Character {
     /** Cache bone references for procedural combat poses (locoOnly rigs). */
     _cacheCombatBones() {
         if (!this.mesh) return;
-        const bones = {};
-        const wanted = {
-            spine: ['spine02', 'spine2', 'spine_02'],
-            spine01: ['spine01', 'spine1', 'spine_01'],
-            rArm: ['rightarm', 'frontrightleg', 'front_right_leg', 'rightshoulder'],
-            rForeArm: ['rightforearm', 'frontrightlower', 'front_right_lower'],
-            lArm: ['leftarm', 'frontleftleg', 'front_left_leg', 'leftshoulder'],
-            lForeArm: ['leftforearm', 'frontleftlower', 'front_left_lower']
-        };
+
+        const modelKey = this.gameState?.selectedKit?.model;
+        this._isBeastModel = (modelKey === 'wolf' || modelKey === 'bear');
+
+        // Collect all bone names for debugging
+        const allBones = [];
         this.mesh.traverse(child => {
-            if (!child.isBone) return;
-            const n = child.name.toLowerCase().replace(/[^a-z0-9]/g, '');
-            for (const [key, patterns] of Object.entries(wanted)) {
-                if (bones[key]) continue;
-                for (const p of patterns) {
-                    if (n === p || n.includes(p)) { bones[key] = child; break; }
-                }
-            }
+            if (child.isBone) allBones.push(child.name);
         });
-        if (bones.spine || bones.rArm) {
-            this._combatBones = bones;
-            // Store rest quaternions (captured from first idle frame)
-            this._combatBonesRest = {};
-            for (const [key, bone] of Object.entries(bones)) {
-                this._combatBonesRest[key] = bone.quaternion.clone();
+        if (allBones.length) console.log(`[${modelKey}] Bones found:`, allBones);
+
+        const bones = {};
+
+        if (this._isBeastModel) {
+            // Quadruped bone search — flexible patterns for various rig conventions
+            const wanted = {
+                spine:  ['spine1', 'spine01', 'spine_1', 'spine'],
+                spine2: ['spine2', 'spine02', 'spine_2'],
+                neck:   ['neck'],
+                head:   ['head'],
+                jaw:    ['jaw', 'mouth'],
+                // Front legs
+                rFrontUpper: ['frontright', 'rightupper', 'frontrightleg', 'rightfrontleg', 'rightshoulder', 'r_front_upper', 'frontlegr'],
+                rFrontLower: ['frontrightlower', 'rightlower', 'r_front_lower', 'frontlegr_lower', 'rightforearm'],
+                lFrontUpper: ['frontleft', 'leftupper', 'frontleftleg', 'leftfrontleg', 'leftshoulder', 'l_front_upper', 'frontlegl'],
+                lFrontLower: ['frontleftlower', 'leftlower', 'l_front_lower', 'frontlegl_lower', 'leftforearm'],
+                // Rear legs
+                rRearUpper: ['rearright', 'rightrear', 'rearrightleg', 'rightbackleg', 'r_rear_upper', 'backlegr', 'righthip'],
+                rRearLower: ['rearrightlower', 'r_rear_lower', 'backlegr_lower', 'rightknee', 'rightlowerleg'],
+                lRearUpper: ['rearleft', 'leftrear', 'rearleftleg', 'leftbackleg', 'l_rear_upper', 'backlegl', 'lefthip'],
+                lRearLower: ['rearleftlower', 'l_rear_lower', 'backlegl_lower', 'leftknee', 'leftlowerleg'],
+                // Tail
+                tail:   ['tail', 'tail1', 'tail01'],
+                hips:   ['hips', 'hip', 'pelvis', 'root']
+            };
+            this.mesh.traverse(child => {
+                if (!child.isBone) return;
+                const n = child.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+                for (const [key, patterns] of Object.entries(wanted)) {
+                    if (bones[key]) continue;
+                    for (const p of patterns) {
+                        if (n === p || n.includes(p)) { bones[key] = child; break; }
+                    }
+                }
+            });
+            if (bones.spine || bones.head || bones.neck) {
+                this._combatBones = bones;
+                this._combatBonesRest = {};
+                for (const [key, bone] of Object.entries(bones)) {
+                    this._combatBonesRest[key] = bone.quaternion.clone();
+                }
+                console.log(`[${modelKey}] Beast combat bones mapped:`, Object.keys(bones));
+            }
+        } else {
+            // Humanoid bone search (original)
+            const wanted = {
+                spine: ['spine02', 'spine2', 'spine_02'],
+                spine01: ['spine01', 'spine1', 'spine_01'],
+                rArm: ['rightarm'],
+                rForeArm: ['rightforearm'],
+                lArm: ['leftarm'],
+                lForeArm: ['leftforearm']
+            };
+            this.mesh.traverse(child => {
+                if (!child.isBone) return;
+                const n = child.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+                for (const [key, patterns] of Object.entries(wanted)) {
+                    if (bones[key]) continue;
+                    for (const p of patterns) {
+                        if (n === p || n.includes(p)) { bones[key] = child; break; }
+                    }
+                }
+            });
+            if (bones.spine || bones.rArm) {
+                this._combatBones = bones;
+                this._combatBonesRest = {};
+                for (const [key, bone] of Object.entries(bones)) {
+                    this._combatBonesRest[key] = bone.quaternion.clone();
+                }
             }
         }
     }
@@ -1530,6 +1585,13 @@ export class Character {
      */
     _updateProceduralCombatPose(dt) {
         if (!this._combatBones) return;
+
+        // Beast models use a separate quadruped animation path
+        if (this._isBeastModel) {
+            this._updateBeastCombatPose(dt);
+            return;
+        }
+
         const bones = this._combatBones;
         const q = this._poseQ;
         const e = this._poseE;
@@ -1737,6 +1799,339 @@ export class Character {
                 e.set(-s * 0.3, s * 0.2, 0);
                 q.setFromEuler(e);
                 bones.lForeArm.quaternion.multiply(q);
+            }
+        }
+    }
+
+    /**
+     * Beast-specific procedural combat poses for quadruped rigs (wolf/bear).
+     * Uses spine, neck, head, jaw, front legs, rear legs, and tail bones.
+     */
+    _updateBeastCombatPose(dt) {
+        const bones = this._combatBones;
+        const q = this._poseQ;
+        const e = this._poseE;
+        const modelKey = this.gameState?.selectedKit?.model;
+        const isWolf = modelKey === 'wolf';
+
+        // --- Airborne body tuck ---
+        const airTarget = this.isGrounded ? 0 : 1;
+        this._jumpArmBlend = this._jumpArmBlend ?? 0;
+        this._jumpArmBlend += (airTarget - this._jumpArmBlend) * Math.min(1, dt * 12);
+        if (this._jumpArmBlend > 0.01) {
+            const jb = this._jumpArmBlend;
+            // Tuck legs, arch spine
+            if (bones.spine) {
+                e.set(-0.15 * jb, 0, 0);
+                q.setFromEuler(e); bones.spine.quaternion.multiply(q);
+            }
+            if (bones.rFrontUpper) {
+                e.set(0.4 * jb, 0, 0);
+                q.setFromEuler(e); bones.rFrontUpper.quaternion.multiply(q);
+            }
+            if (bones.lFrontUpper) {
+                e.set(0.4 * jb, 0, 0);
+                q.setFromEuler(e); bones.lFrontUpper.quaternion.multiply(q);
+            }
+            if (bones.rRearUpper) {
+                e.set(-0.3 * jb, 0, 0);
+                q.setFromEuler(e); bones.rRearUpper.quaternion.multiply(q);
+            }
+            if (bones.lRearUpper) {
+                e.set(-0.3 * jb, 0, 0);
+                q.setFromEuler(e); bones.lRearUpper.quaternion.multiply(q);
+            }
+            if (bones.tail) {
+                e.set(0.3 * jb, 0, 0);
+                q.setFromEuler(e); bones.tail.quaternion.multiply(q);
+            }
+        }
+
+        const combat = this.gameState.combat;
+
+        // Determine target pose from combat state
+        let newType = 'none';
+        if (combat.isAttacking) newType = 'basic';
+        else if (combat.isCharging) newType = 'charging';
+        else if (combat.isChargedAttacking) newType = 'charged';
+        else if (combat.isWhipAttacking) newType = 'ability';
+
+        if (newType !== this._combatPoseType) {
+            if (newType !== 'none') {
+                this._combatSwingT = 0;
+                if (newType === 'basic') this._combatSwingDir *= -1;
+            }
+            this._combatPoseType = newType;
+        }
+        this._combatPoseTarget = newType !== 'none' ? 1 : 0;
+
+        // Smooth blend in/out
+        const blendSpeed = this._combatPoseTarget > 0.5 ? 20 : 12;
+        this._combatPoseBlend += (this._combatPoseTarget - this._combatPoseBlend) * Math.min(1, dt * blendSpeed);
+        if (Math.abs(this._combatPoseBlend) < 0.001) { this._combatPoseBlend = 0; return; }
+
+        // Swing timer — wolf attacks are faster, bear attacks are heavier
+        const swingSpeeds = {
+            basic:    isWolf ? 9.0 : 6.0,
+            charged:  isWolf ? 6.0 : 4.5,
+            charging: 1.0,
+            ability:  isWolf ? 6.5 : 5.0
+        };
+        const swingSpeed = swingSpeeds[newType] || 1.0;
+        this._combatSwingT = Math.min(1, this._combatSwingT + dt * swingSpeed);
+        const t = this._combatSwingT;
+        const blend = this._combatPoseBlend;
+        const dir = this._combatSwingDir;
+
+        // Easing curves
+        const strike = t < 0.3 ? Math.sin(t / 0.3 * Math.PI * 0.5) : Math.cos((t - 0.3) / 0.7 * Math.PI * 0.5);
+        const bell = Math.sin(t * Math.PI);
+        const snap = t < 0.2 ? t / 0.2 : 1 - (t - 0.2) / 0.8; // fast snap then slow return
+
+        if (newType === 'basic') {
+            // ── CLAW SWIPE: alternating left/right front leg swipe + spine twist ──
+            const s = strike * blend;
+            const swipeIntensity = isWolf ? 1.0 : 0.75;
+
+            // Spine lunges forward and twists toward swipe direction
+            if (bones.spine) {
+                e.set(s * 0.25 * swipeIntensity, -s * dir * 0.2, s * dir * 0.06);
+                q.setFromEuler(e); bones.spine.quaternion.multiply(q);
+            }
+            if (bones.spine2) {
+                e.set(s * 0.15 * swipeIntensity, -s * dir * 0.12, 0);
+                q.setFromEuler(e); bones.spine2.quaternion.multiply(q);
+            }
+            // Neck and head snap toward target
+            if (bones.neck) {
+                e.set(s * 0.2, -s * dir * 0.1, 0);
+                q.setFromEuler(e); bones.neck.quaternion.multiply(q);
+            }
+            if (bones.head) {
+                e.set(s * 0.15, -s * dir * 0.08, s * dir * 0.05);
+                q.setFromEuler(e); bones.head.quaternion.multiply(q);
+            }
+            // Jaw snaps open on strike peak
+            if (bones.jaw) {
+                e.set(snap * 0.35 * blend, 0, 0);
+                q.setFromEuler(e); bones.jaw.quaternion.multiply(q);
+            }
+            // Lead front leg swipes outward
+            const leadFront = dir > 0 ? bones.rFrontUpper : bones.lFrontUpper;
+            const leadFrontLower = dir > 0 ? bones.rFrontLower : bones.lFrontLower;
+            if (leadFront) {
+                e.set(-s * 0.7 * swipeIntensity, -s * dir * 0.3, -s * dir * 0.25);
+                q.setFromEuler(e); leadFront.quaternion.multiply(q);
+            }
+            if (leadFrontLower) {
+                e.set(-s * 0.4 * swipeIntensity, 0, -s * dir * 0.15);
+                q.setFromEuler(e); leadFrontLower.quaternion.multiply(q);
+            }
+            // Trail front leg braces
+            const trailFront = dir > 0 ? bones.lFrontUpper : bones.rFrontUpper;
+            if (trailFront) {
+                e.set(s * 0.15, s * dir * 0.1, 0);
+                q.setFromEuler(e); trailFront.quaternion.multiply(q);
+            }
+            // Rear legs push forward for lunge
+            if (bones.rRearUpper) {
+                e.set(-s * 0.12, 0, 0);
+                q.setFromEuler(e); bones.rRearUpper.quaternion.multiply(q);
+            }
+            if (bones.lRearUpper) {
+                e.set(-s * 0.12, 0, 0);
+                q.setFromEuler(e); bones.lRearUpper.quaternion.multiply(q);
+            }
+            // Tail flicks with the swipe
+            if (bones.tail) {
+                e.set(0, s * dir * 0.3, s * dir * 0.15);
+                q.setFromEuler(e); bones.tail.quaternion.multiply(q);
+            }
+            // Hips shift
+            if (bones.hips) {
+                e.set(s * 0.05, -s * dir * 0.04, 0);
+                q.setFromEuler(e); bones.hips.quaternion.multiply(q);
+            }
+
+        } else if (newType === 'charging') {
+            // ── CHARGE WINDUP: crouch low, coil spine, pull head back ──
+            const chargeT = Math.min(1, t * 1.2);
+            const coil = 1 - (1 - chargeT) * (1 - chargeT);
+            const pulse = chargeT >= 1 ? Math.sin(this.animationTime * 14) * 0.03 : 0;
+            const intensity = isWolf ? 1.0 : 0.8;
+
+            // Spine arches down (crouching)
+            if (bones.spine) {
+                e.set((-coil * 0.2 + pulse) * blend * intensity, 0, 0);
+                q.setFromEuler(e); bones.spine.quaternion.multiply(q);
+            }
+            if (bones.spine2) {
+                e.set((-coil * 0.12 + pulse) * blend * intensity, 0, 0);
+                q.setFromEuler(e); bones.spine2.quaternion.multiply(q);
+            }
+            // Head pulls back (cocking for strike)
+            if (bones.neck) {
+                e.set(coil * 0.25 * blend, 0, 0);
+                q.setFromEuler(e); bones.neck.quaternion.multiply(q);
+            }
+            if (bones.head) {
+                e.set(coil * 0.15 * blend, 0, 0);
+                q.setFromEuler(e); bones.head.quaternion.multiply(q);
+            }
+            // Front legs bend (crouching)
+            if (bones.rFrontUpper) {
+                e.set(coil * 0.3 * blend, 0, coil * 0.1 * blend);
+                q.setFromEuler(e); bones.rFrontUpper.quaternion.multiply(q);
+            }
+            if (bones.lFrontUpper) {
+                e.set(coil * 0.3 * blend, 0, -coil * 0.1 * blend);
+                q.setFromEuler(e); bones.lFrontUpper.quaternion.multiply(q);
+            }
+            // Rear legs coil
+            if (bones.rRearUpper) {
+                e.set(-coil * 0.2 * blend, 0, 0);
+                q.setFromEuler(e); bones.rRearUpper.quaternion.multiply(q);
+            }
+            if (bones.lRearUpper) {
+                e.set(-coil * 0.2 * blend, 0, 0);
+                q.setFromEuler(e); bones.lRearUpper.quaternion.multiply(q);
+            }
+            // Tail tenses up
+            if (bones.tail) {
+                e.set(-coil * 0.2 * blend + pulse * 3, 0, 0);
+                q.setFromEuler(e); bones.tail.quaternion.multiply(q);
+            }
+
+        } else if (newType === 'charged') {
+            // ── POUNCE/MAUL: explosive forward lunge, both front legs slam down ──
+            const s = strike * blend;
+            const power = isWolf ? 1.0 : 1.2; // bear hits harder
+
+            // Spine thrusts forward explosively
+            if (bones.spine) {
+                e.set(s * 0.35 * power, 0, 0);
+                q.setFromEuler(e); bones.spine.quaternion.multiply(q);
+            }
+            if (bones.spine2) {
+                e.set(s * 0.2 * power, 0, 0);
+                q.setFromEuler(e); bones.spine2.quaternion.multiply(q);
+            }
+            // Head snaps forward (bite)
+            if (bones.neck) {
+                e.set(s * 0.3 * power, 0, 0);
+                q.setFromEuler(e); bones.neck.quaternion.multiply(q);
+            }
+            if (bones.head) {
+                e.set(s * 0.25 * power, 0, 0);
+                q.setFromEuler(e); bones.head.quaternion.multiply(q);
+            }
+            // Jaw wide open then snaps shut
+            if (bones.jaw) {
+                const jawOpen = t < 0.25 ? t / 0.25 : Math.max(0, 1 - (t - 0.25) / 0.15);
+                e.set(jawOpen * 0.5 * blend, 0, 0);
+                q.setFromEuler(e); bones.jaw.quaternion.multiply(q);
+            }
+            // Both front legs slam down
+            if (bones.rFrontUpper) {
+                e.set(-s * 0.8 * power, 0, -s * 0.2);
+                q.setFromEuler(e); bones.rFrontUpper.quaternion.multiply(q);
+            }
+            if (bones.rFrontLower) {
+                e.set(-s * 0.5 * power, 0, 0);
+                q.setFromEuler(e); bones.rFrontLower.quaternion.multiply(q);
+            }
+            if (bones.lFrontUpper) {
+                e.set(-s * 0.8 * power, 0, s * 0.2);
+                q.setFromEuler(e); bones.lFrontUpper.quaternion.multiply(q);
+            }
+            if (bones.lFrontLower) {
+                e.set(-s * 0.5 * power, 0, 0);
+                q.setFromEuler(e); bones.lFrontLower.quaternion.multiply(q);
+            }
+            // Rear legs push (launch)
+            if (bones.rRearUpper) {
+                e.set(-s * 0.25 * power, 0, 0);
+                q.setFromEuler(e); bones.rRearUpper.quaternion.multiply(q);
+            }
+            if (bones.lRearUpper) {
+                e.set(-s * 0.25 * power, 0, 0);
+                q.setFromEuler(e); bones.lRearUpper.quaternion.multiply(q);
+            }
+            // Tail whips up
+            if (bones.tail) {
+                e.set(-s * 0.4, 0, 0);
+                q.setFromEuler(e); bones.tail.quaternion.multiply(q);
+            }
+            // Hips drive forward
+            if (bones.hips) {
+                e.set(s * 0.1 * power, 0, 0);
+                q.setFromEuler(e); bones.hips.quaternion.multiply(q);
+            }
+
+        } else if (newType === 'ability') {
+            // ── HOWL/ROAR: rear up on hind legs, head thrown back, jaw open ──
+            const s = strike * blend;
+            const rearUp = bell * blend; // rises then falls
+            const power = isWolf ? 0.9 : 1.1;
+
+            // Spine rears upward
+            if (bones.spine) {
+                e.set(-rearUp * 0.4 * power, 0, 0);
+                q.setFromEuler(e); bones.spine.quaternion.multiply(q);
+            }
+            if (bones.spine2) {
+                e.set(-rearUp * 0.3 * power, 0, 0);
+                q.setFromEuler(e); bones.spine2.quaternion.multiply(q);
+            }
+            // Neck and head throw back for howl/roar
+            if (bones.neck) {
+                e.set(-rearUp * 0.45 * power, 0, 0);
+                q.setFromEuler(e); bones.neck.quaternion.multiply(q);
+            }
+            if (bones.head) {
+                e.set(-rearUp * 0.35 * power, 0, 0);
+                q.setFromEuler(e); bones.head.quaternion.multiply(q);
+            }
+            // Jaw wide open for the howl/roar
+            if (bones.jaw) {
+                e.set(rearUp * 0.55 * power, 0, 0);
+                q.setFromEuler(e); bones.jaw.quaternion.multiply(q);
+            }
+            // Front legs lift off ground
+            if (bones.rFrontUpper) {
+                e.set(rearUp * 0.5, 0, rearUp * 0.15);
+                q.setFromEuler(e); bones.rFrontUpper.quaternion.multiply(q);
+            }
+            if (bones.rFrontLower) {
+                e.set(rearUp * 0.35, 0, 0);
+                q.setFromEuler(e); bones.rFrontLower.quaternion.multiply(q);
+            }
+            if (bones.lFrontUpper) {
+                e.set(rearUp * 0.5, 0, -rearUp * 0.15);
+                q.setFromEuler(e); bones.lFrontUpper.quaternion.multiply(q);
+            }
+            if (bones.lFrontLower) {
+                e.set(rearUp * 0.35, 0, 0);
+                q.setFromEuler(e); bones.lFrontLower.quaternion.multiply(q);
+            }
+            // Rear legs brace for support
+            if (bones.rRearUpper) {
+                e.set(-rearUp * 0.15, 0, rearUp * 0.08);
+                q.setFromEuler(e); bones.rRearUpper.quaternion.multiply(q);
+            }
+            if (bones.lRearUpper) {
+                e.set(-rearUp * 0.15, 0, -rearUp * 0.08);
+                q.setFromEuler(e); bones.lRearUpper.quaternion.multiply(q);
+            }
+            // Tail sweeps with the roar
+            if (bones.tail) {
+                e.set(-rearUp * 0.3, s * 0.4, 0);
+                q.setFromEuler(e); bones.tail.quaternion.multiply(q);
+            }
+            // Hips tilt back
+            if (bones.hips) {
+                e.set(-rearUp * 0.12, 0, 0);
+                q.setFromEuler(e); bones.hips.quaternion.multiply(q);
             }
         }
     }
