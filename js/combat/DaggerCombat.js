@@ -147,10 +147,6 @@ export class DaggerCombat {
         const poisonDamagePerTick = POISON_DAMAGE_PER_TICK_BASE + POISON_DAMAGE_PER_CHARGE * chargesUsed;
         const stackRatio = Math.min(1, chargesUsed / 6);
 
-        this.gameState.combat.isWhipAttacking = true;
-        this.cs.whipTimer = 0.5;
-        this.cs.whipHitOnce = false;
-
         const weaponPos = this.character.getWeaponPosition();
         const dir = this.character.getForwardDirection().clone();
         dir.y = 0;
@@ -237,7 +233,7 @@ export class DaggerCombat {
         if (this.particleSystem?.emitPoisonBurst) {
             this.particleSystem.emitPoisonBurst(startPos.clone(), 16 + chargesUsed * 3);
         }
-        if (this.cs.onProjectileHit) this.cs.onProjectileHit({ bloodCrescendLaunch: true, bloodflailCharges: chargesUsed });
+        if (this.cs.onProjectileHit) this.cs.onProjectileHit({ daggerSlashImpact: true });
     }
 
     _updatePoisonSlash(dt) {
@@ -292,7 +288,7 @@ export class DaggerCombat {
                 if (this.particleSystem) {
                     this.particleSystem.emitPoisonBurst(this._enemyPos.clone(), 18 + c.chargesUsed * 3);
                 }
-                if (this.cs.onProjectileHit) this.cs.onProjectileHit({ charged: true, isBoss: !!enemy.isBoss, whipHit: true, bloodflailCharges: c.chargesUsed, punchFinish: true });
+                if (this.cs.onProjectileHit) this.cs.onProjectileHit({ daggerSlashImpact: true });
             }
         }
 
