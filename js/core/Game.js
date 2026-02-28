@@ -777,9 +777,9 @@ export class Game {
             this.frameCount = 0;
             this.lastFpsUpdate = now;
 
-            const fpsElement = document.getElementById('fps-counter');
-            if (fpsElement) {
-                fpsElement.textContent = `FPS: ${this.fps}`;
+            if (!this._fpsElement) this._fpsElement = document.getElementById('fps-counter');
+            if (this._fpsElement) {
+                this._fpsElement.textContent = `FPS: ${this.fps}`;
             }
 
             // Adaptive quality: auto-adjust DPR based on sustained FPS
