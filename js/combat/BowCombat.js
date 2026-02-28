@@ -604,46 +604,53 @@ export class BowCombat {
     // ═══════════════════════════════════════════════════════════════
 
     spawnUltimateArrow() {
+        const vf = this._vfx.abilityF ?? {};
         const wp = this.character.getWeaponPosition();
         const dir = this.character.getForwardDirection().clone().normalize();
         const startPos = wp.clone().addScaledVector(dir, 0.8);
 
         const damage = this.gameState.selectedKit?.combat?.abilityF?.damage ?? 200;
 
-        const { group, materials, geometries } = this.createArrowMesh(4.5, 0x7733ff);
+        const { group, materials, geometries } = this.createArrowMesh(vf.arrowScale ?? 4.5, vf.arrowColor ?? 0x7733ff);
 
         // Extra glow layers
-        for (let i = 0; i < 3; i++) {
-            const gRad = 0.25 + i * 0.12;
-            const gGeo = new THREE.SphereGeometry(gRad, 8, 8);
+        const glowLayers = vf.glowLayers ?? [
+            { radius: 0.25, color: 0x8844ff, opacity: 0.2 },
+            { radius: 0.37, color: 0xaa88ff, opacity: 0.15 },
+            { radius: 0.49, color: 0xccaaff, opacity: 0.1 }
+        ];
+        for (let i = 0; i < glowLayers.length; i++) {
+            const layer = glowLayers[i];
+            const gGeo = new THREE.SphereGeometry(layer.radius, layer.segments ?? 8, layer.segments ?? 8);
             const gMat = new THREE.MeshBasicMaterial({
-                color: [0x8844ff, 0xaa88ff, 0xccaaff][i],
+                color: layer.color,
                 transparent: true,
-                opacity: 0.2 - i * 0.05,
+                opacity: layer.opacity,
                 blending: THREE.AdditiveBlending,
                 depthWrite: false
             });
             const gl = new THREE.Mesh(gGeo, gMat);
-            gl.position.z = -0.9;
+            gl.position.z = layer.positionZ ?? -0.9;
             group.add(gl);
             materials.push(gMat);
             geometries.push(gGeo);
         }
 
         // Trailing wing shapes
+        const wingsCfg = vf.wings ?? {};
         for (let side = -1; side <= 1; side += 2) {
-            const wingGeo = new THREE.PlaneGeometry(0.5, 1.0);
+            const wingGeo = new THREE.PlaneGeometry(wingsCfg.width ?? 0.5, wingsCfg.height ?? 1.0);
             const wingMat = new THREE.MeshBasicMaterial({
-                color: 0x8844ff,
+                color: wingsCfg.color ?? 0x8844ff,
                 transparent: true,
-                opacity: 0.15,
+                opacity: wingsCfg.opacity ?? 0.15,
                 side: THREE.DoubleSide,
                 blending: THREE.AdditiveBlending,
                 depthWrite: false
             });
             const wing = new THREE.Mesh(wingGeo, wingMat);
-            wing.position.set(side * 0.3, 0, 0.3);
-            wing.rotation.z = side * 0.3;
+            wing.position.set(side * (wingsCfg.offsetX ?? 0.3), 0, wingsCfg.offsetZ ?? 0.3);
+            wing.rotation.z = side * (wingsCfg.tilt ?? 0.3);
             group.add(wing);
             materials.push(wingMat);
             geometries.push(wingGeo);
@@ -655,9 +662,9 @@ export class BowCombat {
 
         const projectile = {
             mesh: group,
-            velocity: dir.clone().multiplyScalar(42),
+            velocity: dir.clone().multiplyScalar(vf.speed ?? 42),
             lifetime: 0,
-            maxLifetime: 3.0,
+            maxLifetime: vf.maxLifetime ?? 3.0,
             damage,
             isCharged: true,
             isBowArrow: true,
@@ -666,15 +673,15 @@ export class BowCombat {
             materials,
             geometries,
             hitSet: new Set(),
-            releaseBurst: 0.2
+            releaseBurst: vf.releaseBurst ?? 0.2
         };
 
         this.cs.projectiles.push(projectile);
 
         // Big VFX burst
         if (this.particleSystem) {
-            this.particleSystem.emitSparks(startPos, 35);
-            if (this.particleSystem.emitIceBurst) this.particleSystem.emitIceBurst(startPos, 18);
+            this.particleSystem.emitSparks(startPos, vf.launchSparks ?? 35);
+            if (this.particleSystem.emitIceBurst) this.particleSystem.emitIceBurst(startPos, vf.launchIceBurst ?? 18);
         }
     }
 
