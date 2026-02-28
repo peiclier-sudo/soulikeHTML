@@ -144,11 +144,8 @@ export class CombatSystem {
         this.frostCombat = this.isFrostKit ? new FrostCombat(this) : null;
         this.isDaggerKit = (kit?.id === 'shadow_assassin');
         this.daggerCombat = this.isDaggerKit ? new DaggerCombat(this) : null;
-        this.isVenomKit = (kit?.id === 'venom_stalker');
         this.isBowRangerKit = (kit?.id === 'bow_ranger');
         this.bowRangerCombat = this.isBowRangerKit ? new BowCombat(this) : null;
-        this.venomChargedSplashRadius = charged.splashRadius ?? 2.8;
-        this.venomChargedSplashDamageMultiplier = charged.splashDamageMultiplier ?? 0.5;
 
         // Crit / backstab stats from kit
         const stats = kit?.stats;
@@ -584,18 +581,9 @@ export class CombatSystem {
             }
         }
         if (this.gameState.combat.isChargedAttacking) {
-            if (this.isDaggerKit && this.chargedAttackTimer > 0 && this.chargedAttackTimer <= 0.2 && !this._meleeHitThisSwing) {
-                this.checkHits();
-            }
+            // Brief cooldown after charged attack fires (animation wind-down)
             this.chargedAttackTimer -= deltaTime;
             if (this.chargedAttackTimer <= 0) {
-                if (this.isBowRangerKit && this.bowRangerCombat) {
-                    this.bowRangerCombat.spawnArrow(true);
-                } else if (this.isDaggerKit) {
-                    this.spawnDaggerChargedSlash();
-                } else {
-                    this.spawnFireball(true);
-                }
                 this.gameState.combat.isChargedAttacking = false;
             }
         } else if (this.gameState.combat.isAttacking) {
@@ -603,10 +591,19 @@ export class CombatSystem {
         } else {
             if (input.chargedAttackRelease) {
                 if (this.chargeTimer >= this.minChargeToRelease && this.gameState.useStamina(10)) {
-                    this.gameState.combat.isChargedAttacking = true;
-                    this.chargedAttackTimer = this.isDaggerKit ? 0.45 : (1 - this.chargeTimer / this.chargeDuration) * this.chargeDuration;
                     this.gameState.combat.releasedCharge = this.chargeTimer;
-                    if (this.isDaggerKit) this._nextMeleeIsCharged = true;
+                    // Fire immediately on release
+                    if (this.isBowRangerKit && this.bowRangerCombat) {
+                        this.bowRangerCombat.spawnArrow(true);
+                    } else if (this.isDaggerKit) {
+                        this._nextMeleeIsCharged = true;
+                        this.checkHits();
+                        this.spawnDaggerChargedSlash();
+                    } else {
+                        this.spawnFireball(true);
+                    }
+                    this.gameState.combat.isChargedAttacking = true;
+                    this.chargedAttackTimer = 0.2; // brief recovery
                 }
                 this.chargeTimer = 0;
                 this.gameState.combat.isCharging = false;
@@ -666,24 +663,14 @@ export class CombatSystem {
                             transparent: true,
                             opacity: 0.9
                         })
-                        : (this.isVenomKit
-                            ? new THREE.MeshStandardMaterial({
-                                color: 0x48ff7a,
-                                emissive: 0x1f8f4f,
-                                emissiveIntensity: 1.4,
-                                roughness: 0.35,
-                                metalness: 0.05,
-                                transparent: true,
-                                opacity: 0.9
-                            })
-                            : createBloodFireMaterial({
+                        : createBloodFireMaterial({
                                 coreBrightness: 0.9,
                                 plasmaSpeed: 4.5,
                                 isCharged: 1.0,
                                 layerScale: 1.2,
                                 rimPower: 2.0,
                                 redTint: 0.92
-                            })));
+                            }));
                 this.chargeOrb = new THREE.Mesh(geometry, material);
                 this.chargeOrb.castShadow = false;
                 // Hide the sphere mesh for bow and dagger — only show ring particles
@@ -696,7 +683,7 @@ export class CombatSystem {
                 ringGeo.setAttribute('position', new THREE.BufferAttribute(ringPos, 3));
                 const ringMat = new THREE.PointsMaterial({
                     size: 0.04,
-                    color: this.isFrostKit ? 0x44aaff : (this.isBowRangerKit ? 0x8844ff : (this.isVenomKit ? 0x66ff66 : 0xaa0a0a)),
+                    color: this.isFrostKit ? 0x44aaff : (this.isBowRangerKit ? 0x8844ff : (this.isDaggerKit ? 0x44ff70 : 0xaa0a0a)),
                     transparent: true,
                     opacity: 0.9,
                     depthWrite: false,
@@ -710,11 +697,11 @@ export class CombatSystem {
             }
             this.chargeOrb.userData.orbTime += deltaTime;
             const t = Math.min(1, combat.chargeTimer / this.chargeDuration);
-            const scale = (this.isVenomKit || this.isBowRangerKit) ? (0.55 + 2.35 * t) : (0.2 + 1.6 * t);
+            const scale = (this.isBowRangerKit) ? (0.55 + 2.35 * t) : (0.2 + 1.6 * t);
             this.chargeOrb.scale.setScalar(scale);
             const wpos = this.character.getWeaponPosition();
             const wdir = this.character.getForwardDirection();
-            if (this.isVenomKit || this.isBowRangerKit) {
+            if (this.isBowRangerKit) {
                 this.chargeOrb.position.set(wpos.x, wpos.y + 0.32, wpos.z);
             } else {
                 this.chargeOrb.position.set(wpos.x + wdir.x * 0.4, wpos.y + wdir.y * 0.4, wpos.z + wdir.z * 0.4);
@@ -729,12 +716,12 @@ export class CombatSystem {
                 this.chargeOrb.material.uniforms.time.value = this.chargeOrb.userData.orbTime;
                 this.chargeOrb.material.uniforms.alpha.value = 0.75 + 0.25 * t * pulse;
                 this.chargeOrb.material.uniforms.coreBrightness.value = 0.9 + 0.6 * t * pulse;
-            } else if (this.isVenomKit || this.isBowRangerKit) {
+            } else if (this.isBowRangerKit) {
                 this.chargeOrb.material.opacity = 0.6 + 0.35 * t;
                 this.chargeOrb.material.emissiveIntensity = 1.2 + 1.6 * t;
             }
             // Ring tightens and brightens with charge
-            const ringRadius = (this.isVenomKit || this.isBowRangerKit) ? (0.95 * (1.25 - 0.8 * t)) : (0.5 * (1.2 - 0.9 * t));
+            const ringRadius = (this.isBowRangerKit) ? (0.95 * (1.25 - 0.8 * t)) : (0.5 * (1.2 - 0.9 * t));
             const ringGeo = this.chargeOrb.userData.ringGeo;
             const posAttr = ringGeo.getAttribute('position');
             for (let i = 0; i < 36; i++) {
@@ -744,7 +731,7 @@ export class CombatSystem {
                 posAttr.array[i * 3 + 2] = 0;
             }
             posAttr.needsUpdate = true;
-            this.chargeOrb.userData.ringMat.opacity = (this.isVenomKit || this.isBowRangerKit) ? (0.78 + 0.22 * t) : (0.5 + 0.5 * t);
+            this.chargeOrb.userData.ringMat.opacity = (this.isBowRangerKit) ? (0.78 + 0.22 * t) : (0.5 + 0.5 * t);
         } else {
             if (this.chargeOrb) {
                 this.scene.remove(this.chargeOrb);
@@ -780,7 +767,7 @@ export class CombatSystem {
         }
 
         const basicClip = this.character.actions?.['Basic attack']?.getClip();
-        const basicTimeScale = this.isDaggerKit ? 8.0 : ((this.isVenomKit || this.isBowRangerKit) ? 2.25 : 3.8);
+        const basicTimeScale = this.isDaggerKit ? 8.0 : ((this.isBowRangerKit) ? 2.25 : 3.8);
         this.attackDuration = basicClip?.duration ? basicClip.duration / basicTimeScale : 0.28;
         this.attackTimer = this.attackDuration;
         this._meleeHitThisSwing = false;
@@ -919,21 +906,21 @@ export class CombatSystem {
         }
     }
 
-    /** E = Blood Crescend / Frost Beam / Venom Burst: consume stacks and discharge. */
+    /** E = Blood Crescend / Frost Beam / Dagger Poison Slash: consume stacks and discharge. */
     executeBloodflail(chargesUsed, multiplier) {
         if (this.isFrostKit && this.frostCombat) {
             this.frostCombat.executeFrostBeam(chargesUsed, multiplier);
             return;
         }
-        if (this.isVenomKit) {
-            this._executeVenomBurst(chargesUsed, multiplier);
+        if (this.isDaggerKit) {
+            this._executeDaggerPoisonSlash(chargesUsed, multiplier);
             return;
         }
         this.executeBloodCrescend(chargesUsed, multiplier);
     }
 
-    /** Venom Stalker E: clean green burst — no shader, just fast MeshBasicMaterial */
-    _executeVenomBurst(chargesUsed, multiplier) {
+    /** Shadow Assassin E: fast green poison slash burst — wide arc, no shader */
+    _executeDaggerPoisonSlash(chargesUsed, multiplier) {
         if (this.bloodCrescend) return;
         const weaponPos = this.character.getWeaponPosition();
         const dir = this.character.getForwardDirection().clone();
@@ -941,75 +928,76 @@ export class CombatSystem {
         if (dir.lengthSq() < 0.0001) dir.set(0, 0, -1);
         dir.normalize();
 
-        const startPos = weaponPos.clone().addScaledVector(dir, 0.8);
-        const stackRatio = Math.min(1, chargesUsed / 8);
-        const bladeLen = 2.6 + chargesUsed * 0.45;
-        const bladeWidth = 0.8 + chargesUsed * 0.12;
+        const startPos = weaponPos.clone().addScaledVector(dir, 0.6);
+        const stackRatio = Math.min(1, chargesUsed / 6);
 
-        // Poison blade shape — tapered, aggressive
-        const shape = new THREE.Shape();
-        shape.moveTo(bladeLen * 0.5, 0);
-        shape.quadraticCurveTo(bladeLen * 0.12, bladeWidth * 0.6, -bladeLen * 0.5, bladeWidth * 0.2);
-        shape.lineTo(-bladeLen * 0.5, -bladeWidth * 0.2);
-        shape.quadraticCurveTo(bladeLen * 0.12, -bladeWidth * 0.6, bladeLen * 0.5, 0);
-
-        const geom = new THREE.ShapeGeometry(shape, 10);
-        const matCore = new THREE.MeshBasicMaterial({
-            color: 0x44ff70, transparent: true, opacity: 0.95,
-            side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending
-        });
-        const meshCore = new THREE.Mesh(geom, matCore);
-
-        const glowGeom = new THREE.ShapeGeometry(shape, 10);
-        const matGlow = new THREE.MeshBasicMaterial({
-            color: 0x22aa44, transparent: true, opacity: 0.35,
-            side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending
-        });
-        const meshGlow = new THREE.Mesh(glowGeom, matGlow);
-        meshGlow.scale.set(1.4, 1.0, 1.6);
-
-        // Bright center line
-        const coreLineGeo = new THREE.ShapeGeometry(shape, 8);
-        const matLine = new THREE.MeshBasicMaterial({
-            color: 0xccffcc, transparent: true, opacity: 0.4,
-            side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending
-        });
-        const meshLine = new THREE.Mesh(coreLineGeo, matLine);
-        meshLine.scale.set(0.6, 1.0, 0.3);
-
+        // Triple-blade fan: 3 blades fanning out for wide coverage
         const group = new THREE.Group();
-        group.add(meshCore);
-        group.add(meshGlow);
-        group.add(meshLine);
+        const materials = [];
+        const geometries = [];
+        const bladeLen = 3.2 + chargesUsed * 0.5;
+        const bladeWidth = 0.45 + chargesUsed * 0.08;
+        const angles = [-0.35, 0, 0.35]; // fan spread in radians
+        const colors = [0x33dd55, 0x44ff70, 0x33dd55];
+        const glowColors = [0x1a8833, 0x22aa44, 0x1a8833];
+
+        for (let i = 0; i < 3; i++) {
+            const shape = new THREE.Shape();
+            shape.moveTo(bladeLen * 0.5, 0);
+            shape.quadraticCurveTo(bladeLen * 0.15, bladeWidth * 0.7, -bladeLen * 0.45, bladeWidth * 0.15);
+            shape.lineTo(-bladeLen * 0.45, -bladeWidth * 0.15);
+            shape.quadraticCurveTo(bladeLen * 0.15, -bladeWidth * 0.7, bladeLen * 0.5, 0);
+
+            const geom = new THREE.ShapeGeometry(shape, 8);
+            const mat = new THREE.MeshBasicMaterial({
+                color: colors[i], transparent: true, opacity: 0.92,
+                side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending
+            });
+            const blade = new THREE.Mesh(geom, mat);
+            blade.rotation.z = angles[i];
+
+            const glowGeom = new THREE.ShapeGeometry(shape, 6);
+            const glowMat = new THREE.MeshBasicMaterial({
+                color: glowColors[i], transparent: true, opacity: 0.3,
+                side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending
+            });
+            const glow = new THREE.Mesh(glowGeom, glowMat);
+            glow.scale.set(1.3, 1.0, 1.4);
+            glow.rotation.z = angles[i];
+
+            group.add(blade);
+            group.add(glow);
+            materials.push(mat, glowMat);
+            geometries.push(geom, glowGeom);
+        }
+
         group.position.copy(startPos);
         const lookTarget = startPos.clone().add(dir);
         group.lookAt(lookTarget);
-
         this.scene.add(group);
 
-        const speed = 24 + stackRatio * 8;
-        const dirNorm = dir.clone();
+        const speed = 26 + stackRatio * 10;
 
         this.bloodCrescend = {
             mesh: group,
-            velocity: dirNorm.clone().multiplyScalar(speed),
+            velocity: dir.clone().multiplyScalar(speed),
             lifetime: 0,
-            maxLifetime: 0.45 + stackRatio * 0.2,
-            damage: Math.floor((this.whipDamage + chargesUsed * 18) * multiplier),
+            maxLifetime: 0.4 + stackRatio * 0.15,
+            damage: Math.floor((this.whipDamage + chargesUsed * 20) * multiplier),
             chargesUsed,
             hitSet: new Set(),
-            materials: [matCore, matGlow, matLine],
-            geometries: [geom, glowGeom, coreLineGeo],
-            isVenomBurst: true,
-            hitRadius: 1.8 + stackRatio * 0.8
+            materials,
+            geometries,
+            isDaggerBurst: true,
+            hitRadius: 2.4 + stackRatio * 1.0
         };
 
         this.gameState.combat.isWhipAttacking = true;
         this.whipTimer = this.whipDuration;
         this.whipHitOnce = true;
 
-        if (this.particleSystem) {
-            this.particleSystem.emitPoisonBurst(startPos.clone(), 12 + chargesUsed * 2);
+        if (this.particleSystem?.emitPoisonBurst) {
+            this.particleSystem.emitPoisonBurst(startPos.clone(), 14 + chargesUsed * 3);
         }
         if (this.onProjectileHit) this.onProjectileHit({ bloodCrescendLaunch: true, bloodflailCharges: chargesUsed });
     }
@@ -1371,19 +1359,6 @@ export class CombatSystem {
                     const { damage: projDmg, isCritical: projCrit, isBackstab: projBack } = this._applyCritBackstab(p.damage, enemy, enemyMesh);
                     enemy.takeDamage(projDmg);
                     hit = true;
-
-                    if (this.isVenomKit && p.isCharged) {
-                        for (const otherEnemyMesh of this.enemies) {
-                            const otherEnemy = otherEnemyMesh.userData?.enemy;
-                            if (!otherEnemy || otherEnemy === enemy || otherEnemy.health <= 0) continue;
-                            otherEnemyMesh.getWorldPosition(this._centerFlat);
-                            if (fireballPos.distanceTo(this._centerFlat) > this.venomChargedSplashRadius) continue;
-                            const splashDamage = Math.max(1, Math.floor(projDmg * this.venomChargedSplashDamageMultiplier));
-                            otherEnemy.takeDamage(splashDamage);
-                            this.gameState.emit('damageNumber', { position: this._centerFlat.clone(), damage: splashDamage, isCritical: false, anchorId: this._getDamageAnchorId(otherEnemy) });
-                        }
-                        if (this.particleSystem?.emitPoisonBurst) this.particleSystem.emitPoisonBurst(fireballPos.clone(), 18);
-                    }
 
                     // Bow arrow: Judgment Arrow AoE at 6+ stacks
                     if (p.isJudgmentArrow && p.judgmentAoe) {
@@ -1936,14 +1911,16 @@ export class CombatSystem {
         c.mesh.position.addScaledVector(c.velocity, deltaTime);
         const lifePct = 1 - c.lifetime / c.maxLifetime;
 
-        if (c.isVenomBurst) {
-            // Venom burst: simple expand + fade (no shader updates)
-            const expandT = Math.min(1, c.lifetime / (c.maxLifetime * 0.4));
-            const scale = 0.5 + 0.7 * expandT;
+        if (c.isDaggerBurst) {
+            // Dagger poison slash: fan expands quickly then fades
+            const expandT = Math.min(1, c.lifetime / (c.maxLifetime * 0.3));
+            const scale = 0.6 + 0.6 * expandT;
             c.mesh.scale.setScalar(scale);
-            c.materials[0].opacity = 0.95 * lifePct;
-            c.materials[1].opacity = 0.35 * lifePct;
-            if (c.materials[2]) c.materials[2].opacity = 0.4 * lifePct;
+            // Fade all blade materials (pairs of core + glow)
+            for (let i = 0; i < c.materials.length; i += 2) {
+                c.materials[i].opacity = 0.92 * lifePct;
+                if (c.materials[i + 1]) c.materials[i + 1].opacity = 0.3 * lifePct;
+            }
 
             if (this.particleSystem) {
                 c._trailTick = (c._trailTick || 0) + 1;
@@ -1993,7 +1970,7 @@ export class CombatSystem {
                     anchorId: this._getDamageAnchorId(enemy)
                 });
                 if (this.particleSystem) {
-                    if (c.isVenomBurst) {
+                    if (c.isDaggerBurst) {
                         this.particleSystem.emitPoisonBurst(this._enemyPos.clone(), 16 + c.chargesUsed * 2);
                     } else {
                         this.particleSystem.emitPunchBurst(this._enemyPos.clone());

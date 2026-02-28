@@ -19,7 +19,7 @@ const STORAGE_PLAYER = 'eldenflame_player'; // persistent player data (gear, tal
 // Kit ids mapped to short indices for compact encoding
 const KIT_IDS = [
     'blood_mage', 'frost_mage', 'shadow_assassin',
-    'venom_stalker', 'bow_ranger', 'berserker', 'paladin'
+    'bow_ranger', 'berserker', 'paladin'
 ];
 
 // ─── helpers ──────────────────────────────────────────────────
