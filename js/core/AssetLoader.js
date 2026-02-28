@@ -44,9 +44,9 @@ export class AssetLoader {
             updateProgress('Textures ready');
 
             // Step 2: Load character models (mage + rogue)
-            this.onProgress(currentStep / totalSteps, 'Summoning warrior...');
+            this.onProgress(currentStep / totalSteps, 'Summoning champion...');
             await this.loadCharacterModel();
-            updateProgress('Warrior ready');
+            updateProgress('Champion ready');
             await this.loadRogueModel();
             updateProgress('Rogue ready');
 

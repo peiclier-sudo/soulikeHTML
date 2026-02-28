@@ -4,7 +4,7 @@
  * Each kit defines: stats, abilities, visual theme colors, combat parameters,
  * and VFX parameters for all attacks and abilities.
  *
- * Classes: Mage (2), Rogue (3), Warrior (2)
+ * Classes: Mage (2), Rogue (2), Changeform (2)
  */
 
 export const CLASS_MAGE = 'mage';
@@ -879,417 +879,444 @@ export const KIT_DEFINITIONS = {
         animationKey: 'character_3k_rogue_dagger'
     },
 
-    // ─── WARRIOR 1: BERSERKER ─────────────────────────────────────
-    berserker: {
-        id: 'berserker',
-        name: 'Berserker',
-        className: CLASS_WARRIOR,
-        description: 'Unstoppable rage. Trades defense for devastating melee power and relentless aggression.',
-        icon: '\u{1FA93}',
+
+    // ─── CHANGEFORM 1: WEREWOLF ──────────────────────────────────
+    werewolf: {
+        id: 'werewolf',
+        name: 'Werewolf',
+        className: CLASS_CHANGEFORM,
+        description: 'Savage predator. Blindingly fast with razor claws, feral lunges, and a blood-curdling howl.',
+        icon: '\u{1F43A}',
 
         stats: {
-            health: 130,
-            stamina: 90,
-            walkSpeed: 3.5,
-            runSpeed: 7.5,
-            jumpForce: 7,
-            armor: 12,
-            critChance: 0.20,
-            critMultiplier: 1.6,
-            backstabMultiplier: 1.4
+            health: 110,
+            stamina: 110,
+            walkSpeed: 4.5,
+            runSpeed: 10,
+            jumpForce: 9,
+            armor: 8,
+            critChance: 0.25,
+            critMultiplier: 1.8,
+            backstabMultiplier: 1.6
         },
 
         weapon: {
-            name: 'Great Axe',
-            damage: 35,
-            staminaCost: 7,
-            attackSpeed: 0.8,
-            range: 3.0
+            name: 'Feral Claws',
+            damage: 22,
+            staminaCost: 4,
+            attackSpeed: 1.4,
+            range: 2.5
         },
 
         combat: {
+            // LMB: spectral claw slash projectile
             basicAttack: {
                 type: 'projectile',
-                damage: 28,
-                speed: 16,
-                radius: 0.35,
-                lifetime: 1.2,
-                staminaCost: 7
+                damage: 18,
+                speed: 22,
+                radius: 0.3,
+                lifetime: 0.9,
+                staminaCost: 4
             },
+            // RMB: charged lunge claw
             chargedAttack: {
                 type: 'projectile_charged',
-                damage: 70,
-                speed: 14,
-                radius: 0.9,
-                lifetime: 2.0,
-                chargeDuration: 1.3
+                damage: 50,
+                speed: 28,
+                radius: 0.7,
+                lifetime: 1.4,
+                chargeDuration: 0.8
             },
+            // Q: Savage Pounce – leap AoE ground slam
             abilityQ: {
-                name: 'Ground Slam',
+                name: 'Savage Pounce',
                 type: 'ground_aoe',
-                damage: 60,
-                radius: 4.0,
-                cooldown: 10,
+                damage: 45,
+                radius: 3.5,
+                cooldown: 7,
                 bloodChargeGain: 2
             },
+            // E: Rend – claw finisher that tears flesh
             abilityE: {
-                name: 'Fury Strike',
+                name: 'Rend',
                 type: 'melee_finisher',
                 baseDamage: 55,
-                range: 3.5,
+                range: 3.0,
                 requiresBloodCharges: true
             },
+            // X: Blood Howl – AoE fear nova
             abilityX: {
-                name: 'War Cry',
+                name: 'Blood Howl',
                 type: 'nova_aoe',
-                damage: 40,
-                radius: 10,
-                cooldown: 15,
-                freezeDuration: 2.0
+                damage: 30,
+                radius: 9,
+                cooldown: 12,
+                freezeDuration: 2.5
             },
+            // C: Feral Instinct – dodge/evasion shield
             abilityC: {
-                name: 'Iron Will',
+                name: 'Feral Instinct',
                 type: 'shield',
-                duration: 8
+                duration: 5
             },
+            // F: Bloodmoon Frenzy – ultimate
             abilityF: {
-                name: 'Ragnarok',
+                name: 'Bloodmoon Frenzy',
                 type: 'ultimate_projectile',
-                damage: 160,
+                damage: 180,
                 chargeNeeded: 100
             }
         },
 
         vfx: {
-            // ── LMB / RMB: Blood Fireball (shared w/ blood mage, warrior-tinted) ──
+            // ── LMB / RMB: Spectral Claw projectile ──
             projectile: {
                 materialType: 'bloodfire',
                 basic: {
                     segments: 8,
-                    coreRatio: 0.55,
-                    outer: { coreBrightness: 0.9, plasmaSpeed: 3.8, isCharged: 0.0, layerScale: 0.85, rimPower: 1.8, redTint: 0.92, alpha: 0.45 },
-                    core:  { coreBrightness: 2.0, plasmaSpeed: 5.5, isCharged: 0.0, layerScale: 1.3,  rimPower: 1.8, redTint: 0.92 },
-                    launchSparks: 5, launchEmbers: 3,
-                    hitSparks: 4, hitEmbers: 3,
+                    coreRatio: 0.6,
+                    outer: { coreBrightness: 0.7, plasmaSpeed: 5.0, isCharged: 0.0, layerScale: 0.9, rimPower: 2.2, redTint: 0.45, alpha: 0.4 },
+                    core:  { coreBrightness: 1.8, plasmaSpeed: 7.0, isCharged: 0.0, layerScale: 1.4, rimPower: 2.0, redTint: 0.35 },
+                    launchSparks: 6, launchEmbers: 2,
+                    hitSparks: 5, hitEmbers: 3,
                     expireSmoke: 1
                 },
                 charged: {
-                    segments: 12,
+                    segments: 14,
                     coreRatio: 0.55,
-                    outer: { coreBrightness: 1.0, plasmaSpeed: 3.5, isCharged: 1.0, layerScale: 0.7, rimPower: 2.0, redTint: 0.92, alpha: 0.5 },
-                    core:  { coreBrightness: 2.2, plasmaSpeed: 6.5, isCharged: 1.0, layerScale: 1.6, rimPower: 2.0, redTint: 0.92 },
-                    releaseBurst: 0.15,
-                    burstScale: 0.5, burstDur: 0.15,
-                    launchSparks: 10, launchEmbers: 6,
-                    hitSparks: 8, hitEmbers: 6,
-                    expireSmoke: 3
+                    outer: { coreBrightness: 1.2, plasmaSpeed: 4.5, isCharged: 1.0, layerScale: 0.8, rimPower: 2.4, redTint: 0.5, alpha: 0.55 },
+                    core:  { coreBrightness: 2.5, plasmaSpeed: 8.0, isCharged: 1.0, layerScale: 1.8, rimPower: 2.2, redTint: 0.4 },
+                    releaseBurst: 0.12,
+                    burstScale: 0.6, burstDur: 0.12,
+                    launchSparks: 12, launchEmbers: 5,
+                    hitSparks: 10, hitEmbers: 6,
+                    expireSmoke: 2
                 },
-                fadeAlpha: 0.92,
-                outerAlphaRatio: 0.5,
-                hitRadiusPadding: { basic: 0.3, charged: 0.6 }
+                fadeAlpha: 0.88,
+                outerAlphaRatio: 0.45,
+                hitRadiusPadding: { basic: 0.25, charged: 0.55 }
             },
+            // ── Charge orb: swirling silver-grey feral energy ──
             chargeOrb: {
-                sphereRadius: 0.22,
-                sphereSegments: 32,
+                sphereRadius: 0.18,
+                sphereSegments: 28,
                 materialType: 'bloodfire',
-                material: { coreBrightness: 0.9, plasmaSpeed: 4.5, isCharged: 1.0, layerScale: 1.2, rimPower: 2.0, redTint: 0.92 },
-                ringCount: 36,
-                ringSize: 0.04,
-                ringColor: 0xaa0a0a,
-                ringOpacity: 0.9,
-                scaleRange: [0.2, 1.8],
-                forwardOffset: 0.4,
-                pulse: { base: 0.95, amp: 0.15, freq: 6 },
-                alphaRange: [0.75, 1.0],
-                brightnessRange: [0.9, 1.5],
-                ringRadiusRange: [0.06, 0.6],
-                ringOpacityRange: [0.5, 1.0]
+                material: { coreBrightness: 1.1, plasmaSpeed: 6.0, isCharged: 1.0, layerScale: 1.4, rimPower: 2.4, redTint: 0.35 },
+                ringCount: 28,
+                ringSize: 0.035,
+                ringColor: 0x778899,
+                ringOpacity: 0.85,
+                scaleRange: [0.25, 1.6],
+                forwardOffset: 0.35,
+                pulse: { base: 1.0, amp: 0.2, freq: 8 },
+                alphaRange: [0.7, 1.0],
+                brightnessRange: [1.0, 1.8],
+                ringRadiusRange: [0.05, 0.5],
+                ringOpacityRange: [0.4, 0.95]
             },
+            // ── Q: Savage Pounce – ground-slam claw mark ──
             abilityQ: {
-                previewRing: { inset: 0.35, segments: 48, color: 0x880808, opacity: 0.5, groundY: 0.02 },
+                previewRing: { inset: 0.3, segments: 48, color: 0x556677, opacity: 0.55, groundY: 0.02 },
                 disc: {
                     segments: 48,
-                    material: { coreBrightness: 2.2, plasmaSpeed: 12, isCharged: 1.0, layerScale: 2.5, rimPower: 3.0, alpha: 0.9, redTint: 0.92 },
+                    material: { coreBrightness: 2.0, plasmaSpeed: 14, isCharged: 1.0, layerScale: 2.8, rimPower: 3.2, alpha: 0.85, redTint: 0.3 },
                     groundY: 0.02
                 },
-                expandDuration: 0.22,
-                fadeCurve: { peakAlpha: 0.9, holdTime: 0.15 },
-                duration: 1.35
+                expandDuration: 0.18,
+                fadeCurve: { peakAlpha: 0.85, holdTime: 0.12 },
+                duration: 1.1
             },
+            // ── E: Rend – feral claw whip slash ──
             abilityE: {
-                whipDuration: 0.48,
-                whipTrailCount: 18,
-                whipOrbTrailCount: 10,
-                whipHitSparks: 36,
-                whipHitEmbers: 28,
+                whipDuration: 0.35,
+                whipTrailCount: 22,
+                whipOrbTrailCount: 12,
+                whipHitSparks: 42,
+                whipHitEmbers: 30,
                 crescend: {
-                    bladeLenBase: 2.2, bladeLenPerCharge: 0.5,
-                    bladeWidthBase: 0.74, bladeWidthPerCharge: 0.16, bladeWidthScale: [0.92, 0.45],
-                    outerSegments: 42, innerSegments: 34, coreSegments: 28,
-                    innerScale: [0.86, 0.74], coreScale: [0.68, 0.50],
-                    outer: { coreBrightnessBase: 1.55, coreBrightnessPerCharge: 0.18, plasmaSpeedBase: 7.0, layerScale: 1.36, rimPower: 1.5, alphaBase: 0.96, redTint: 0.95 },
-                    innerColor: 0xff4a4a, innerOpacity: 0.5,
-                    coreColor: 0xffc0a0, coreOpacity: 0.32,
-                    speedBase: 25, speedPerCharge: 1.45,
-                    lifetimeBase: 1.2, lifetimePerCharge: 0.07,
-                    hitRadiusBase: 2.05, hitRadiusPerCharge: 0.34,
-                    pulse: { base: 0.22, freq: 24, scaleFreq: 16 },
-                    launchSparksBase: 14, launchSparksPerCharge: 3,
-                    launchEmbersBase: 10, launchEmbersPerCharge: 2,
-                    launchTrailBase: 10, launchTrailPerCharge: 2
+                    bladeLenBase: 2.0, bladeLenPerCharge: 0.6,
+                    bladeWidthBase: 0.65, bladeWidthPerCharge: 0.18, bladeWidthScale: [0.95, 0.5],
+                    outerSegments: 38, innerSegments: 30, coreSegments: 24,
+                    innerScale: [0.88, 0.72], coreScale: [0.7, 0.48],
+                    outer: { coreBrightnessBase: 1.4, coreBrightnessPerCharge: 0.2, plasmaSpeedBase: 9.0, layerScale: 1.5, rimPower: 1.8, alphaBase: 0.92, redTint: 0.4 },
+                    innerColor: 0x99aabb, innerOpacity: 0.55,
+                    coreColor: 0xddeeff, coreOpacity: 0.35,
+                    speedBase: 30, speedPerCharge: 1.8,
+                    lifetimeBase: 1.0, lifetimePerCharge: 0.06,
+                    hitRadiusBase: 1.8, hitRadiusPerCharge: 0.4,
+                    pulse: { base: 0.25, freq: 28, scaleFreq: 18 },
+                    launchSparksBase: 16, launchSparksPerCharge: 4,
+                    launchEmbersBase: 8, launchEmbersPerCharge: 2,
+                    launchTrailBase: 12, launchTrailPerCharge: 3
                 }
             },
+            // ── X: Blood Howl – fear nova ripple ──
             abilityX: {
-                previewRing: { radiusScale: 0.85, innerInset: 0.22, outerInset: 0.18, segments: 64, color: 0xaa1030, groundY: 0.03 },
-                windupDuration: 0.12,
-                windupScale: { start: 0.15, end: 1.15 },
-                windupOpacity: { start: 0.2, end: 0.8 },
-                windupSparks: 18, windupEmbers: 12,
-                releaseSparks: 45, releaseEmbers: 35
+                previewRing: { radiusScale: 0.9, innerInset: 0.2, outerInset: 0.16, segments: 64, color: 0x8899aa, groundY: 0.03 },
+                windupDuration: 0.15,
+                windupScale: { start: 0.1, end: 1.2 },
+                windupOpacity: { start: 0.25, end: 0.85 },
+                windupSparks: 20, windupEmbers: 8,
+                releaseSparks: 50, releaseEmbers: 30
             },
+            // ── Life drain: spectral silver tendrils ──
             lifeDrain: {
-                beamPoints: 140,
-                maxSegmentLength: 0.11,
-                core:   { radiusTop: 0.007, radiusBot: 0.013, segments: 8, coreBrightness: 1.5, plasmaSpeed: 10, isCharged: 0.4, layerScale: 1.3, rimPower: 2.2, redTint: 0.92, alpha: 0.88 },
-                outer:  { radiusTop: 0.019, radiusBot: 0.028, segments: 8, coreBrightness: 0.9, plasmaSpeed: 6,  isCharged: 0.3, layerScale: 0.9, rimPower: 1.6, redTint: 0.92, alpha: 0.5 },
-                strand: { radiusTop: 0.0025, radiusBot: 0.0045, segments: 6, coreBrightness: 1.4, plasmaSpeed: 12, isCharged: 0.5, layerScale: 1.6, rimPower: 2.4, redTint: 0.92, alpha: 0.9 },
-                light: { color: 0xaa0a0a, distance: 14, decay: 2, intensityBase: 22, intensityPulse: 8, pulseFreq: 18 },
-                waver: { seedMult: 18, ampBase: 0.25, ampPerDist: 0.028 },
-                pulse: { base: 0.88, amp: 0.08, freq: 14 },
-                flowInterval: 0.08, flowCount: 10,
-                damageFlowCount: 18, burstInterval: 0.15,
-                castFlowCount: 40
+                beamPoints: 120,
+                maxSegmentLength: 0.1,
+                core:   { radiusTop: 0.006, radiusBot: 0.012, segments: 8, coreBrightness: 1.6, plasmaSpeed: 12, isCharged: 0.5, layerScale: 1.5, rimPower: 2.4, redTint: 0.3, alpha: 0.85 },
+                outer:  { radiusTop: 0.017, radiusBot: 0.025, segments: 8, coreBrightness: 0.8, plasmaSpeed: 7,  isCharged: 0.4, layerScale: 1.0, rimPower: 1.8, redTint: 0.3, alpha: 0.45 },
+                strand: { radiusTop: 0.002, radiusBot: 0.004, segments: 6, coreBrightness: 1.3, plasmaSpeed: 14, isCharged: 0.6, layerScale: 1.8, rimPower: 2.6, redTint: 0.35, alpha: 0.88 },
+                light: { color: 0x8899bb, distance: 12, decay: 2.2, intensityBase: 20, intensityPulse: 6, pulseFreq: 20 },
+                waver: { seedMult: 22, ampBase: 0.3, ampPerDist: 0.032 },
+                pulse: { base: 0.85, amp: 0.1, freq: 16 },
+                flowInterval: 0.06, flowCount: 12,
+                damageFlowCount: 20, burstInterval: 0.12,
+                castFlowCount: 45
             },
+            // ── F: Bloodmoon Frenzy – ultimate orb ──
             abilityF: {
-                orbRadius: 0.52,
-                orbSegments: 16,
-                light: { color: 0xc1081a, distance: 25, decay: 2.5, intensityBase: 38, intensityPulse: 10, pulseFreq: 10 },
-                outerGlow: { color: 0x7a0010, distance: 16, decay: 1.2, intensityBase: 14, intensityPulse: 4, pulseFreq: 8 },
-                speed: 32,
-                scaleStart: 0.28, scaleEnd: 4.5, growthDuration: 0.8,
-                maxLifetime: 2.4,
-                baseDamage: 280,
-                launchAlpha: 0.92,
-                pulse: { amp: 0.08, freq: 14 },
-                launchSparks: 15, launchEmbers: 10,
-                trailOrbs: 14, trailSlash: 6
+                orbRadius: 0.48,
+                orbSegments: 18,
+                light: { color: 0x7788aa, distance: 28, decay: 2.2, intensityBase: 42, intensityPulse: 12, pulseFreq: 12 },
+                outerGlow: { color: 0x445566, distance: 18, decay: 1.0, intensityBase: 16, intensityPulse: 5, pulseFreq: 10 },
+                speed: 38,
+                scaleStart: 0.25, scaleEnd: 5.0, growthDuration: 0.7,
+                maxLifetime: 2.2,
+                baseDamage: 180,
+                launchAlpha: 0.9,
+                pulse: { amp: 0.1, freq: 16 },
+                launchSparks: 18, launchEmbers: 8,
+                trailOrbs: 16, trailSlash: 8
             }
         },
 
         theme: {
-            primary: 0x8a2200,    // dark orange
-            secondary: 0xff6622,  // fire orange
-            accent: 0xffcc44,     // fury gold
-            particleColor: 0xff4400,
-            uiClass: 'kit-berserker'
+            primary: 0x445566,    // steel grey
+            secondary: 0x8899aa,  // moon silver
+            accent: 0xccddee,     // pale moonlight
+            particleColor: 0x778899,
+            uiClass: 'kit-werewolf'
         },
 
         model: 'character_3k_mage'
     },
 
-    // ─── WARRIOR 2: PALADIN ──────────────────────────────────────
-    paladin: {
-        id: 'paladin',
-        name: 'Paladin',
-        className: CLASS_WARRIOR,
-        description: 'Holy warrior. Balanced offense and defense with radiant smites and divine protection.',
-        icon: '\u{1F6E1}',
+    // ─── CHANGEFORM 2: BEAR ──────────────────────────────────────
+    bear: {
+        id: 'bear',
+        name: 'Bear',
+        className: CLASS_CHANGEFORM,
+        description: 'Unstoppable force of nature. Massive paw strikes, earthquakes, and primal resilience.',
+        icon: '\u{1F43B}',
 
         stats: {
-            health: 120,
-            stamina: 100,
-            walkSpeed: 3.8,
-            runSpeed: 7.8,
-            jumpForce: 7.5,
-            armor: 15,
-            critChance: 0.20,
-            critMultiplier: 1.6,
-            backstabMultiplier: 1.4
+            health: 150,
+            stamina: 80,
+            walkSpeed: 3.2,
+            runSpeed: 7.0,
+            jumpForce: 6.5,
+            armor: 18,
+            critChance: 0.15,
+            critMultiplier: 1.5,
+            backstabMultiplier: 1.3
         },
 
         weapon: {
-            name: 'Holy Mace',
-            damage: 30,
-            staminaCost: 6,
-            attackSpeed: 0.9,
-            range: 2.8
+            name: 'Bear Paws',
+            damage: 38,
+            staminaCost: 8,
+            attackSpeed: 0.7,
+            range: 3.2
         },
 
         combat: {
+            // LMB: hurled earth/rock projectile
             basicAttack: {
                 type: 'projectile',
-                damage: 24,
-                speed: 18,
-                radius: 0.3,
-                lifetime: 1.4,
-                staminaCost: 6
+                damage: 30,
+                speed: 14,
+                radius: 0.4,
+                lifetime: 1.3,
+                staminaCost: 8
             },
+            // RMB: charged boulder
             chargedAttack: {
                 type: 'projectile_charged',
-                damage: 60,
-                speed: 16,
-                radius: 0.8,
-                lifetime: 2.2,
-                chargeDuration: 1.2
+                damage: 75,
+                speed: 12,
+                radius: 1.0,
+                lifetime: 2.0,
+                chargeDuration: 1.4
             },
+            // Q: Earthquake – massive ground pound
             abilityQ: {
-                name: 'Holy Smite',
+                name: 'Earthquake',
                 type: 'ground_aoe',
-                damage: 55,
-                radius: 3.5,
-                cooldown: 9,
+                damage: 65,
+                radius: 4.5,
+                cooldown: 11,
                 bloodChargeGain: 2
             },
+            // E: Maul – devastating swipe finisher
             abilityE: {
-                name: 'Divine Strike',
+                name: 'Maul',
                 type: 'melee_finisher',
-                baseDamage: 50,
-                range: 3.0,
+                baseDamage: 65,
+                range: 3.5,
                 requiresBloodCharges: true
             },
+            // X: Thunderous Roar – AoE stun nova
             abilityX: {
-                name: 'Consecration',
+                name: 'Thunderous Roar',
                 type: 'nova_aoe',
-                damage: 35,
-                radius: 11,
-                cooldown: 12,
-                freezeDuration: 2.2
+                damage: 40,
+                radius: 12,
+                cooldown: 15,
+                freezeDuration: 2.8
             },
+            // C: Thick Hide – damage absorption shield
             abilityC: {
-                name: 'Divine Shield',
+                name: 'Thick Hide',
                 type: 'shield',
-                duration: 7
+                duration: 9
             },
+            // F: Primal Fury – ultimate
             abilityF: {
-                name: 'Judgment',
+                name: 'Primal Fury',
                 type: 'ultimate_projectile',
-                damage: 140,
+                damage: 200,
                 chargeNeeded: 100
             }
         },
 
         vfx: {
-            // ── LMB / RMB: Blood Fireball (shared w/ blood mage, paladin-tinted) ──
+            // ── LMB / RMB: Earth boulder projectile ──
             projectile: {
                 materialType: 'bloodfire',
                 basic: {
-                    segments: 8,
-                    coreRatio: 0.55,
-                    outer: { coreBrightness: 0.9, plasmaSpeed: 3.8, isCharged: 0.0, layerScale: 0.85, rimPower: 1.8, redTint: 0.92, alpha: 0.45 },
-                    core:  { coreBrightness: 2.0, plasmaSpeed: 5.5, isCharged: 0.0, layerScale: 1.3,  rimPower: 1.8, redTint: 0.92 },
-                    launchSparks: 5, launchEmbers: 3,
-                    hitSparks: 4, hitEmbers: 3,
-                    expireSmoke: 1
+                    segments: 10,
+                    coreRatio: 0.5,
+                    outer: { coreBrightness: 0.6, plasmaSpeed: 3.0, isCharged: 0.0, layerScale: 0.75, rimPower: 1.6, redTint: 0.7, alpha: 0.5 },
+                    core:  { coreBrightness: 1.5, plasmaSpeed: 4.5, isCharged: 0.0, layerScale: 1.2, rimPower: 1.6, redTint: 0.65 },
+                    launchSparks: 4, launchEmbers: 4,
+                    hitSparks: 5, hitEmbers: 4,
+                    expireSmoke: 2
                 },
                 charged: {
-                    segments: 12,
-                    coreRatio: 0.55,
-                    outer: { coreBrightness: 1.0, plasmaSpeed: 3.5, isCharged: 1.0, layerScale: 0.7, rimPower: 2.0, redTint: 0.92, alpha: 0.5 },
-                    core:  { coreBrightness: 2.2, plasmaSpeed: 6.5, isCharged: 1.0, layerScale: 1.6, rimPower: 2.0, redTint: 0.92 },
-                    releaseBurst: 0.15,
-                    burstScale: 0.5, burstDur: 0.15,
-                    launchSparks: 10, launchEmbers: 6,
-                    hitSparks: 8, hitEmbers: 6,
-                    expireSmoke: 3
+                    segments: 14,
+                    coreRatio: 0.5,
+                    outer: { coreBrightness: 0.8, plasmaSpeed: 2.8, isCharged: 1.0, layerScale: 0.65, rimPower: 1.8, redTint: 0.75, alpha: 0.55 },
+                    core:  { coreBrightness: 1.8, plasmaSpeed: 5.5, isCharged: 1.0, layerScale: 1.5, rimPower: 1.8, redTint: 0.7 },
+                    releaseBurst: 0.18,
+                    burstScale: 0.55, burstDur: 0.18,
+                    launchSparks: 8, launchEmbers: 8,
+                    hitSparks: 10, hitEmbers: 8,
+                    expireSmoke: 4
                 },
-                fadeAlpha: 0.92,
+                fadeAlpha: 0.9,
                 outerAlphaRatio: 0.5,
-                hitRadiusPadding: { basic: 0.3, charged: 0.6 }
+                hitRadiusPadding: { basic: 0.35, charged: 0.7 }
             },
+            // ── Charge orb: amber/brown earth energy ──
             chargeOrb: {
-                sphereRadius: 0.22,
-                sphereSegments: 32,
+                sphereRadius: 0.26,
+                sphereSegments: 24,
                 materialType: 'bloodfire',
-                material: { coreBrightness: 0.9, plasmaSpeed: 4.5, isCharged: 1.0, layerScale: 1.2, rimPower: 2.0, redTint: 0.92 },
-                ringCount: 36,
-                ringSize: 0.04,
-                ringColor: 0xaa0a0a,
-                ringOpacity: 0.9,
-                scaleRange: [0.2, 1.8],
-                forwardOffset: 0.4,
-                pulse: { base: 0.95, amp: 0.15, freq: 6 },
-                alphaRange: [0.75, 1.0],
-                brightnessRange: [0.9, 1.5],
-                ringRadiusRange: [0.06, 0.6],
-                ringOpacityRange: [0.5, 1.0]
+                material: { coreBrightness: 0.8, plasmaSpeed: 3.5, isCharged: 1.0, layerScale: 1.0, rimPower: 1.8, redTint: 0.72 },
+                ringCount: 32,
+                ringSize: 0.05,
+                ringColor: 0x8B6914,
+                ringOpacity: 0.85,
+                scaleRange: [0.2, 2.0],
+                forwardOffset: 0.45,
+                pulse: { base: 0.9, amp: 0.12, freq: 5 },
+                alphaRange: [0.7, 1.0],
+                brightnessRange: [0.8, 1.3],
+                ringRadiusRange: [0.07, 0.65],
+                ringOpacityRange: [0.45, 0.9]
             },
+            // ── Q: Earthquake – earth-shattering ground slam ──
             abilityQ: {
-                previewRing: { inset: 0.35, segments: 48, color: 0x880808, opacity: 0.5, groundY: 0.02 },
+                previewRing: { inset: 0.4, segments: 48, color: 0x6B4226, opacity: 0.5, groundY: 0.02 },
                 disc: {
                     segments: 48,
-                    material: { coreBrightness: 2.2, plasmaSpeed: 12, isCharged: 1.0, layerScale: 2.5, rimPower: 3.0, alpha: 0.9, redTint: 0.92 },
+                    material: { coreBrightness: 1.8, plasmaSpeed: 10, isCharged: 1.0, layerScale: 2.2, rimPower: 2.8, alpha: 0.92, redTint: 0.68 },
                     groundY: 0.02
                 },
-                expandDuration: 0.22,
-                fadeCurve: { peakAlpha: 0.9, holdTime: 0.15 },
-                duration: 1.35
+                expandDuration: 0.28,
+                fadeCurve: { peakAlpha: 0.92, holdTime: 0.2 },
+                duration: 1.6
             },
+            // ── E: Maul – massive paw swipe crescend ──
             abilityE: {
-                whipDuration: 0.48,
-                whipTrailCount: 18,
-                whipOrbTrailCount: 10,
-                whipHitSparks: 36,
-                whipHitEmbers: 28,
+                whipDuration: 0.55,
+                whipTrailCount: 16,
+                whipOrbTrailCount: 8,
+                whipHitSparks: 32,
+                whipHitEmbers: 24,
                 crescend: {
-                    bladeLenBase: 2.2, bladeLenPerCharge: 0.5,
-                    bladeWidthBase: 0.74, bladeWidthPerCharge: 0.16, bladeWidthScale: [0.92, 0.45],
-                    outerSegments: 42, innerSegments: 34, coreSegments: 28,
-                    innerScale: [0.86, 0.74], coreScale: [0.68, 0.50],
-                    outer: { coreBrightnessBase: 1.55, coreBrightnessPerCharge: 0.18, plasmaSpeedBase: 7.0, layerScale: 1.36, rimPower: 1.5, alphaBase: 0.96, redTint: 0.95 },
-                    innerColor: 0xff4a4a, innerOpacity: 0.5,
-                    coreColor: 0xffc0a0, coreOpacity: 0.32,
-                    speedBase: 25, speedPerCharge: 1.45,
-                    lifetimeBase: 1.2, lifetimePerCharge: 0.07,
-                    hitRadiusBase: 2.05, hitRadiusPerCharge: 0.34,
-                    pulse: { base: 0.22, freq: 24, scaleFreq: 16 },
-                    launchSparksBase: 14, launchSparksPerCharge: 3,
-                    launchEmbersBase: 10, launchEmbersPerCharge: 2,
-                    launchTrailBase: 10, launchTrailPerCharge: 2
+                    bladeLenBase: 2.5, bladeLenPerCharge: 0.45,
+                    bladeWidthBase: 0.85, bladeWidthPerCharge: 0.2, bladeWidthScale: [0.9, 0.5],
+                    outerSegments: 36, innerSegments: 28, coreSegments: 22,
+                    innerScale: [0.84, 0.7], coreScale: [0.65, 0.45],
+                    outer: { coreBrightnessBase: 1.3, coreBrightnessPerCharge: 0.15, plasmaSpeedBase: 6.0, layerScale: 1.2, rimPower: 1.4, alphaBase: 0.94, redTint: 0.7 },
+                    innerColor: 0xBB8833, innerOpacity: 0.5,
+                    coreColor: 0xFFCC66, coreOpacity: 0.3,
+                    speedBase: 22, speedPerCharge: 1.2,
+                    lifetimeBase: 1.3, lifetimePerCharge: 0.08,
+                    hitRadiusBase: 2.3, hitRadiusPerCharge: 0.38,
+                    pulse: { base: 0.2, freq: 20, scaleFreq: 14 },
+                    launchSparksBase: 12, launchSparksPerCharge: 3,
+                    launchEmbersBase: 12, launchEmbersPerCharge: 3,
+                    launchTrailBase: 8, launchTrailPerCharge: 2
                 }
             },
+            // ── X: Thunderous Roar – seismic nova ──
             abilityX: {
-                previewRing: { radiusScale: 0.85, innerInset: 0.22, outerInset: 0.18, segments: 64, color: 0xaa1030, groundY: 0.03 },
-                windupDuration: 0.12,
-                windupScale: { start: 0.15, end: 1.15 },
+                previewRing: { radiusScale: 0.85, innerInset: 0.25, outerInset: 0.2, segments: 64, color: 0x8B5A2B, groundY: 0.03 },
+                windupDuration: 0.2,
+                windupScale: { start: 0.12, end: 1.25 },
                 windupOpacity: { start: 0.2, end: 0.8 },
-                windupSparks: 18, windupEmbers: 12,
-                releaseSparks: 45, releaseEmbers: 35
+                windupSparks: 14, windupEmbers: 14,
+                releaseSparks: 40, releaseEmbers: 40
             },
+            // ── Life drain: amber-brown nature tendrils ──
             lifeDrain: {
-                beamPoints: 140,
-                maxSegmentLength: 0.11,
-                core:   { radiusTop: 0.007, radiusBot: 0.013, segments: 8, coreBrightness: 1.5, plasmaSpeed: 10, isCharged: 0.4, layerScale: 1.3, rimPower: 2.2, redTint: 0.92, alpha: 0.88 },
-                outer:  { radiusTop: 0.019, radiusBot: 0.028, segments: 8, coreBrightness: 0.9, plasmaSpeed: 6,  isCharged: 0.3, layerScale: 0.9, rimPower: 1.6, redTint: 0.92, alpha: 0.5 },
-                strand: { radiusTop: 0.0025, radiusBot: 0.0045, segments: 6, coreBrightness: 1.4, plasmaSpeed: 12, isCharged: 0.5, layerScale: 1.6, rimPower: 2.4, redTint: 0.92, alpha: 0.9 },
-                light: { color: 0xaa0a0a, distance: 14, decay: 2, intensityBase: 22, intensityPulse: 8, pulseFreq: 18 },
-                waver: { seedMult: 18, ampBase: 0.25, ampPerDist: 0.028 },
-                pulse: { base: 0.88, amp: 0.08, freq: 14 },
-                flowInterval: 0.08, flowCount: 10,
-                damageFlowCount: 18, burstInterval: 0.15,
-                castFlowCount: 40
+                beamPoints: 100,
+                maxSegmentLength: 0.13,
+                core:   { radiusTop: 0.008, radiusBot: 0.015, segments: 8, coreBrightness: 1.3, plasmaSpeed: 8,  isCharged: 0.4, layerScale: 1.2, rimPower: 2.0, redTint: 0.7, alpha: 0.9 },
+                outer:  { radiusTop: 0.022, radiusBot: 0.032, segments: 8, coreBrightness: 0.7, plasmaSpeed: 5,  isCharged: 0.3, layerScale: 0.8, rimPower: 1.4, redTint: 0.7, alpha: 0.5 },
+                strand: { radiusTop: 0.003, radiusBot: 0.005, segments: 6, coreBrightness: 1.2, plasmaSpeed: 10, isCharged: 0.5, layerScale: 1.4, rimPower: 2.2, redTint: 0.65, alpha: 0.88 },
+                light: { color: 0xBB8833, distance: 12, decay: 2.0, intensityBase: 18, intensityPulse: 6, pulseFreq: 14 },
+                waver: { seedMult: 14, ampBase: 0.2, ampPerDist: 0.024 },
+                pulse: { base: 0.9, amp: 0.06, freq: 12 },
+                flowInterval: 0.1, flowCount: 8,
+                damageFlowCount: 14, burstInterval: 0.18,
+                castFlowCount: 35
             },
+            // ── F: Primal Fury – ultimate orb ──
             abilityF: {
-                orbRadius: 0.52,
-                orbSegments: 16,
-                light: { color: 0xc1081a, distance: 25, decay: 2.5, intensityBase: 38, intensityPulse: 10, pulseFreq: 10 },
-                outerGlow: { color: 0x7a0010, distance: 16, decay: 1.2, intensityBase: 14, intensityPulse: 4, pulseFreq: 8 },
-                speed: 32,
-                scaleStart: 0.28, scaleEnd: 4.5, growthDuration: 0.8,
-                maxLifetime: 2.4,
-                baseDamage: 280,
-                launchAlpha: 0.92,
-                pulse: { amp: 0.08, freq: 14 },
-                launchSparks: 15, launchEmbers: 10,
-                trailOrbs: 14, trailSlash: 6
+                orbRadius: 0.58,
+                orbSegments: 14,
+                light: { color: 0xCC8822, distance: 30, decay: 2.0, intensityBase: 35, intensityPulse: 8, pulseFreq: 8 },
+                outerGlow: { color: 0x6B4226, distance: 20, decay: 1.0, intensityBase: 12, intensityPulse: 4, pulseFreq: 6 },
+                speed: 28,
+                scaleStart: 0.3, scaleEnd: 5.5, growthDuration: 0.9,
+                maxLifetime: 2.6,
+                baseDamage: 200,
+                launchAlpha: 0.94,
+                pulse: { amp: 0.06, freq: 10 },
+                launchSparks: 12, launchEmbers: 14,
+                trailOrbs: 12, trailSlash: 5
             }
         },
 
         theme: {
-            primary: 0x8a7a22,    // dark gold
-            secondary: 0xffd700,  // gold
-            accent: 0xffffcc,     // holy white
-            particleColor: 0xffdd44,
-            uiClass: 'kit-paladin'
+            primary: 0x6B4226,    // dark brown
+            secondary: 0xBB8833,  // amber
+            accent: 0xFFCC44,     // golden honey
+            particleColor: 0xCC8822,
+            uiClass: 'kit-bear'
         },
 
         model: 'character_3k_mage'
