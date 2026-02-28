@@ -283,6 +283,46 @@ export class DaggerCombat {
         const poisonMult = 1 + 0.20 * consumed;
         const damage = Math.floor(baseDamage * poisonMult);
 
+        // Build visible spinning dagger mesh (cheap MeshBasicMaterial — no ShaderMaterial)
+        const group = new THREE.Group();
+        group.position.copy(pos);
+
+        // Dagger blade 1 — bright toxic green
+        const bladeGeo = new THREE.ConeGeometry(0.12, 1.1, 4);
+        bladeGeo.rotateX(Math.PI / 2);
+        const bladeMat = new THREE.MeshBasicMaterial({
+            color: 0x44ff70, transparent: true, opacity: 0.95,
+            depthWrite: false, blending: THREE.AdditiveBlending
+        });
+        const blade1 = new THREE.Mesh(bladeGeo, bladeMat);
+        blade1.position.x = 0.25;
+        group.add(blade1);
+
+        // Dagger blade 2 — offset, slightly purple
+        const blade2Mat = new THREE.MeshBasicMaterial({
+            color: 0x9944ff, transparent: true, opacity: 0.85,
+            depthWrite: false, blending: THREE.AdditiveBlending
+        });
+        const blade2 = new THREE.Mesh(bladeGeo, blade2Mat);
+        blade2.position.x = -0.25;
+        blade2.rotation.z = Math.PI;
+        group.add(blade2);
+
+        // Outer glow ring — poison green halo
+        const ringGeo = new THREE.RingGeometry(0.3, 0.6, 8);
+        const ringMat = new THREE.MeshBasicMaterial({
+            color: 0x33ff66, transparent: true, opacity: 0.4,
+            side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending
+        });
+        const ring = new THREE.Mesh(ringGeo, ringMat);
+        group.add(ring);
+
+        // Point group in travel direction
+        const lookTarget = pos.clone().add(dir);
+        group.lookAt(lookTarget);
+
+        this.scene.add(group);
+
         this.twinDaggersProjectile = {
             position: pos,
             direction: dir.clone(),
@@ -291,13 +331,18 @@ export class DaggerCombat {
             poisonChargesConsumed: consumed,
             lifetime: 0,
             maxLifetime: this.twinDaggersRange / this.twinDaggersSpeed,
-            hitSet: new Set()
+            hitSet: new Set(),
+            mesh: group,
+            bladeMat,
+            blade2Mat,
+            ringMat,
+            geometries: [bladeGeo, ringGeo]
         };
         this._trailFrame = 0;
 
-        // Smaller launch burst
-        if (this.particleSystem && consumed > 0) {
-            this.particleSystem.emitPoisonBurst(pos, 10 + consumed * 2);
+        // Launch burst (scales with charges)
+        if (this.particleSystem) {
+            this.particleSystem.emitShadowStepBurst(pos, 10 + consumed * 2);
         }
     }
 
@@ -307,7 +352,17 @@ export class DaggerCombat {
         p.position.addScaledVector(p.velocity, dt);
         p.lifetime += dt;
 
-        // Emit trail every 3rd frame instead of every frame (~66% fewer particles)
+        // Spin the dagger mesh and update position
+        if (p.mesh) {
+            p.mesh.position.copy(p.position);
+            p.mesh.rotation.z += dt * 18;  // fast spin
+
+            // Fade ring and blades as projectile ages
+            const fade = 1 - p.lifetime / p.maxLifetime;
+            p.ringMat.opacity = 0.4 * fade;
+        }
+
+        // Emit trail every 3rd frame
         if (this.particleSystem && p.lifetime < p.maxLifetime) {
             this._trailFrame++;
             if (this._trailFrame % 3 === 0) {
@@ -316,8 +371,9 @@ export class DaggerCombat {
         }
 
         if (p.lifetime >= p.maxLifetime) {
+            this._cleanupTwinDaggersMesh(p);
             if (this.particleSystem) {
-                this.particleSystem.emitPoisonBurst(p.position, 8);
+                this.particleSystem.emitPoisonBurst(p.position, 10);
             }
             this.twinDaggersProjectile = null;
             return;
@@ -345,6 +401,16 @@ export class DaggerCombat {
                     this.particleSystem.emitPoisonBurst(this._enemyPos, 12);
                 }
             }
+        }
+    }
+
+    _cleanupTwinDaggersMesh(p) {
+        if (p.mesh) {
+            this.scene.remove(p.mesh);
+            for (const g of p.geometries) g.dispose();
+            p.bladeMat.dispose();
+            p.blade2Mat.dispose();
+            p.ringMat.dispose();
         }
     }
 }

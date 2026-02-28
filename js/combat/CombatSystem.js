@@ -945,12 +945,12 @@ export class CombatSystem {
         const comboIdx = this.gameState.combat.comboCount || 1;
         const slashAngle = comboIdx % 2 === 0 ? -0.4 : 0.4;
 
-        // Crescent slash arc geometry - feels like a blade swing
+        // Crescent slash arc geometry — wider + thicker for punchy feel
         const arcShape = new THREE.Shape();
-        const outerR = 1.4;
-        const innerR = 0.8;
-        arcShape.absarc(0, 0, outerR, -0.6, 0.6, false);
-        arcShape.absarc(0, 0, innerR, 0.6, -0.6, true);
+        const outerR = 1.8;
+        const innerR = 0.9;
+        arcShape.absarc(0, 0, outerR, -0.7, 0.7, false);
+        arcShape.absarc(0, 0, innerR, 0.7, -0.7, true);
         const geom = new THREE.ShapeGeometry(arcShape, 12);
         geom.rotateX(-Math.PI / 2);
 
@@ -959,11 +959,11 @@ export class CombatSystem {
         group.lookAt(startPos.clone().add(dir));
         group.rotateZ(slashAngle);
 
-        // Main slash mesh - bright toxic green core
+        // Main slash mesh — bright toxic green with purple edge
         const mat = new THREE.MeshBasicMaterial({
-            color: 0x56ff7f,
+            color: 0x44ff88,
             transparent: true,
-            opacity: 0.92,
+            opacity: 0.95,
             side: THREE.DoubleSide,
             depthWrite: false,
             blending: THREE.AdditiveBlending
@@ -971,19 +971,19 @@ export class CombatSystem {
         const slashMesh = new THREE.Mesh(geom, mat);
         group.add(slashMesh);
 
-        // Outer glow layer
+        // Outer glow layer — purple-green poison haze
         const glowGeom = new THREE.ShapeGeometry(arcShape, 12);
         glowGeom.rotateX(-Math.PI / 2);
         const glowMat = new THREE.MeshBasicMaterial({
-            color: 0x2bc95a,
+            color: 0x7744cc,
             transparent: true,
-            opacity: 0.45,
+            opacity: 0.35,
             side: THREE.DoubleSide,
             depthWrite: false,
             blending: THREE.AdditiveBlending
         });
         const glowMesh = new THREE.Mesh(glowGeom, glowMat);
-        glowMesh.scale.setScalar(1.35);
+        glowMesh.scale.setScalar(1.4);
         group.add(glowMesh);
 
         this.scene.add(group);
