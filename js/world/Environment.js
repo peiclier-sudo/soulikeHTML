@@ -14,7 +14,7 @@ function createGridMaterial(maskX, maskY, maskZ) {
         uniforms: {
             gridSpacing: { value: 10.0 },
             gridOffset: { value: 5.0 },
-            lineWidth: { value: 0.004 },
+            lineWidth: { value: 0.002 },
             lineAlpha: { value: 0.24 },
             axisMask: { value: new THREE.Vector3(maskX, maskY, maskZ) }
         },
