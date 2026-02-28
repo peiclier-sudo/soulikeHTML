@@ -1283,7 +1283,7 @@ export class Character {
 
             if (targetUpper !== this.currentUpperState) {
                 const wasAttack = this.currentUpperState === 'Charged attack' || this.currentUpperState === 'Basic attack' || this.currentUpperState === 'Ultimate' || this.currentUpperState === 'Special attack 1' || this.currentUpperState === 'Whip' || this.currentUpperState === 'Special attack 2' || this.currentUpperState === 'Special attack 3' || this.currentUpperState === 'LifeDrain' || this.currentUpperState === 'Drink';
-                const fadeIn = targetUpper === 'Basic attack' ? 0.05 : 0.12;  // Snappy attack blend
+                const fadeIn = (targetUpper === 'Basic attack' || targetUpper === 'Charged attack') ? 0.05 : 0.12;  // Snappy attack blend
                 const fadeOut = targetUpper === 'none' && wasAttack ? 0.3 : 0.15;  // Longer blend to avoid arm shake at attack end
                 this.playUpper(targetUpper, fadeIn, fadeOut);
                 this.currentUpperState = targetUpper;
@@ -1349,7 +1349,11 @@ export class Character {
             if (this.upperAction) {
                 this.upperAction.setEffectiveWeight(1);
                 if (this.currentUpperState === 'Basic attack') {
-                    this.upperAction.setEffectiveTimeScale(this.gameState.selectedKit?.id === 'shadow_assassin' ? 8.0 : 3.8); // Rogue basics are near-instant
+                    const kitId = this.gameState.selectedKit?.id;
+                    const basicSpeed = kitId === 'shadow_assassin' ? 8.0
+                        : (kitId === 'bow_ranger' || kitId === 'venom_stalker') ? 5.5
+                        : 3.8;
+                    this.upperAction.setEffectiveTimeScale(basicSpeed);
                 } else if (this.currentUpperState === 'Charged attack') {
                     const clipDuration = this.upperAction.getClip().duration;
                     const chargeDuration = this.gameState.combat.chargeDuration;
@@ -1370,7 +1374,11 @@ export class Character {
             if (this.currentAction) {
                 this.currentAction.setEffectiveWeight(1);
                 if (this.currentAnimation === 'Basic attack') {
-                    this.currentAction.setEffectiveTimeScale(this.gameState.selectedKit?.id === 'shadow_assassin' ? 8.0 : 3.8); // Rogue basics are near-instant
+                    const kitId = this.gameState.selectedKit?.id;
+                    const basicSpeed = kitId === 'shadow_assassin' ? 8.0
+                        : (kitId === 'bow_ranger' || kitId === 'venom_stalker') ? 5.5
+                        : 3.8;
+                    this.currentAction.setEffectiveTimeScale(basicSpeed);
                 } else if (this.currentAnimation === 'Charged attack') {
                     const clipDuration = this.currentAction.getClip().duration;
                     const chargeDuration = this.gameState.combat.chargeDuration;

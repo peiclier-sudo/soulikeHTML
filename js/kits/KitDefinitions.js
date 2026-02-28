@@ -411,7 +411,7 @@ export const KIT_DEFINITIONS = {
         },
 
         model: 'character_3k_rogue',
-        animationKey: 'character_3k_rogue_bow'
+        animationKey: 'character_3k_rogue_dagger'
     },
 
     // ─── ROGUE 3: BOW RANGER ──────────────────────────────────────
@@ -517,7 +517,7 @@ export const KIT_DEFINITIONS = {
         },
 
         model: 'character_3k_rogue',
-        animationKey: 'character_3k_rogue_bow'
+        animationKey: 'character_3k_rogue_dagger'
     },
 
     // ─── WARRIOR 1: BERSERKER ─────────────────────────────────────
