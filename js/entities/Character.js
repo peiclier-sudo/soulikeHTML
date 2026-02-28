@@ -1353,7 +1353,7 @@ export class Character {
                 if (this.currentUpperState === 'Basic attack') {
                     const kitId = this.gameState.selectedKit?.id;
                     const basicSpeed = kitId === 'shadow_assassin' ? 8.0
-                        : (kitId === 'bow_ranger' || kitId === 'venom_stalker') ? 5.5
+                        : kitId === 'bow_ranger' ? 5.5
                         : 3.8;
                     this.upperAction.setEffectiveTimeScale(basicSpeed);
                 } else if (this.currentUpperState === 'Charged attack') {
@@ -1378,7 +1378,7 @@ export class Character {
                 if (this.currentAnimation === 'Basic attack') {
                     const kitId = this.gameState.selectedKit?.id;
                     const basicSpeed = kitId === 'shadow_assassin' ? 8.0
-                        : (kitId === 'bow_ranger' || kitId === 'venom_stalker') ? 5.5
+                        : kitId === 'bow_ranger' ? 5.5
                         : 3.8;
                     this.currentAction.setEffectiveTimeScale(basicSpeed);
                 } else if (this.currentAnimation === 'Charged attack') {
