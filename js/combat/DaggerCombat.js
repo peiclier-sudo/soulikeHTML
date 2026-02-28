@@ -32,6 +32,8 @@ export class DaggerCombat {
         this._charPos = new THREE.Vector3();
         this._toEnemy = new THREE.Vector3();
         this._behindPos = new THREE.Vector3();
+        this._vfxPos = new THREE.Vector3();   // reusable VFX position (avoid clones)
+        this._trailFrame = 0;                 // trail throttle counter
 
         // Poison Pierce (E)
         this.poisonPierceTimer = 0;
@@ -100,16 +102,20 @@ export class DaggerCombat {
         return best;
     }
 
-    /** Teleport behind nearest enemy and activate +100% damage for 3s. Cool shadow step VFX. */
+    /** Teleport behind nearest enemy and activate +100% damage for 3s. */
     executeTeleportBehind() {
         if (this.teleportCooldown > 0) return false;
         const target = this.getClosestEnemyInFront(TELEPORT_RANGE);
         if (!target) return false;
 
-        // Save origin for departure VFX
-        const originPos = this.character.position.clone();
-        originPos.y += 0.8;
+        // Departure VFX — lean burst (smoke + sparks, no separate poison call)
+        this._vfxPos.copy(this.character.position);
+        this._vfxPos.y += 0.8;
+        if (this.particleSystem) {
+            this.particleSystem.emitVanishSmoke(this._vfxPos, 10);
+        }
 
+        // Teleport
         const enemyPos = target.position;
         const forward = this.character.getForwardDirection().clone().normalize();
         forward.y = 0;
@@ -117,24 +123,15 @@ export class DaggerCombat {
         forward.normalize();
         this._behindPos.copy(enemyPos).addScaledVector(forward, -TELEPORT_BEHIND_OFFSET);
         this._behindPos.y = this.character.position.y;
-
-        // VFX: departure burst at origin (shadow smoke + poison sparks)
-        if (this.particleSystem) {
-            this.particleSystem.emitVanishSmoke(originPos, 25);
-            this.particleSystem.emitPoisonBurst(originPos, 12);
-        }
-
-        // Teleport
         this.character.position.copy(this._behindPos);
         this.gameState.activateTeleportDamageBuff();
         this.teleportCooldown = this.teleportCooldownDuration;
 
-        // VFX: arrival burst at destination (big shadow step burst + poison)
-        const arrivalPos = this._behindPos.clone();
-        arrivalPos.y += 0.8;
+        // Arrival VFX — single burst (shadow step sparks only, no poison duplicate)
+        this._vfxPos.copy(this._behindPos);
+        this._vfxPos.y += 0.8;
         if (this.particleSystem) {
-            this.particleSystem.emitShadowStepBurst(arrivalPos, 32);
-            this.particleSystem.emitPoisonBurst(arrivalPos, 22);
+            this.particleSystem.emitShadowStepBurst(this._vfxPos, 14);
         }
 
         // Screen feedback
@@ -167,7 +164,7 @@ export class DaggerCombat {
         // VFX: poison lunge particles
         if (this.particleSystem) {
             const wp = this.character.getWeaponPosition();
-            this.particleSystem.emitPoisonBurst(wp.clone(), 12 + chargesUsed * 3);
+            this.particleSystem.emitPoisonBurst(wp, 8 + chargesUsed * 2);
         }
         if (this.cs.onProjectileHit) this.cs.onProjectileHit({ whipHit: true, poisonPierce: true, bloodflailCharges: chargesUsed });
     }
@@ -200,7 +197,7 @@ export class DaggerCombat {
                     anchorId: this.cs._getDamageAnchorId(enemy)
                 });
                 if (this.particleSystem) {
-                    this.particleSystem.emitPoisonBurst(this.cs._enemyPos.clone(), 24);
+                    this.particleSystem.emitPoisonBurst(this.cs._enemyPos, 12);
                 }
             }
         }
@@ -246,12 +243,12 @@ export class DaggerCombat {
         const abilC = this.gameState.selectedKit?.combat?.abilityC || {};
         const duration = abilC.duration ?? 5;
 
-        // VFX: big smoke cloud + poison sparks at vanish position
-        const vanishPos = this.character.position.clone();
-        vanishPos.y += 0.8;
+        // VFX: smoke cloud at vanish position (leaner than before)
+        this._vfxPos.copy(this.character.position);
+        this._vfxPos.y += 0.8;
         if (this.particleSystem) {
-            this.particleSystem.emitVanishSmoke(vanishPos, 45);
-            this.particleSystem.emitPoisonBurst(vanishPos, 20);
+            this.particleSystem.emitVanishSmoke(this._vfxPos, 18);
+            this.particleSystem.emitPoisonBurst(this._vfxPos, 8);
         }
 
         this.gameState.activateVanish(duration);
@@ -296,10 +293,11 @@ export class DaggerCombat {
             maxLifetime: this.twinDaggersRange / this.twinDaggersSpeed,
             hitSet: new Set()
         };
+        this._trailFrame = 0;
 
-        // Big VFX burst when consuming charges
+        // Smaller launch burst
         if (this.particleSystem && consumed > 0) {
-            this.particleSystem.emitPoisonBurst(pos.clone(), 20 + consumed * 6);
+            this.particleSystem.emitPoisonBurst(pos, 10 + consumed * 2);
         }
     }
 
@@ -309,14 +307,17 @@ export class DaggerCombat {
         p.position.addScaledVector(p.velocity, dt);
         p.lifetime += dt;
 
-        // Emit trailing particles
+        // Emit trail every 3rd frame instead of every frame (~66% fewer particles)
         if (this.particleSystem && p.lifetime < p.maxLifetime) {
-            this.particleSystem.emitPoisonTrail(p.position.clone(), 2);
+            this._trailFrame++;
+            if (this._trailFrame % 3 === 0) {
+                this.particleSystem.emitPoisonTrail(p.position, 1);
+            }
         }
 
         if (p.lifetime >= p.maxLifetime) {
             if (this.particleSystem) {
-                this.particleSystem.emitPoisonBurst(p.position.clone(), 20);
+                this.particleSystem.emitPoisonBurst(p.position, 8);
             }
             this.twinDaggersProjectile = null;
             return;
@@ -341,8 +342,7 @@ export class DaggerCombat {
                     anchorId: this.cs._getDamageAnchorId(enemy)
                 });
                 if (this.particleSystem) {
-                    this.particleSystem.emitPoisonBurst(this._enemyPos.clone(), 35);
-                    this.particleSystem.emitShadowStepBurst(this._enemyPos.clone(), 20);
+                    this.particleSystem.emitPoisonBurst(this._enemyPos, 12);
                 }
             }
         }
