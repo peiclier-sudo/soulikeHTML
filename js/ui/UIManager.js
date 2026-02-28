@@ -399,7 +399,7 @@ export class UIManager {
             this._projectedPos.copy(worldPosition).project(this.camera);
             const w = this._canvas?.clientWidth ?? window.innerWidth;
             const h = this._canvas?.clientHeight ?? window.innerHeight;
-            x = (this._projectedPos.x * 0.5 + 0.5) * w;
+            x = (this._projectedPos.x * 0.5 + 0.5) * w + 80;
             y = (-this._projectedPos.y * 0.5 + 0.5) * h;
             if (anchorId) this._damageAnchorScreenCache.set(anchorId, { x, y, time: performance.now() });
         } else {
