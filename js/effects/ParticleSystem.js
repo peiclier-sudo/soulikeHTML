@@ -454,17 +454,7 @@ export class ParticleSystem {
                 Math.random() > 0.5 ? 0x8bff7a : 0x2bc95a, 1.0, 0.4 + Math.random() * 0.3
             );
         }
-        const embers = Math.floor(n * 0.9);
-        for (let i = 0; i < embers; i++) {
-            const theta = Math.random() * Math.PI * 2;
-            const speed = 3 + Math.random() * 4;
-            this.emberPool.emit(
-                position.x, position.y, position.z,
-                Math.cos(theta) * speed, Math.random() * 2.5 + 0.8, Math.sin(theta) * speed,
-                Math.random() > 0.5 ? 0x4dff66 : 0x1fbf4c, 1.0, 0.8 + Math.random() * 0.5
-            );
-        }
-        this.addTemporaryLight(position, 0x2bc95a, 55, 0.4);
+        // Skip embers — sparks alone read well enough
     }
 
     emitPoisonTrail(position, count = 2) {
@@ -489,17 +479,7 @@ export class ParticleSystem {
                 Math.random() > 0.3 ? 0x4dff66 : 0x1a0a2e, 1.0, 0.55 + Math.random() * 0.4
             );
         }
-        const embers = Math.floor(n * 0.7);
-        for (let i = 0; i < embers; i++) {
-            const theta = Math.random() * Math.PI * 2;
-            const speed = 4 + Math.random() * 6;
-            this.emberPool.emit(
-                position.x, position.y, position.z,
-                Math.cos(theta) * speed, Math.random() * 4 + 1.5, Math.sin(theta) * speed,
-                0x1a0a2e, 1.0, 0.9 + Math.random() * 0.6
-            );
-        }
-        this.addTemporaryLight(position, 0x4dff66, 75, 0.5);
+        this.addTemporaryLight(position, 0x4dff66, 55, 0.35);
     }
 
     emitVanishSmoke(position, count = 50) {
@@ -518,7 +498,8 @@ export class ParticleSystem {
             p.userData.velocity.set((Math.random() - 0.5) * 4, 2 + Math.random() * 2.5, (Math.random() - 0.5) * 4);
             this.activeParticles.push(p);
         }
-        const sparks = Math.floor(n * 0.6);
+        // Sparks via instanced pool (cheaper than smoke meshes)
+        const sparks = Math.floor(n * 0.4);
         for (let i = 0; i < sparks; i++) {
             const theta = Math.random() * Math.PI * 2;
             const speed = 3 + Math.random() * 5;
@@ -528,7 +509,7 @@ export class ParticleSystem {
                 Math.random() > 0.5 ? 0x6633aa : 0x4dff66, 1.0, 0.7 + Math.random() * 0.35
             );
         }
-        this.addTemporaryLight(position, 0x6633aa, 45, 0.5);
+        this.addTemporaryLight(position, 0x6633aa, 35, 0.4);
     }
 
     emitPunchBurst(position) {
