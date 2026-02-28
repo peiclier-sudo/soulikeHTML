@@ -1038,6 +1038,7 @@ export class FrostCombat {
 
     updateBlizzard(deltaTime) {
         if (!this.blizzard) return;
+        const vf = this._vfx.abilityF ?? {};
         const b = this.blizzard;
         b.timer -= deltaTime;
         b.tickTimer -= deltaTime;
@@ -1049,22 +1050,27 @@ export class FrostCombat {
             updateIceMaterial(b.disc.material, performance.now() / 1000 * 10, 0.35 * lifePct);
         }
         b.ring.material.opacity = 0.5 * lifePct;
-        b.disc.rotation.z += deltaTime * 2;
+        b.disc.rotation.z += deltaTime * (vf.rotationSpeed ?? 2);
         if (b.light) b.light.intensity = (40 + 15 * Math.sin(performance.now() / 1000 * 10)) * lifePct;
 
         // Blizzard particles - throttle for performance
+        const trailInterval = vf.trailInterval ?? 3;
+        const trailSpread = vf.trailSpread ?? 2;
+        const trailYRange = vf.trailYRange ?? [1, 3];
         b._trailTick = (b._trailTick || 0) + 1;
-        if (this.particleSystem && b._trailTick % 3 === 0) {
+        if (this.particleSystem && b._trailTick % trailInterval === 0) {
             this.particleSystem.emitIceTrail(b.center.clone().add(new THREE.Vector3(
-                (Math.random() - 0.5) * this.blizzardRadius * 2,
-                1 + Math.random() * 3,
-                (Math.random() - 0.5) * this.blizzardRadius * 2
+                (Math.random() - 0.5) * this.blizzardRadius * trailSpread,
+                trailYRange[0] + Math.random() * (trailYRange[1] - trailYRange[0]),
+                (Math.random() - 0.5) * this.blizzardRadius * trailSpread
             )), 2);
         }
 
         // Damage tick
+        const tickInterval = vf.tickInterval ?? this.blizzardTickInterval;
+        const dmgPerTick = vf.damagePerTick ?? this.blizzardDamagePerTick;
         if (b.tickTimer <= 0) {
-            b.tickTimer = this.blizzardTickInterval;
+            b.tickTimer = tickInterval;
             for (const enemyMesh of this.cs.enemies) {
                 const enemy = enemyMesh.userData?.enemy;
                 if (!enemy || enemy.health <= 0) continue;
@@ -1073,7 +1079,7 @@ export class FrostCombat {
                 const modelRadius = enemy.hitRadius ?? (enemy.isBoss ? 2.5 : 0.8);
                 if (dist > this.blizzardRadius + modelRadius) continue;
 
-                const { damage: blizDmg, isCritical: blizCrit, isBackstab: blizBack } = this.cs._applyCritBackstab(this.blizzardDamagePerTick, enemy, enemyMesh);
+                const { damage: blizDmg, isCritical: blizCrit, isBackstab: blizBack } = this.cs._applyCritBackstab(dmgPerTick, enemy, enemyMesh);
                 enemy.takeDamage(blizDmg);
                 this.addFrostStack(enemy, 1);
                 b.hitCount++;
@@ -1091,7 +1097,7 @@ export class FrostCombat {
         if (b.timer <= 0) {
             // Final burst
             if (this.particleSystem) {
-                this.particleSystem.emitIceShatter(b.center, 50);
+                this.particleSystem.emitIceShatter(b.center, vf.expiryShatter ?? 50);
             }
             this.scene.remove(b.ring);
             this.scene.remove(b.disc);

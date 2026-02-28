@@ -572,10 +572,11 @@ export class CombatSystem {
             const whipT = 1 - this.whipTimer / this.whipDuration;
             if (whipT >= 0.2 && whipT <= 0.65 && !this.whipHitOnce) this.checkWhipHits();
             if (this.particleSystem && this.whipTimer > 0 && whipT < 0.9) {
+                const ve = this._vfx.abilityE || {};
                 const wpos = this.character.getWeaponPosition();
                 const wdir = this.character.getForwardDirection();
-                this.particleSystem.emitSlashTrail(wpos, wdir, 18);
-                this.particleSystem.emitOrbTrail(wpos, wdir, 10);
+                this.particleSystem.emitSlashTrail(wpos, wdir, ve.whipTrailCount ?? 18);
+                this.particleSystem.emitOrbTrail(wpos, wdir, ve.whipOrbTrailCount ?? 10);
             }
             if (this.whipTimer <= 0) {
                 this.gameState.combat.isWhipAttacking = false;
@@ -907,11 +908,12 @@ export class CombatSystem {
                 enemy.state = 'stagger';
                 this.gameState.addUltimateCharge('charged');
                 if (this.particleSystem) {
+                    const ve = this._vfx.abilityE || {};
                     hit.object.getWorldPosition(this._enemyPos);
                     this.particleSystem.emitPunchBurst(this._enemyPos.clone());
                     this.particleSystem.emitBloodMatterExplosion(this._enemyPos.clone());
-                    this.particleSystem.emitSparks(this._enemyPos.clone(), 36);
-                    this.particleSystem.emitEmbers(this._enemyPos.clone(), 28);
+                    this.particleSystem.emitSparks(this._enemyPos.clone(), ve.whipHitSparks ?? 36);
+                    this.particleSystem.emitEmbers(this._enemyPos.clone(), ve.whipHitEmbers ?? 28);
                 }
                 this.gameState.emit('damageNumber', { position: this._enemyPos.clone(), damage: whipDamage, isCritical: whipCrit, isBackstab: whipBack, anchorId: this._getDamageAnchorId(enemy) });
                 if (this.onProjectileHit) this.onProjectileHit({ whipHit: true, punchFinish: true });
@@ -1186,8 +1188,9 @@ export class CombatSystem {
 
             if (p.releaseBurst > 0) {
                 p.releaseBurst -= deltaTime;
-                const burstScale = p.isCharged ? 0.5 : 0.3;
-                const burstDur = p.isCharged ? 0.15 : 0.12;
+                const chargedCfg = this._vfx.projectile?.charged || {};
+                const burstScale = p.isCharged ? (chargedCfg.burstScale ?? 0.5) : 0.3;
+                const burstDur = p.isCharged ? (chargedCfg.burstDur ?? 0.15) : 0.12;
                 const s = p.releaseBurst > 0 ? 1 + burstScale * (p.releaseBurst / burstDur) : 1;
                 p.mesh.scale.setScalar(s);
             }
