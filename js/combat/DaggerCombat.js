@@ -35,10 +35,8 @@ export class DaggerCombat {
         this._vfxPos = new THREE.Vector3();   // reusable VFX position (avoid clones)
         this._trailFrame = 0;                 // trail throttle counter
 
-        // Poison Pierce (E)
-        this.poisonPierceTimer = 0;
-        this.poisonPierceDuration = 0.45;
-        this.poisonPierceHit = false;
+        // Poison Pierce (E) — green blade projectile
+        this._poisonSlash = null;
 
         // Teleport (A on AZERTY / V fallback)
         this.teleportCooldown = 0;
@@ -66,13 +64,7 @@ export class DaggerCombat {
         this.vanishCooldown = Math.max(0, this.vanishCooldown - dt);
         this.toxicFocusCooldown = Math.max(0, this.toxicFocusCooldown - dt);
 
-        if (this.poisonPierceTimer > 0) {
-            this.poisonPierceTimer -= dt;
-            if (!this.poisonPierceHit && this._pendingPoisonPierce) {
-                this._doPoisonPierceHit();
-            }
-        }
-
+        this._updatePoisonSlash(dt);
         this._updateTwinDaggers(dt);
         this._updatePoisonDots(dt);
     }
@@ -142,64 +134,174 @@ export class DaggerCombat {
         return true;
     }
 
-    /** E: Poison Pierce - consume charges, deal damage + apply poison DoT. */
+    /** E: Poison Pierce — consume charges, launch a HUGE green blade projectile. */
     executePoisonPierce(chargesUsed) {
-        if (this.poisonPierceTimer > 0) return;
+        if (this._poisonSlash) return; // one at a time
         const abilE = this.gameState.selectedKit?.combat?.abilityE || {};
         const baseDamage = abilE.baseDamage ?? 40;
         const damagePerCharge = abilE.damagePerCharge ?? 18;
-        const range = abilE.range ?? 2.8;
         const poisonDurationPerCharge = abilE.poisonDurationPerCharge ?? 2;
 
         const damage = Math.floor(baseDamage + damagePerCharge * chargesUsed);
         const poisonDuration = poisonDurationPerCharge * chargesUsed;
         const poisonDamagePerTick = POISON_DAMAGE_PER_TICK_BASE + POISON_DAMAGE_PER_CHARGE * chargesUsed;
+        const stackRatio = Math.min(1, chargesUsed / 6);
 
         this.gameState.combat.isWhipAttacking = true;
-        this.cs.whipTimer = this.poisonPierceDuration;
+        this.cs.whipTimer = 0.5;
         this.cs.whipHitOnce = false;
-        this.poisonPierceTimer = this.poisonPierceDuration;
-        this.poisonPierceHit = false;
-        this._pendingPoisonPierce = { damage, poisonDuration, poisonDamagePerTick };
-        // VFX: poison lunge particles
-        if (this.particleSystem) {
-            const wp = this.character.getWeaponPosition();
-            this.particleSystem.emitPoisonBurst(wp, 8 + chargesUsed * 2);
-        }
-        if (this.cs.onProjectileHit) this.cs.onProjectileHit({ whipHit: true, poisonPierce: true, bloodflailCharges: chargesUsed });
-    }
-
-    _doPoisonPierceHit() {
-        if (this.poisonPierceHit || !this._pendingPoisonPierce) return;
-        const { damage, poisonDuration, poisonDamagePerTick } = this._pendingPoisonPierce;
-        this._pendingPoisonPierce = null;
 
         const weaponPos = this.character.getWeaponPosition();
-        const forward = this.character.getForwardDirection().clone().normalize();
-        this.cs.raycaster.set(weaponPos, forward);
-        this.cs.raycaster.far = this.gameState.selectedKit?.combat?.abilityE?.range ?? 2.8;
-        const intersects = this.cs.raycaster.intersectObjects(this.enemies, true);
-        if (intersects.length > 0) {
-            const enemy = this.cs._getEnemyFromHitObject(intersects[0].object);
-            if (enemy && enemy.health > 0) {
-                this.poisonPierceHit = true;
-                const rawDmg = Math.floor(damage * (this.cs._consumeNextAttackMultiplier?.() ?? 1));
-                const { damage: totalDamage, isCritical, isBackstab } = this.cs._applyCritBackstab(rawDmg, enemy, intersects[0].object);
-                enemy.takeDamage(totalDamage);
-                this._applyPoisonDoT(enemy, poisonDuration, poisonDamagePerTick);
-                intersects[0].object.getWorldPosition(this.cs._enemyPos);
+        const dir = this.character.getForwardDirection().clone();
+        dir.y = 0;
+        if (dir.lengthSq() < 0.0001) dir.set(0, 0, -1);
+        dir.normalize();
+        const startPos = weaponPos.clone().addScaledVector(dir, 0.6);
+
+        // Build massive green blade fan — 3 blades like charged slash but bigger
+        const group = new THREE.Group();
+        const materials = [];
+        const geometries = [];
+        const bladeLen = 4.0 + chargesUsed * 0.6;
+        const bladeWidth = 0.6 + chargesUsed * 0.1;
+        const angles = [-0.4, 0, 0.4];
+        const coreColors = [0x33dd55, 0x55ff88, 0x33dd55];
+        const glowColors = [0x1a8833, 0x22cc55, 0x1a8833];
+
+        for (let i = 0; i < 3; i++) {
+            // Blade shape — long tapered
+            const shape = new THREE.Shape();
+            shape.moveTo(bladeLen * 0.5, 0);
+            shape.quadraticCurveTo(bladeLen * 0.12, bladeWidth * 0.8, -bladeLen * 0.45, bladeWidth * 0.12);
+            shape.lineTo(-bladeLen * 0.45, -bladeWidth * 0.12);
+            shape.quadraticCurveTo(bladeLen * 0.12, -bladeWidth * 0.8, bladeLen * 0.5, 0);
+
+            const geom = new THREE.ShapeGeometry(shape, 8);
+            const mat = new THREE.MeshBasicMaterial({
+                color: coreColors[i], transparent: true, opacity: 0.95,
+                side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending
+            });
+            const blade = new THREE.Mesh(geom, mat);
+            blade.rotation.z = angles[i];
+
+            // Glow layer
+            const glowGeom = new THREE.ShapeGeometry(shape, 6);
+            const glowMat = new THREE.MeshBasicMaterial({
+                color: glowColors[i], transparent: true, opacity: 0.35,
+                side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending
+            });
+            const glow = new THREE.Mesh(glowGeom, glowMat);
+            glow.scale.set(1.35, 1.0, 1.5);
+            glow.rotation.z = angles[i];
+
+            group.add(blade);
+            group.add(glow);
+            materials.push(mat, glowMat);
+            geometries.push(geom, glowGeom);
+        }
+
+        // Bright center flash
+        const flashGeo = new THREE.PlaneGeometry(bladeLen * 0.9, bladeWidth * 0.3);
+        const flashMat = new THREE.MeshBasicMaterial({
+            color: 0xccffcc, transparent: true, opacity: 0.5,
+            side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending
+        });
+        const flash = new THREE.Mesh(flashGeo, flashMat);
+        group.add(flash);
+        materials.push(flashMat);
+        geometries.push(flashGeo);
+
+        group.position.copy(startPos);
+        const lookTarget = startPos.clone().add(dir);
+        group.lookAt(lookTarget);
+        this.scene.add(group);
+
+        const speed = 28 + stackRatio * 12;
+
+        this._poisonSlash = {
+            mesh: group,
+            velocity: dir.clone().multiplyScalar(speed),
+            lifetime: 0,
+            maxLifetime: 0.4 + stackRatio * 0.15,
+            damage,
+            chargesUsed,
+            poisonDuration,
+            poisonDamagePerTick,
+            hitSet: new Set(),
+            materials,
+            geometries,
+            hitRadius: 2.6 + stackRatio * 1.2
+        };
+
+        // Launch VFX
+        if (this.particleSystem?.emitPoisonBurst) {
+            this.particleSystem.emitPoisonBurst(startPos.clone(), 16 + chargesUsed * 3);
+        }
+        if (this.cs.onProjectileHit) this.cs.onProjectileHit({ bloodCrescendLaunch: true, bloodflailCharges: chargesUsed });
+    }
+
+    _updatePoisonSlash(dt) {
+        const c = this._poisonSlash;
+        if (!c) return;
+        c.lifetime += dt;
+        c.mesh.position.addScaledVector(c.velocity, dt);
+        const lifePct = 1 - c.lifetime / c.maxLifetime;
+
+        // Expand + fade
+        const expandT = Math.min(1, c.lifetime / (c.maxLifetime * 0.25));
+        const scale = 0.5 + 0.7 * expandT;
+        c.mesh.scale.setScalar(scale);
+        for (let i = 0; i < c.materials.length; i += 2) {
+            c.materials[i].opacity = 0.95 * lifePct;
+            if (c.materials[i + 1]) c.materials[i + 1].opacity = 0.35 * lifePct;
+        }
+        // Flash fades faster
+        c.materials[c.materials.length - 1].opacity = 0.5 * lifePct * lifePct;
+
+        // Trail particles
+        if (this.particleSystem) {
+            c._trailTick = (c._trailTick || 0) + 1;
+            if (c._trailTick % 3 === 0) {
+                this.particleSystem.emitPoisonTrail?.(c.mesh.position, 2);
+            }
+        }
+
+        // Hit detection against enemies
+        for (const mesh of this.enemies) {
+            const enemy = mesh.userData?.enemy;
+            if (!enemy || enemy.health <= 0 || c.hitSet.has(enemy)) continue;
+            mesh.getWorldPosition(this._enemyPos);
+            const hitRadius = (enemy.hitRadius ?? (enemy.isBoss ? 2.5 : 0.8)) + c.hitRadius;
+            if (c.mesh.position.distanceTo(this._enemyPos) <= hitRadius) {
+                c.hitSet.add(enemy);
+                const rawDmg = Math.floor(c.damage * (this.cs._consumeNextAttackMultiplier?.() ?? 1));
+                const { damage: totalDmg, isCritical, isBackstab } = this.cs._applyCritBackstab(rawDmg, enemy, mesh);
+                enemy.takeDamage(totalDmg);
+                enemy.staggerTimer = Math.max(enemy.staggerTimer, 0.8);
+                enemy.state = 'stagger';
+                this.gameState.addUltimateCharge('charged');
+                this._applyPoisonDoT(enemy, c.poisonDuration, c.poisonDamagePerTick);
                 this.gameState.emit('damageNumber', {
-                    position: this.cs._enemyPos.clone(),
-                    damage: totalDamage,
+                    position: this._enemyPos.clone(),
+                    damage: totalDmg,
                     isCritical,
                     isBackstab,
                     kind: 'ability',
                     anchorId: this.cs._getDamageAnchorId(enemy)
                 });
                 if (this.particleSystem) {
-                    this.particleSystem.emitPoisonBurst(this.cs._enemyPos, 12);
+                    this.particleSystem.emitPoisonBurst(this._enemyPos.clone(), 18 + c.chargesUsed * 3);
                 }
+                if (this.cs.onProjectileHit) this.cs.onProjectileHit({ charged: true, isBoss: !!enemy.isBoss, whipHit: true, bloodflailCharges: c.chargesUsed, punchFinish: true });
             }
+        }
+
+        // Lifetime expired — cleanup
+        if (c.lifetime >= c.maxLifetime) {
+            this.scene.remove(c.mesh);
+            c.geometries.forEach(g => g.dispose());
+            c.materials.forEach(m => m.dispose());
+            this._poisonSlash = null;
         }
     }
 
