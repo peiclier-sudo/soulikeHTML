@@ -80,8 +80,10 @@ export class Character {
         this._combatPoseTarget = 0;  // target blend value
         this._combatPoseType = 'none'; // 'basic', 'charged', 'charging', 'ability', 'none'
         this._combatSwingT = 0;      // swing progress within an attack (0→1)
+        this._combatSwingDir = 1;    // alternating slash direction (+1/-1)
         this._poseQ = new THREE.Quaternion();
         this._poseE = new THREE.Euler();
+        this._landSquashT = 0;       // landing squash timer (1→0)
         this.currentUpperState = 'none'; // Track to avoid resetting every frame
         this.chargedAttackAnimStarted = false; // Only start charged anim once per charge, never replay
         this.isPlayingUltimate = false;
@@ -552,7 +554,11 @@ export class Character {
                 if (lowerName.includes('run') && lowerName.includes('left')) this.actions['Run left'] = action;
                 if (lowerName.includes('run') && lowerName.includes('right')) this.actions['Run right'] = action;
                 if (lowerName.includes('roll') || lowerName.includes('dodge')) this.actions['Roll dodge'] = action;
-                if (lowerName.includes('jump')) this.actions['Jump'] = action;
+                if (lowerName.includes('jump')) {
+                    this.actions['Jump'] = action;
+                    action.setLoop(THREE.LoopOnce);
+                    action.clampWhenFinished = true;
+                }
                 if (lowerName.includes('basic') && lowerName.includes('attack')) {
                     this.actions['Basic attack'] = action;
                     action.setLoop(THREE.LoopOnce);
@@ -1336,10 +1342,34 @@ export class Character {
             }
 
             if (targetAnimation !== this.currentAnimation) {
+                const fromJump = this.currentAnimation === 'Jump';
+                const toJump = targetAnimation === 'Jump';
                 const fromDash = this.currentAnimation === 'Fast running' || this.currentAnimation === 'Run';
-                const fadeDur = fromDash ? 0.28 : 0.18;
+                const fadeDur = toJump ? 0.1 : fromJump ? 0.15 : fromDash ? 0.28 : 0.18;
                 this.fadeToAction(targetAnimation, fadeDur);
                 this.currentAnimation = targetAnimation;
+                // Landing squash: brief mesh scale compression on landing from jump
+                if (fromJump && this.isGrounded) {
+                    this._landSquashT = 1.0;
+                }
+            }
+
+            // Jump time scale: slower at peak, speed up during descent
+            if (targetAnimation === 'Jump' && this.actions['Jump']) {
+                const vy = this.velocity.y;
+                // Ascending: play at 0.8x, near peak (|vy| < 2): slow to 0.3x, descending: 0.6x
+                const jumpTimeScale = Math.abs(vy) < 2 ? 0.3 : vy > 0 ? 0.8 : 0.6;
+                this.actions['Jump'].setEffectiveTimeScale(jumpTimeScale);
+            }
+
+            // Landing squash decay
+            if (this._landSquashT > 0) {
+                this._landSquashT = Math.max(0, this._landSquashT - deltaTime * 8);
+                const squash = 1 - this._landSquashT * 0.12;
+                const stretch = 1 + this._landSquashT * 0.06;
+                if (this.mesh) this.mesh.scale.set(stretch, squash, stretch);
+            } else if (this.mesh && this.mesh.scale.y !== 1) {
+                this.mesh.scale.set(1, 1, 1);
             }
 
             this.currentAction = this.actions[targetAnimation] || this.currentAction;
@@ -1499,107 +1529,169 @@ export class Character {
         else if (combat.isChargedAttacking) newType = 'charged';
         else if (combat.isWhipAttacking) newType = 'ability';
 
-        // Reset swing when attack type changes
+        // Reset swing when attack type changes, alternate slash direction for basic
         if (newType !== this._combatPoseType) {
-            if (newType !== 'none') this._combatSwingT = 0;
+            if (newType !== 'none') {
+                this._combatSwingT = 0;
+                if (newType === 'basic') this._combatSwingDir *= -1; // alternate L/R slash
+            }
             this._combatPoseType = newType;
         }
         this._combatPoseTarget = newType !== 'none' ? 1 : 0;
 
         // Smooth blend in/out
-        const blendSpeed = this._combatPoseTarget > 0.5 ? 14 : 8;
+        const blendSpeed = this._combatPoseTarget > 0.5 ? 18 : 10;
         this._combatPoseBlend += (this._combatPoseTarget - this._combatPoseBlend) * Math.min(1, dt * blendSpeed);
         if (Math.abs(this._combatPoseBlend) < 0.001) { this._combatPoseBlend = 0; return; }
 
         // Advance swing timer
-        const swingSpeed = newType === 'basic' ? 6.0 : newType === 'charged' ? 5.0 : newType === 'ability' ? 4.5 : 1.0;
+        const swingSpeed = newType === 'basic' ? 7.5 : newType === 'charged' ? 5.5 : newType === 'ability' ? 5.0 : 1.0;
         this._combatSwingT = Math.min(1, this._combatSwingT + dt * swingSpeed);
         const t = this._combatSwingT;
         const blend = this._combatPoseBlend;
         const bones = this._combatBones;
+        const dir = this._combatSwingDir; // +1 or -1
 
-        // Easing: fast start, decelerate
+        // Easing curves
         const easeOut = 1 - (1 - t) * (1 - t);
-        // Bell curve for swing-and-return
         const bell = Math.sin(t * Math.PI);
+        // Sharp attack curve: fast wind-up, sharp peak, slower follow-through
+        const strike = t < 0.35 ? Math.sin(t / 0.35 * Math.PI * 0.5) : Math.cos((t - 0.35) / 0.65 * Math.PI * 0.5);
 
         const q = this._poseQ;
         const e = this._poseE;
 
         if (newType === 'basic') {
-            // Quick forward slash: right arm swings forward, spine twists slightly
+            // Alternating diagonal slash — full upper body commits to the swing
+            const s = strike * blend;
+            // Spine: lean forward + twist toward slash direction
             if (bones.spine) {
-                e.set(bell * 0.12 * blend, -bell * 0.15 * blend, 0);
-                q.setFromEuler(e);
-                bones.spine.quaternion.multiply(q);
-            }
-            if (bones.rArm) {
-                e.set(-bell * 0.5 * blend, 0, -bell * 0.2 * blend);
-                q.setFromEuler(e);
-                bones.rArm.quaternion.multiply(q);
-            }
-            if (bones.rForeArm) {
-                e.set(-bell * 0.3 * blend, 0, 0);
-                q.setFromEuler(e);
-                bones.rForeArm.quaternion.multiply(q);
-            }
-        } else if (newType === 'charging') {
-            // Draw arm back: right arm rotates back, spine leans
-            const chargeT = Math.min(1, t * 2); // fill quickly
-            const ease = 1 - (1 - chargeT) * (1 - chargeT);
-            if (bones.spine) {
-                e.set(-ease * 0.08 * blend, ease * 0.12 * blend, 0);
-                q.setFromEuler(e);
-                bones.spine.quaternion.multiply(q);
-            }
-            if (bones.rArm) {
-                e.set(ease * 0.35 * blend, 0, ease * 0.25 * blend);
-                q.setFromEuler(e);
-                bones.rArm.quaternion.multiply(q);
-            }
-            if (bones.rForeArm) {
-                e.set(ease * 0.2 * blend, 0, 0);
-                q.setFromEuler(e);
-                bones.rForeArm.quaternion.multiply(q);
-            }
-        } else if (newType === 'charged') {
-            // Release: both arms swing forward hard, spine punches forward
-            if (bones.spine) {
-                e.set(bell * 0.18 * blend, -bell * 0.1 * blend, 0);
-                q.setFromEuler(e);
-                bones.spine.quaternion.multiply(q);
-            }
-            if (bones.rArm) {
-                e.set(-bell * 0.6 * blend, 0, -bell * 0.25 * blend);
-                q.setFromEuler(e);
-                bones.rArm.quaternion.multiply(q);
-            }
-            if (bones.lArm) {
-                e.set(-bell * 0.4 * blend, 0, bell * 0.2 * blend);
-                q.setFromEuler(e);
-                bones.lArm.quaternion.multiply(q);
-            }
-        } else if (newType === 'ability') {
-            // Wide sweep: spine rotates, both arms swing outward then forward
-            if (bones.spine) {
-                e.set(bell * 0.12 * blend, -easeOut * 0.2 * blend, 0);
+                e.set(s * 0.2, -s * dir * 0.3, s * dir * 0.08);
                 q.setFromEuler(e);
                 bones.spine.quaternion.multiply(q);
             }
             if (bones.spine01) {
-                e.set(0, -bell * 0.1 * blend, 0);
+                e.set(s * 0.1, -s * dir * 0.15, 0);
+                q.setFromEuler(e);
+                bones.spine01.quaternion.multiply(q);
+            }
+            // Lead arm (slashing side): swings forward and across
+            if (dir > 0 && bones.rArm || dir < 0 && bones.lArm) {
+                const leadArm = dir > 0 ? bones.rArm : bones.lArm;
+                e.set(-s * 0.8, -s * dir * 0.4, -s * dir * 0.3);
+                q.setFromEuler(e);
+                leadArm.quaternion.multiply(q);
+            }
+            // Lead forearm: extra extension into the slash
+            if (dir > 0 && bones.rForeArm || dir < 0 && bones.lForeArm) {
+                const leadFore = dir > 0 ? bones.rForeArm : bones.lForeArm;
+                e.set(-s * 0.5, 0, -s * dir * 0.15);
+                q.setFromEuler(e);
+                leadFore.quaternion.multiply(q);
+            }
+            // Trailing arm: counter-swing for balance
+            if (dir > 0 && bones.lArm || dir < 0 && bones.rArm) {
+                const trailArm = dir > 0 ? bones.lArm : bones.rArm;
+                e.set(s * 0.25, s * dir * 0.2, s * dir * 0.15);
+                q.setFromEuler(e);
+                trailArm.quaternion.multiply(q);
+            }
+        } else if (newType === 'charging') {
+            // Both arms draw back, spine coils, building tension
+            const chargeT = Math.min(1, t * 1.5);
+            const coil = 1 - (1 - chargeT) * (1 - chargeT);
+            // Pulsing tension at full coil
+            const pulse = chargeT >= 1 ? Math.sin(this.animationTime * 12) * 0.04 : 0;
+            if (bones.spine) {
+                e.set((-coil * 0.15 + pulse) * blend, coil * 0.2 * blend, 0);
+                q.setFromEuler(e);
+                bones.spine.quaternion.multiply(q);
+            }
+            if (bones.spine01) {
+                e.set((-coil * 0.08 + pulse) * blend, coil * 0.1 * blend, 0);
                 q.setFromEuler(e);
                 bones.spine01.quaternion.multiply(q);
             }
             if (bones.rArm) {
-                e.set(-bell * 0.5 * blend, -bell * 0.3 * blend, -easeOut * 0.2 * blend);
+                e.set((coil * 0.55 + pulse) * blend, 0, coil * 0.35 * blend);
                 q.setFromEuler(e);
                 bones.rArm.quaternion.multiply(q);
             }
+            if (bones.rForeArm) {
+                e.set(coil * 0.35 * blend, 0, coil * 0.15 * blend);
+                q.setFromEuler(e);
+                bones.rForeArm.quaternion.multiply(q);
+            }
             if (bones.lArm) {
-                e.set(-bell * 0.4 * blend, bell * 0.3 * blend, easeOut * 0.2 * blend);
+                e.set((coil * 0.4 + pulse) * blend, 0, -coil * 0.25 * blend);
                 q.setFromEuler(e);
                 bones.lArm.quaternion.multiply(q);
+            }
+        } else if (newType === 'charged') {
+            // Explosive release: both arms slam forward, whole torso commits
+            const s = strike * blend;
+            if (bones.spine) {
+                e.set(s * 0.3, -s * 0.15, 0);
+                q.setFromEuler(e);
+                bones.spine.quaternion.multiply(q);
+            }
+            if (bones.spine01) {
+                e.set(s * 0.15, -s * 0.1, 0);
+                q.setFromEuler(e);
+                bones.spine01.quaternion.multiply(q);
+            }
+            if (bones.rArm) {
+                e.set(-s * 1.0, -s * 0.2, -s * 0.35);
+                q.setFromEuler(e);
+                bones.rArm.quaternion.multiply(q);
+            }
+            if (bones.rForeArm) {
+                e.set(-s * 0.6, 0, 0);
+                q.setFromEuler(e);
+                bones.rForeArm.quaternion.multiply(q);
+            }
+            if (bones.lArm) {
+                e.set(-s * 0.7, s * 0.2, s * 0.3);
+                q.setFromEuler(e);
+                bones.lArm.quaternion.multiply(q);
+            }
+            if (bones.lForeArm) {
+                e.set(-s * 0.4, 0, 0);
+                q.setFromEuler(e);
+                bones.lForeArm.quaternion.multiply(q);
+            }
+        } else if (newType === 'ability') {
+            // Wide horizontal sweep: full body rotates into a big cross-slash
+            const s = strike * blend;
+            if (bones.spine) {
+                e.set(s * 0.2, -easeOut * 0.35 * blend, s * 0.1);
+                q.setFromEuler(e);
+                bones.spine.quaternion.multiply(q);
+            }
+            if (bones.spine01) {
+                e.set(s * 0.1, -bell * 0.2 * blend, 0);
+                q.setFromEuler(e);
+                bones.spine01.quaternion.multiply(q);
+            }
+            if (bones.rArm) {
+                e.set(-s * 0.9, -s * 0.5, -easeOut * 0.3 * blend);
+                q.setFromEuler(e);
+                bones.rArm.quaternion.multiply(q);
+            }
+            if (bones.rForeArm) {
+                e.set(-s * 0.4, -s * 0.2, 0);
+                q.setFromEuler(e);
+                bones.rForeArm.quaternion.multiply(q);
+            }
+            if (bones.lArm) {
+                e.set(-s * 0.7, s * 0.5, easeOut * 0.3 * blend);
+                q.setFromEuler(e);
+                bones.lArm.quaternion.multiply(q);
+            }
+            if (bones.lForeArm) {
+                e.set(-s * 0.3, s * 0.2, 0);
+                q.setFromEuler(e);
+                bones.lForeArm.quaternion.multiply(q);
             }
         }
     }
