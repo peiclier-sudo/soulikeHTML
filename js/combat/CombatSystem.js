@@ -1132,6 +1132,7 @@ export class CombatSystem {
         const pool = isCharged ? this.poolCharged : this.poolBasic;
         if (pool.length > 0) {
             const p = pool.pop();
+            p.hitSet.clear();
             p.mesh.position.copy(startPos);
             p.mesh.rotation.set(0, 0, 0);
             p.mesh.scale.setScalar(1);
