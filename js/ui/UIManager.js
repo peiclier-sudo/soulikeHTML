@@ -292,7 +292,8 @@ export class UIManager {
         dmgEl.style.left = '50%';
         dmgEl.style.top = '58%';
         dmgEl.style.display = '';
-        setTimeout(() => { dmgEl.style.display = 'none'; }, 700);
+        void dmgEl.offsetWidth;
+        setTimeout(() => { dmgEl.style.display = 'none'; }, 780);
     }
 
     updateStaminaBar(stamina) {
@@ -406,14 +407,20 @@ export class UIManager {
             x = window.innerWidth * 0.5;
             y = window.innerHeight * 0.45;
         }
-        damageEl.style.left = `${x}px`;
-        damageEl.style.top = `${y}px`;
+
+        // Random scatter so rapid hits don't stack on same pixel
+        const scatterX = (Math.random() - 0.5) * 60;
+        const scatterY = (Math.random() - 0.5) * 24;
+        damageEl.style.left = `${x + scatterX}px`;
+        damageEl.style.top = `${y + scatterY}px`;
         damageEl.style.display = '';
 
         // Re-trigger animation by forcing reflow
         void damageEl.offsetWidth;
 
-        setTimeout(() => { damageEl.style.display = 'none'; }, 1000);
+        // Timeout matches longest animation duration
+        const duration = (kind === 'ultimate' || kind === 'heavy') ? 1150 : kind === 'poison' ? 800 : isCritical ? 1000 : 900;
+        setTimeout(() => { damageEl.style.display = 'none'; }, duration);
     }
 
     showBossHealth(bossName, health, maxHealth) {
