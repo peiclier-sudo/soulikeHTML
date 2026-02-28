@@ -17,7 +17,7 @@ export class UIManager {
         this._abilityReadyState = new Map();
         this._superDashWasReady = true;
         this._ultimateWasReady = false;
-        
+
         // Cache DOM elements
         this.elements = {
             healthFill: document.getElementById('health-fill'),
@@ -39,12 +39,54 @@ export class UIManager {
             noBloodEssence: document.getElementById('no-blood-essence'),
             reticule: document.getElementById('reticule')
         };
-        
+
+        // Cache ability box + timer elements (avoids 8-10 getElementById per frame)
+        this._abilityElements = {};
+        for (const id of ['ability-eruption', 'ability-nova', 'ability-shield', 'ability-potion']) {
+            this._abilityElements[id] = {
+                box: document.getElementById(id),
+                timer: document.getElementById(`${id}-timer`)
+            };
+        }
+
+        // Previous state tracking to avoid redundant DOM writes
+        this._prevHealthPct = -1;
+        this._prevHealthLow = false;
+        this._prevHealthText = '';
+        this._prevStaminaPct = -1;
+        this._prevStaminaLow = false;
+        this._prevStaminaText = '';
+        this._prevUltimatePct = -1;
+        this._prevSuperDashPct = -1;
+        this._prevChargeVisible = false;
+        this._prevChargePct = -1;
+        this._prevChargeReady = false;
+        this._prevBossPct = -1;
+
+        // Damage number pool (reuse DOM elements instead of create/destroy)
+        this._dmgPool = [];
+        this._dmgPoolSize = 30;
+        for (let i = 0; i < this._dmgPoolSize; i++) {
+            const el = document.createElement('div');
+            el.style.display = 'none';
+            this.elements.damageNumbers?.appendChild(el);
+            this._dmgPool.push(el);
+        }
+        this._dmgPoolIdx = 0;
+
+        // Cache hit overlay element
+        this._hitOverlay = document.getElementById('player-hit-overlay');
+        if (!this._hitOverlay) {
+            this._hitOverlay = document.createElement('div');
+            this._hitOverlay.id = 'player-hit-overlay';
+            document.body.appendChild(this._hitOverlay);
+        }
+
         // Subscribe to game events
         this.setupEventListeners();
-        
+
     }
-    
+
 
 
     _pulseCooldownElement(el) {
@@ -73,7 +115,7 @@ export class UIManager {
             'ability-shield': kc.abilityC?.name ?? 'Shield'
         };
         for (const [id, name] of Object.entries(names)) {
-            const el = document.getElementById(id);
+            const el = this._abilityElements[id]?.box;
             if (el) {
                 const nameEl = el.querySelector('.ability-name');
                 if (nameEl) nameEl.textContent = name;
@@ -86,7 +128,7 @@ export class UIManager {
         this.gameState.on('damageNumber', (data) => {
             this.showDamageNumber(data.position, data.damage, data.isCritical, data.anchorId, data.kind);
         });
-        
+
         // Health change events
         this.gameState.on('healthChanged', (health) => {
             const prevHealth = this._lastHealth ?? health;
@@ -96,23 +138,23 @@ export class UIManager {
             }
             this._lastHealth = health;
         });
-        
+
         // Stamina change events
         this.gameState.on('staminaChanged', (stamina) => {
             this.updateStaminaBar(stamina);
         });
-        
+
         // Ultimate charge events
         this.gameState.on('ultimateChanged', (charge) => {
             this.updateUltimateBar(charge);
         });
-        
+
         // Player death
         this.gameState.on('playerDeath', () => {
             this.showDeathScreen();
         });
     }
-    
+
     update() {
         this.updateHealthBar(this.gameState.player.health);
         this.updateStaminaBar(this.gameState.player.stamina);
@@ -124,13 +166,12 @@ export class UIManager {
     updateAbilityCooldowns() {
         const fmt = (v) => `${Math.max(0, v).toFixed(1)}s`;
         const setBox = (id, ready, text) => {
-            const box = document.getElementById(id);
-            const timer = document.getElementById(`${id}-timer`);
-            if (!box || !timer) return;
+            const cached = this._abilityElements[id];
+            if (!cached || !cached.box || !cached.timer) return;
             const wasReady = this._abilityReadyState.get(id) === true;
-            box.dataset.ready = ready ? 'true' : 'false';
-            timer.textContent = text;
-            if (ready && !wasReady) this._pulseCooldownElement(box);
+            cached.box.dataset.ready = ready ? 'true' : 'false';
+            cached.timer.textContent = text;
+            if (ready && !wasReady) this._pulseCooldownElement(cached.box);
             this._abilityReadyState.set(id, !!ready);
         };
 
@@ -176,7 +217,11 @@ export class UIManager {
         const sDashCd = this.character?.superDashCooldown ?? 0;
         const sDashMax = this.character?.superDashCooldownDuration ?? 20;
         const sDashPct = sDashCd <= 0 ? 100 : Math.max(0, 100 - (sDashCd / sDashMax) * 100);
-        if (this.elements.superDashFill) this.elements.superDashFill.style.width = `${sDashPct}%`;
+        const sDashRounded = (sDashPct + 0.5) | 0;
+        if (this.elements.superDashFill && sDashRounded !== this._prevSuperDashPct) {
+            this.elements.superDashFill.style.width = `${sDashPct}%`;
+            this._prevSuperDashPct = sDashRounded;
+        }
         const superReady = sDashCd <= 0 && this.character?.isSuperDashing !== true;
         if (this.elements.superDashBar) {
             this.elements.superDashBar.classList.toggle('ready', superReady);
@@ -201,78 +246,88 @@ export class UIManager {
             }, 250);
         }
     }
-    
+
     updateHealthBar(health) {
         const maxHealth = this.gameState.player.maxHealth;
         const percentage = (health / maxHealth) * 100;
-        
-        if (this.elements.healthFill) {
+        const pctRounded = (percentage + 0.5) | 0;
+
+        if (this.elements.healthFill && pctRounded !== this._prevHealthPct) {
             this.elements.healthFill.style.width = `${percentage}%`;
-            
-            // Flash effect when low health
-            if (percentage <= 25) {
-                this.elements.healthFill.style.animation = 'pulse 0.5s infinite';
-            } else {
-                this.elements.healthFill.style.animation = 'none';
+            this._prevHealthPct = pctRounded;
+
+            const isLow = percentage <= 25;
+            if (isLow !== this._prevHealthLow) {
+                this.elements.healthFill.style.animation = isLow ? 'pulse 0.5s infinite' : 'none';
+                this._prevHealthLow = isLow;
             }
         }
-        
+
         if (this.elements.healthText) {
-            this.elements.healthText.textContent = `${Math.ceil(health)}/${maxHealth}`;
+            const text = `${Math.ceil(health)}/${maxHealth}`;
+            if (text !== this._prevHealthText) {
+                this.elements.healthText.textContent = text;
+                this._prevHealthText = text;
+            }
         }
     }
 
     showPlayerHitFeedback(damageTaken = 0) {
-        // Classic playerfeel cue: quick red vignette + center text + reticule pulse.
-        let overlay = document.getElementById('player-hit-overlay');
-        if (!overlay) {
-            overlay = document.createElement('div');
-            overlay.id = 'player-hit-overlay';
-            document.body.appendChild(overlay);
+        const overlay = this._hitOverlay;
+        if (overlay) {
+            overlay.classList.remove('hit-flash');
+            void overlay.offsetWidth;
+            overlay.classList.add('hit-flash');
         }
-        overlay.classList.remove('hit-flash');
-        // Force restart animation.
-        void overlay.offsetWidth;
-        overlay.classList.add('hit-flash');
 
         if (this.elements.reticule) {
             this.elements.reticule.classList.add('reticule-flash-red');
             setTimeout(() => this.elements.reticule?.classList.remove('reticule-flash-red'), 220);
         }
 
-        const dmgEl = document.createElement('div');
+        // Reuse pooled damage element for player hit text
+        const dmgEl = this._acquireDmgElement();
         dmgEl.className = 'player-damage-taken';
         dmgEl.textContent = `-${Math.ceil(damageTaken)}`;
         dmgEl.style.left = '50%';
         dmgEl.style.top = '58%';
-        this.elements.damageNumbers?.appendChild(dmgEl);
-        setTimeout(() => dmgEl.remove(), 700);
+        dmgEl.style.display = '';
+        setTimeout(() => { dmgEl.style.display = 'none'; }, 700);
     }
-    
+
     updateStaminaBar(stamina) {
         const maxStamina = this.gameState.player.maxStamina;
         const percentage = (stamina / maxStamina) * 100;
-        
-        if (this.elements.staminaFill) {
+        const pctRounded = (percentage + 0.5) | 0;
+
+        if (this.elements.staminaFill && pctRounded !== this._prevStaminaPct) {
             this.elements.staminaFill.style.width = `${percentage}%`;
-            
-            // Dim when depleted
-            if (percentage <= 10) {
-                this.elements.staminaFill.style.opacity = '0.5';
-            } else {
-                this.elements.staminaFill.style.opacity = '1';
+            this._prevStaminaPct = pctRounded;
+
+            const isLow = percentage <= 10;
+            if (isLow !== this._prevStaminaLow) {
+                this.elements.staminaFill.style.opacity = isLow ? '0.5' : '1';
+                this._prevStaminaLow = isLow;
             }
         }
-        
+
         if (this.elements.staminaText) {
-            this.elements.staminaText.textContent = `${Math.ceil(stamina)}/${maxStamina}`;
+            const text = `${Math.ceil(stamina)}/${maxStamina}`;
+            if (text !== this._prevStaminaText) {
+                this.elements.staminaText.textContent = text;
+                this._prevStaminaText = text;
+            }
         }
     }
-    
+
     updateUltimateBar(charge) {
         if (this.elements.ultimateFill) {
             const pct = Math.min(100, Math.max(0, charge));
-            this.elements.ultimateFill.style.width = `${pct}%`;
+            const pctRounded = (pct + 0.5) | 0;
+            if (pctRounded !== this._prevUltimatePct) {
+                this.elements.ultimateFill.style.width = `${pct}%`;
+                this._prevUltimatePct = pctRounded;
+            }
         }
         if (this.elements.ultimateBar) {
             const ready = charge >= 100;
@@ -281,7 +336,7 @@ export class UIManager {
             this._ultimateWasReady = ready;
         }
     }
-    
+
     updateChargeBar() {
         const combat = this.gameState.combat;
         const chargeBar = this.elements.chargeBar;
@@ -289,14 +344,24 @@ export class UIManager {
 
         if (!chargeBar || !chargeFill) return;
 
-        if (combat.isCharging || combat.isChargedAttacking) {
-            chargeBar.style.display = 'block';
+        const visible = combat.isCharging || combat.isChargedAttacking;
+        if (visible !== this._prevChargeVisible) {
+            chargeBar.style.display = visible ? 'block' : 'none';
+            this._prevChargeVisible = visible;
+        }
+        if (visible) {
             const chargeVal = combat.isChargedAttacking ? combat.releasedCharge : combat.chargeTimer;
             const pct = (chargeVal / combat.chargeDuration) * 100;
-            chargeFill.style.width = `${pct}%`;
-            chargeBar.classList.toggle('ready', chargeVal >= combat.minChargeToRelease);
-        } else {
-            chargeBar.style.display = 'none';
+            const pctRounded = (pct + 0.5) | 0;
+            if (pctRounded !== this._prevChargePct) {
+                chargeFill.style.width = `${pct}%`;
+                this._prevChargePct = pctRounded;
+            }
+            const isReady = chargeVal >= combat.minChargeToRelease;
+            if (isReady !== this._prevChargeReady) {
+                chargeBar.classList.toggle('ready', isReady);
+                this._prevChargeReady = isReady;
+            }
         }
     }
 
@@ -306,10 +371,19 @@ export class UIManager {
         this.character = character;
     }
 
+    /** Acquire a damage number element from the pool */
+    _acquireDmgElement() {
+        const el = this._dmgPool[this._dmgPoolIdx];
+        this._dmgPoolIdx = (this._dmgPoolIdx + 1) % this._dmgPoolSize;
+        // Reset any pending hide timer
+        el.style.display = 'none';
+        return el;
+    }
+
     showDamageNumber(worldPosition, damage, isCritical, anchorId = null, kind = null) {
         if (!this.elements.damageNumbers) return;
 
-        const damageEl = document.createElement('div');
+        const damageEl = this._acquireDmgElement();
         const classes = ['damage-number'];
         if (isCritical) classes.push('critical');
         if (kind) classes.push(kind);
@@ -334,12 +408,14 @@ export class UIManager {
         }
         damageEl.style.left = `${x}px`;
         damageEl.style.top = `${y}px`;
+        damageEl.style.display = '';
 
-        this.elements.damageNumbers.appendChild(damageEl);
+        // Re-trigger animation by forcing reflow
+        void damageEl.offsetWidth;
 
-        setTimeout(() => damageEl.remove(), 1000);
+        setTimeout(() => { damageEl.style.display = 'none'; }, 1000);
     }
-    
+
     showBossHealth(bossName, health, maxHealth) {
         if (this.elements.bossHealth) {
             this.elements.bossHealth.style.display = 'block';
@@ -349,20 +425,25 @@ export class UIManager {
         }
         this.updateBossHealth(health, maxHealth);
     }
-    
+
     updateBossHealth(health, maxHealth) {
         if (this.elements.bossHealthFill) {
             const percentage = (health / maxHealth) * 100;
-            this.elements.bossHealthFill.style.width = `${percentage}%`;
+            const pctRounded = (percentage + 0.5) | 0;
+            if (pctRounded !== this._prevBossPct) {
+                this.elements.bossHealthFill.style.width = `${percentage}%`;
+                this._prevBossPct = pctRounded;
+            }
         }
     }
-    
+
     hideBossHealth() {
         if (this.elements.bossHealth) {
             this.elements.bossHealth.style.display = 'none';
         }
+        this._prevBossPct = -1;
     }
-    
+
     showDeathScreen() {
         if (this.elements.deathScreen) {
             this.elements.deathScreen.style.display = 'flex';
@@ -385,9 +466,9 @@ export class UIManager {
             }, 4000);
         }
     }
-    
+
     // Show floating text (for pickups, messages, etc.)
-    showFloatingText(text, x, y, color = '#c9a227') {
+    showFloatingText(text, x, y, color = '#00d4ff') {
         const textEl = document.createElement('div');
         textEl.className = 'floating-text';
         textEl.textContent = text;
@@ -402,10 +483,9 @@ export class UIManager {
             animation: damageFloat 2s ease-out forwards;
             pointer-events: none;
         `;
-        
+
         this.elements.damageNumbers?.appendChild(textEl);
-        
+
         setTimeout(() => textEl.remove(), 2000);
     }
 }
-

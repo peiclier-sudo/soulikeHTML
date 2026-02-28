@@ -100,8 +100,8 @@ export class ParticleSystem {
         this.activeShieldAuraParticles = [];
         this.shieldAuraTime = 0;
 
-        for (let i = 0; i < 120; i++) this.pools.smoke.push(this._createSmokeMesh());
-        for (let i = 0; i < 120; i++) this.pools.shieldAura.push(this._createShieldAuraMesh());
+        for (let i = 0; i < 40; i++) this.pools.smoke.push(this._createSmokeMesh());
+        for (let i = 0; i < 40; i++) this.pools.shieldAura.push(this._createShieldAuraMesh());
 
         // Pooled temporary lights (avoid scene-graph add/remove churn)
         this._lightPool = [];

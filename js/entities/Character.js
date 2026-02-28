@@ -898,11 +898,9 @@ export class Character {
                 // Fade back in during last 0.5s
                 const fadeIn = vanishRemaining < 0.5 ? (1 - vanishRemaining / 0.5) : 0;
                 const targetOpacity = flicker + fadeIn * (1 - flicker);
-                this.mesh.traverse(child => {
-                    if (child.isMesh && child.material && !child.userData?.isOutline) {
-                        child.material.opacity = targetOpacity;
-                    }
-                });
+                for (let vi = 0; vi < this._vanishOriginalOpacities.length; vi++) {
+                    this._vanishOriginalOpacities[vi].mesh.material.opacity = targetOpacity;
+                }
             } else if (this._vanishMaterialsStored) {
                 // Restore original materials
                 for (const entry of this._vanishOriginalOpacities) {
@@ -963,10 +961,6 @@ export class Character {
         if (this.isPlayingUltimate) {
             this.ultimateAnimTimer -= deltaTime;
             if (this.ultimateAnimTimer <= 0) this.isPlayingUltimate = false;
-            if (this.bloodDagger) {
-                const daggerMat = this.bloodDagger.children[0]?.material;
-                if (daggerMat && daggerMat.uniforms) updateBloodFireMaterial(daggerMat, this.animationTime, 0.92);
-            }
         }
         // Update camera rotation
         this.updateCamera(input, mouseSensitivity, deltaTime);
