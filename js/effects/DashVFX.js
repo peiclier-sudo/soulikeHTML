@@ -1,5 +1,5 @@
 /**
- * Dash VFX – blood-red vortex, sparks, trail. Same pattern as BloodFireVFX.
+ * Dash VFX – blood-red vortex, sparks, trail, and ghost afterimages.
  * Vanilla Three.js; wire into Character startDash / updateDash / update.
  */
 
@@ -10,6 +10,11 @@ const VORTEX_RINGS = 3;
 const VORTEX_POINTS_PER_RING = 18;
 const SPARK_COUNT = 56;
 const FADEOUT_DURATION = 0.4;
+
+// Ghost afterimage settings
+const GHOST_COUNT = 6;
+const GHOST_FADE = 0.28;
+const GHOST_INTERVAL = 0.052;
 
 // Per-kit dash color palettes: { bright, mid, dark }
 const KIT_DASH_COLORS = {
@@ -120,8 +125,42 @@ export function createDashVFX(scene, opts = {}) {
     scene.add(sparkMesh);
     const sparkBasePos = new THREE.Vector3();
 
+    // —— Ghost afterimages: pool of semi-transparent capsules
+    const ghostGeo = new THREE.CapsuleGeometry(0.22, 0.85, 2, 6);
+    const ghosts = [];
+    for (let i = 0; i < GHOST_COUNT; i++) {
+        const mat = new THREE.MeshBasicMaterial({
+            color: COL_BRIGHT,
+            transparent: true,
+            opacity: 0,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            side: THREE.DoubleSide
+        });
+        const mesh = new THREE.Mesh(ghostGeo, mat);
+        mesh.visible = false;
+        mesh.frustumCulled = false;
+        scene.add(mesh);
+        ghosts.push({ mesh, mat, life: 0, active: false });
+    }
+    let ghostTimer = 0;
+    let ghostIdx = 0;
+
     function update(dt, position, direction, progress, isDashing) {
         vortexAngle += dt * 14;
+
+        // Always tick ghost fade regardless of dash state
+        for (const g of ghosts) {
+            if (!g.active) continue;
+            g.life -= dt;
+            if (g.life <= 0) {
+                g.active = false;
+                g.mesh.visible = false;
+            } else {
+                const t = g.life / GHOST_FADE;
+                g.mat.opacity = 0.45 * t * t; // quadratic fade
+            }
+        }
 
         if (fadeOutTimer >= 0) {
             fadeOutTimer -= dt;
@@ -183,6 +222,20 @@ export function createDashVFX(scene, opts = {}) {
                 sparkPositions[i * 3 + 2] = sparkBasePos.z + sparkVelocities[i * 3 + 2] * life * 0.35;
             }
             sparkGeo.getAttribute('position').needsUpdate = true;
+
+            // Ghost afterimages: spawn at intervals
+            ghostTimer += dt;
+            if (ghostTimer >= GHOST_INTERVAL) {
+                ghostTimer -= GHOST_INTERVAL;
+                const g = ghosts[ghostIdx % GHOST_COUNT];
+                g.mesh.position.set(position.x, position.y + 0.65, position.z);
+                g.mesh.rotation.set(0, Math.atan2(direction.x, direction.z), 0);
+                g.mat.opacity = 0.45;
+                g.mesh.visible = true;
+                g.life = GHOST_FADE;
+                g.active = true;
+                ghostIdx++;
+            }
         } else {
             fadeOutTimer = FADEOUT_DURATION;
         }
@@ -199,6 +252,11 @@ export function createDashVFX(scene, opts = {}) {
         scene.remove(sparkMesh);
         sparkGeo.dispose();
         sparkMat.dispose();
+        for (const g of ghosts) {
+            scene.remove(g.mesh);
+            g.mat.dispose();
+        }
+        ghostGeo.dispose();
     }
 
     return { update, dispose };
