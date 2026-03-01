@@ -1617,18 +1617,6 @@ export class Character {
     _updateProceduralCombatPose(dt) {
         if (!this._combatBones) return;
 
-        // Prevent quaternion accumulation on non-animated bones (jaw, tail, etc.)
-        // by resetting all combat bones to their rest quaternion before applying
-        // procedural rotations. The animation mixer only resets bones it animates;
-        // bones without keyframes in the loco clip would otherwise accumulate
-        // our multiply() calls frame-over-frame, causing progressive deformation.
-        const rest = this._combatBonesRest;
-        if (rest) {
-            for (const [key, bone] of Object.entries(this._combatBones)) {
-                if (rest[key]) bone.quaternion.copy(rest[key]);
-            }
-        }
-
         // Beast models use a separate quadruped animation path
         if (this._isBeastModel) {
             this._updateBeastCombatPose(dt);
@@ -1856,6 +1844,11 @@ export class Character {
         const e = this._poseE;
         const modelKey = this.gameState?.selectedKit?.model;
         const isWolf = modelKey === 'wolf';
+
+        // Reset jaw to rest pose — jaw bone is typically not in locomotion clips,
+        // so the mixer never resets it, causing multiply() to accumulate over frames.
+        const rest = this._combatBonesRest;
+        if (rest?.jaw && bones.jaw) bones.jaw.quaternion.copy(rest.jaw);
 
         // --- Airborne body tuck ---
         const airTarget = this.isGrounded ? 0 : 1;
