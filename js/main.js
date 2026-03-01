@@ -103,6 +103,7 @@ async function init() {
             const saved = RunProgress.getSavedRun();
             if (!saved) return;
             selectedKitId = saved.kitId;
+            hubManager.setSelectedKit(selectedKitId);
             startScreen.style.display = 'none';
             hubManager.showHub();
         });
@@ -188,6 +189,7 @@ function setupClassSelection() {
     // Confirm button → go to Hub (game starts from Hub → Boss Tower)
     document.getElementById('confirm-btn').addEventListener('click', () => {
         if (!selectedKitId) return;
+        hubManager.setSelectedKit(selectedKitId);
         document.getElementById('class-select-screen').style.display = 'none';
         hubManager.showHub();
     });
@@ -284,6 +286,10 @@ function startGameWithKit(kitId, savedRun = null) {
     // Apply gear + talent stat bonuses from the character page
     if (hubManager) {
         game.applyStatBonuses(hubManager.getStatBonuses());
+        // Apply special talent effects (non-stat bonuses like bleed on crit, etc.)
+        if (game.applyTalentEffects) {
+            game.applyTalentEffects(hubManager.getTalentEffects());
+        }
     }
 
     // Restore saved run state (boss number, health, potions)

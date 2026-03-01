@@ -402,6 +402,16 @@ export class Game {
         };
     }
 
+    /**
+     * Apply special talent effects (non-stat bonuses) to the current GameState.
+     * These are kit-specific effects like "bleed on crit", "freeze spread", etc.
+     * Combat systems can read these from gameState.talentEffects.
+     */
+    applyTalentEffects(effects) {
+        if (!effects) return;
+        this.gameState.talentEffects = { ...effects };
+    }
+
     /** Restore a saved run (called from main.js when player clicks "Continue"). */
     restoreRun(savedRun) {
         this.bossNumber = savedRun.bossesDefeated;

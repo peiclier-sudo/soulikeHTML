@@ -139,6 +139,10 @@ export class GameState {
             healthRegen: 0, soulBonus: 0
         };
 
+        // Special talent effects (applied by Game.applyTalentEffects after construction)
+        // Combat systems read these to modify ability behavior
+        this.talentEffects = {};
+
         // Game flags
         this.flags = {
             tutorialComplete: false,

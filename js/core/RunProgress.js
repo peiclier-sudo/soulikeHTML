@@ -108,7 +108,12 @@ export const RunProgress = {
 
         // Award souls and talent point
         const pd = this.getPlayerData();
-        const soulBonus = 1 + (pd.talents?.includes?.('u_scavenger') ? 0.25 : 0);
+        // Legacy check + new soul bonus from kit talents
+        let soulBonusPct = 0;
+        if (pd.talents?.includes?.('u_scavenger')) soulBonusPct += 0.25;
+        // Soul bonus from kit talent stats (accumulated in bonuses)
+        // This will be applied via the stat system at game start
+        const soulBonus = 1 + soulBonusPct;
         const baseSouls = 80 + run.bossesDefeated * 30;
         pd.souls += Math.floor(baseSouls * soulBonus);
         pd.talentPoints += 1;
@@ -168,7 +173,8 @@ export const RunProgress = {
         return {
             souls: 0,
             talentPoints: 0,
-            talents: [],           // array of unlocked talent ids
+            talents: [],           // legacy: flat array of unlocked talent ids
+            kitTalents: {},        // NEW: per-kit talent storage { kitId: [talentId, ...] }
             gear: {                // equipped item ids per slot
                 weapon: null,
                 helmet: null,
@@ -232,6 +238,47 @@ export const RunProgress = {
         pd.talents.push(talentId);
         this.savePlayerData(pd);
         return true;
+    },
+
+    /** Unlock a kit-specific talent */
+    unlockKitTalent(kitId, talentId, cost) {
+        const pd = this.getPlayerData();
+        if (pd.talentPoints < cost) return false;
+        if (!pd.kitTalents) pd.kitTalents = {};
+        if (!pd.kitTalents[kitId]) pd.kitTalents[kitId] = [];
+        if (pd.kitTalents[kitId].includes(talentId)) return false;
+        pd.talentPoints -= cost;
+        pd.kitTalents[kitId].push(talentId);
+        this.savePlayerData(pd);
+        return true;
+    },
+
+    /** Get unlocked talents for a specific kit */
+    getKitTalents(kitId) {
+        const pd = this.getPlayerData();
+        if (!pd.kitTalents) return [];
+        return pd.kitTalents[kitId] ?? [];
+    },
+
+    /** Reset all talents for a kit, refunding points */
+    resetKitTalents(kitId) {
+        const pd = this.getPlayerData();
+        if (!pd.kitTalents || !pd.kitTalents[kitId]) return 0;
+        // Calculate refund from talent definitions
+        let refund = 0;
+        // We'll get the cost from TalentDefinitions import — for now count entries
+        // (actual cost calculation done by caller)
+        const talents = pd.kitTalents[kitId];
+        pd.kitTalents[kitId] = [];
+        this.savePlayerData(pd);
+        return talents;
+    },
+
+    /** Refund talent points (used after resetKitTalents calculates cost) */
+    refundTalentPoints(amount) {
+        const pd = this.getPlayerData();
+        pd.talentPoints += amount;
+        this.savePlayerData(pd);
     },
 
     addTalentPoint(count = 1) {

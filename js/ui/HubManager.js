@@ -7,7 +7,8 @@
 
 import { RunProgress } from '../core/RunProgress.js';
 import { ITEMS, RARITIES, GEAR_SLOTS, getItemsBySlot, getItem } from '../data/ItemDefinitions.js';
-import { TALENTS, TALENT_BRANCHES, getTalentsByBranch, getTalent } from '../data/TalentDefinitions.js';
+import { TALENTS, TALENT_BRANCHES, getTalentsByBranch, getTalent, getKitTalent, getBranchTheme } from '../data/TalentDefinitions.js';
+import { TalentSystem } from '../core/TalentSystem.js';
 
 export class HubManager {
     /**
@@ -19,6 +20,9 @@ export class HubManager {
         this.onStartTower = opts.onStartTower ?? (() => {});
         this.onBackToStart = opts.onBackToStart ?? (() => {});
 
+        /** Currently selected kit id — set by main.js before showing character */
+        this._selectedKitId = null;
+
         // Cache DOM
         this.hubScreen = document.getElementById('hub-screen');
         this.boutiqueScreen = document.getElementById('boutique-screen');
@@ -28,6 +32,11 @@ export class HubManager {
         this._setupHub();
         this._setupBoutique();
         this._setupCharacter();
+    }
+
+    /** Set the currently selected kit (called by main.js) */
+    setSelectedKit(kitId) {
+        this._selectedKitId = kitId;
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -284,65 +293,246 @@ export class HubManager {
         container.innerHTML = '';
 
         const pd = RunProgress.getPlayerData();
+        const kitId = this._getActiveKitId();
         document.getElementById('talent-points').textContent = `${pd.talentPoints} POINTS`;
 
-        for (const [branchId, branch] of Object.entries(TALENT_BRANCHES)) {
-            const branchEl = document.createElement('div');
-            branchEl.className = 'talent-branch';
+        // If no kit selected, show a message
+        if (!kitId) {
+            container.innerHTML = '<div style="color:rgba(255,255,255,0.4);text-align:center;padding:2rem;">Select a class to view talents.</div>';
+            return;
+        }
 
-            branchEl.innerHTML = `<div class="talent-branch-label" style="color:${branch.color}">${branch.icon} ${branch.label}</div>`;
+        const unlockedTalents = RunProgress.getKitTalents(kitId);
+        const layout = TalentSystem.getTreeLayout(kitId);
 
-            const talents = getTalentsByBranch(branchId);
-            for (let i = 0; i < talents.length; i++) {
-                const t = talents[i];
-                const isUnlocked = pd.talents.includes(t.id);
-                const prereqMet = !t.prereq || pd.talents.includes(t.prereq);
-                const canAfford = pd.talentPoints >= t.cost;
-                const isAvailable = !isUnlocked && prereqMet && canAfford;
-                const isLocked = !isUnlocked && !prereqMet;
+        // Points spent counter
+        const spentEl = document.createElement('div');
+        spentEl.className = 'talent-spent-counter';
+        const totalSpent = TalentSystem.getTotalPointsSpent(kitId, unlockedTalents);
+        spentEl.textContent = `${totalSpent} POINTS SPENT`;
+        container.appendChild(spentEl);
 
-                // Connector line
-                if (i > 0) {
-                    const prevUnlocked = pd.talents.includes(talents[i - 1].id);
-                    const conn = document.createElement('div');
-                    conn.className = 'talent-connector' + (prevUnlocked ? ' unlocked' : '');
-                    branchEl.appendChild(conn);
-                }
+        // Reset button
+        const resetBtn = document.createElement('button');
+        resetBtn.className = 'talent-reset-btn';
+        resetBtn.textContent = 'RESET TALENTS';
+        resetBtn.addEventListener('click', () => {
+            if (totalSpent === 0) return;
+            const removed = RunProgress.resetKitTalents(kitId);
+            // Calculate refund from removed talent costs
+            let refund = 0;
+            for (const tid of removed) {
+                const t = getKitTalent(kitId, tid);
+                if (t) refund += t.cost;
+            }
+            RunProgress.refundTalentPoints(refund);
+            this._renderTalents();
+            this._renderStatSummary();
+        });
+        container.appendChild(resetBtn);
 
-                const nodeEl = document.createElement('div');
-                nodeEl.className = 'talent-node' +
-                    (isUnlocked ? ' unlocked' : '') +
-                    (isAvailable ? ' available' : '') +
-                    (isLocked ? ' locked' : '');
+        // ── Spine (central column) ────────────────────────────
+        const treeEl = document.createElement('div');
+        treeEl.className = 'talent-tree-layout';
 
-                const statsDesc = Object.entries(t.stats).map(([k, v]) => {
-                    return typeof v === 'number' && v < 1 && v > 0 ? `+${(v * 100).toFixed(0)}% ${this._statLabel(k)}` : `+${v} ${this._statLabel(k)}`;
-                }).join(', ');
+        const spineCol = document.createElement('div');
+        spineCol.className = 'talent-spine';
+        spineCol.innerHTML = `<div class="talent-branch-label" style="color:${layout.spineTheme.color}">${layout.spineTheme.icon} CORE PATH</div>`;
 
-                nodeEl.innerHTML = `
-                    <span class="talent-node-icon">${t.icon}</span>
-                    <div class="talent-node-name">${t.name}</div>
-                    <div class="talent-node-cost">${isUnlocked ? 'UNLOCKED' : `${t.cost} pt`}</div>
-                    <div class="talent-tooltip">
-                        <div class="talent-tooltip-name" style="color:${branch.color}">${t.name}</div>
-                        <div class="talent-tooltip-desc">${t.description}<br><span style="color:#44cc44;font-size:0.6rem">${statsDesc}</span></div>
-                    </div>
-                `;
+        for (let i = 0; i < layout.spine.length; i++) {
+            const t = layout.spine[i];
+            const state = TalentSystem.getNodeState(kitId, t.id, unlockedTalents, pd.talentPoints);
 
-                if (isAvailable) {
-                    nodeEl.addEventListener('click', () => {
-                        if (RunProgress.unlockTalent(t.id, t.cost)) {
-                            this._renderTalents();
-                            this._renderStatSummary();
-                        }
-                    });
-                }
-
-                branchEl.appendChild(nodeEl);
+            // Connector line
+            if (i > 0) {
+                const prevState = TalentSystem.getNodeState(kitId, layout.spine[i - 1].id, unlockedTalents, pd.talentPoints);
+                const conn = document.createElement('div');
+                conn.className = 'talent-connector' + (prevState === 'unlocked' ? ' unlocked' : '');
+                spineCol.appendChild(conn);
             }
 
-            container.appendChild(branchEl);
+            // If this is a connector node that unlocks a branch, render a fork indicator
+            if (t.unlocksBranch) {
+                const forkEl = document.createElement('div');
+                forkEl.className = 'talent-fork-indicator';
+                const branchTheme = getBranchTheme(t.unlocksBranch);
+                forkEl.innerHTML = `<span style="color:${branchTheme.color}">→ ${branchTheme.icon} ${branchTheme.label}</span>`;
+                spineCol.appendChild(forkEl);
+            }
+
+            const nodeEl = this._createTalentNode(kitId, t, state, unlockedTalents, pd.talentPoints, layout.spineTheme);
+            spineCol.appendChild(nodeEl);
         }
+
+        treeEl.appendChild(spineCol);
+
+        // ── Branches (side columns) ───────────────────────────
+        const branchesContainer = document.createElement('div');
+        branchesContainer.className = 'talent-branches-container';
+
+        for (const [branchId, branchData] of Object.entries(layout.branches)) {
+            const branchCol = document.createElement('div');
+            branchCol.className = 'talent-branch';
+
+            const theme = branchData.theme;
+            branchCol.innerHTML = `<div class="talent-branch-label" style="color:${theme.color}">${theme.icon} ${theme.label}</div>`;
+
+            // Check if branch is unlocked
+            const connector = layout.spine.find(s => s.unlocksBranch === branchId);
+            const branchUnlocked = connector ? unlockedTalents.includes(connector.id) : true;
+
+            if (!branchUnlocked) {
+                const lockMsg = document.createElement('div');
+                lockMsg.className = 'talent-branch-locked-msg';
+                lockMsg.textContent = 'Unlock via Core Path';
+                branchCol.appendChild(lockMsg);
+            }
+
+            const talents = branchData.talents;
+            let prevChoiceGroup = null;
+
+            for (let i = 0; i < talents.length; i++) {
+                const t = talents[i];
+                const state = branchUnlocked
+                    ? TalentSystem.getNodeState(kitId, t.id, unlockedTalents, pd.talentPoints)
+                    : 'locked';
+
+                // Connector line (skip for first node and between choice siblings)
+                if (i > 0 && !(t.choiceGroup && t.choiceGroup === prevChoiceGroup)) {
+                    const prevT = talents[i - 1];
+                    // Skip connector if prev was a choice sibling
+                    if (!(prevT.choiceGroup && prevT.choiceGroup === t.choiceGroup)) {
+                        const prevState = branchUnlocked
+                            ? TalentSystem.getNodeState(kitId, prevT.id, unlockedTalents, pd.talentPoints)
+                            : 'locked';
+                        const conn = document.createElement('div');
+                        conn.className = 'talent-connector' + (prevState === 'unlocked' ? ' unlocked' : '');
+                        branchCol.appendChild(conn);
+                    }
+                }
+
+                // Choice group: render side by side
+                if (t.choiceGroup && t.choiceGroup !== prevChoiceGroup) {
+                    const choicePair = talents.filter(x => x.choiceGroup === t.choiceGroup);
+                    if (choicePair.length === 2) {
+                        // Add connector before choice
+                        if (i > 0) {
+                            const prevT = talents[i - 1];
+                            const prevState = branchUnlocked
+                                ? TalentSystem.getNodeState(kitId, prevT.id, unlockedTalents, pd.talentPoints)
+                                : 'locked';
+                            const conn = document.createElement('div');
+                            conn.className = 'talent-connector' + (prevState === 'unlocked' ? ' unlocked' : '');
+                            branchCol.appendChild(conn);
+                        }
+
+                        const choiceRow = document.createElement('div');
+                        choiceRow.className = 'talent-choice-row';
+
+                        const choiceLabel = document.createElement('div');
+                        choiceLabel.className = 'talent-choice-label';
+                        choiceLabel.textContent = 'CHOOSE ONE';
+                        branchCol.appendChild(choiceLabel);
+
+                        for (const ct of choicePair) {
+                            const cState = branchUnlocked
+                                ? TalentSystem.getNodeState(kitId, ct.id, unlockedTalents, pd.talentPoints)
+                                : 'locked';
+                            const cNode = this._createTalentNode(kitId, ct, cState, unlockedTalents, pd.talentPoints, theme);
+                            choiceRow.appendChild(cNode);
+                        }
+
+                        branchCol.appendChild(choiceRow);
+                        prevChoiceGroup = t.choiceGroup;
+                        continue;
+                    }
+                }
+
+                // Skip second choice node (already rendered in pair)
+                if (t.choiceGroup && t.choiceGroup === prevChoiceGroup) {
+                    continue;
+                }
+
+                prevChoiceGroup = t.choiceGroup || null;
+                const nodeEl = this._createTalentNode(kitId, t, state, unlockedTalents, pd.talentPoints, theme);
+                branchCol.appendChild(nodeEl);
+            }
+
+            // Points in branch counter
+            const branchPts = TalentSystem.getPointsInBranch(kitId, branchId, unlockedTalents);
+            if (branchPts > 0) {
+                const ptsBadge = document.createElement('div');
+                ptsBadge.className = 'talent-branch-pts';
+                ptsBadge.style.color = theme.color;
+                ptsBadge.textContent = `${branchPts} pts`;
+                branchCol.appendChild(ptsBadge);
+            }
+
+            branchesContainer.appendChild(branchCol);
+        }
+
+        treeEl.appendChild(branchesContainer);
+        container.appendChild(treeEl);
+    }
+
+    /** Create a single talent node element */
+    _createTalentNode(kitId, talent, state, unlockedTalents, availablePoints, theme) {
+        const nodeEl = document.createElement('div');
+        nodeEl.className = `talent-node talent-${talent.type} ${state}`;
+
+        // Type badge
+        const typeBadge = talent.type === 'keystone' ? '★ ' :
+                          talent.type === 'capstone' ? '♛ ' :
+                          talent.type === 'major' ? '◈ ' :
+                          talent.type === 'connector' ? '◇ ' : '';
+
+        const costText = state === 'unlocked' ? 'UNLOCKED' :
+                         state === 'excluded' ? 'LOCKED' :
+                         talent.cost === 0 ? 'FREE' :
+                         `${talent.cost} pt`;
+
+        // Build stats description for tooltip
+        const statsDesc = talent.stats ? Object.entries(talent.stats).map(([k, v]) => {
+            if (typeof v === 'boolean') return v ? k.replace(/([A-Z])/g, ' $1').trim() : '';
+            return typeof v === 'number' && v < 1 && v > 0
+                ? `+${(v * 100).toFixed(0)}% ${this._statLabel(k)}`
+                : `+${v} ${this._statLabel(k)}`;
+        }).filter(Boolean).join(', ') : '';
+
+        nodeEl.innerHTML = `
+            <span class="talent-node-icon">${talent.icon}</span>
+            <div class="talent-node-name">${typeBadge}${talent.name}</div>
+            <div class="talent-node-cost">${costText}</div>
+            <div class="talent-tooltip">
+                <div class="talent-tooltip-type">${talent.type.toUpperCase()}</div>
+                <div class="talent-tooltip-name" style="color:${theme.color}">${talent.name}</div>
+                <div class="talent-tooltip-desc">${talent.description}${statsDesc ? `<br><span style="color:#44cc44;font-size:0.6rem">${statsDesc}</span>` : ''}</div>
+            </div>
+        `;
+
+        // Style based on type
+        if (talent.type === 'keystone' || talent.type === 'capstone') {
+            nodeEl.style.borderColor = state === 'unlocked' ? theme.color : '';
+        }
+
+        // Click handler
+        if (state === 'available') {
+            nodeEl.addEventListener('click', () => {
+                if (RunProgress.unlockKitTalent(kitId, talent.id, talent.cost)) {
+                    this._renderTalents();
+                    this._renderStatSummary();
+                }
+            });
+        }
+
+        return nodeEl;
+    }
+
+    /** Get the active kit ID from saved run or selection */
+    _getActiveKitId() {
+        if (this._selectedKitId) return this._selectedKitId;
+        const run = RunProgress.getSavedRun();
+        return run?.kitId ?? null;
     }
 
     _renderStatSummary() {
@@ -351,22 +541,27 @@ export class HubManager {
 
         const bonuses = this._calculateTotalBonuses();
         const stats = [
-            { label: 'DMG', value: `+${bonuses.damage}` },
-            { label: 'HP', value: `+${bonuses.health}` },
-            { label: 'ARMOR', value: `+${bonuses.armor}` },
-            { label: 'STAM', value: `+${bonuses.stamina}` },
-            { label: 'CRIT', value: `+${(bonuses.critChance * 100).toFixed(0)}%` },
-            { label: 'SPEED', value: `+${bonuses.runSpeed.toFixed(1)}` },
-        ];
+            { label: 'DMG', value: `+${bonuses.damage}`, show: bonuses.damage > 0 },
+            { label: 'HP', value: `+${bonuses.health}`, show: bonuses.health > 0 },
+            { label: 'ARMOR', value: `+${bonuses.armor}`, show: bonuses.armor > 0 },
+            { label: 'STAM', value: `+${bonuses.stamina}`, show: bonuses.stamina > 0 },
+            { label: 'CRIT', value: `+${(bonuses.critChance * 100).toFixed(0)}%`, show: bonuses.critChance > 0 },
+            { label: 'CRIT DMG', value: `+${(bonuses.critMultiplier * 100).toFixed(0)}%`, show: bonuses.critMultiplier > 0 },
+            { label: 'LIFESTEAL', value: `+${(bonuses.lifesteal * 100).toFixed(0)}%`, show: bonuses.lifesteal > 0 },
+            { label: 'SPEED', value: `+${bonuses.runSpeed.toFixed(1)}`, show: bonuses.runSpeed > 0 },
+            { label: 'ATK SPD', value: `+${(bonuses.attackSpeed * 100).toFixed(0)}%`, show: bonuses.attackSpeed > 0 },
+            { label: 'HP/S', value: `+${bonuses.healthRegen}`, show: bonuses.healthRegen > 0 },
+        ].filter(s => s.show);
 
         container.innerHTML = stats.map(s =>
             `<div class="char-summary-stat"><span class="char-summary-value">${s.value}</span><span class="char-summary-label">${s.label}</span></div>`
         ).join('');
     }
 
-    /** Calculate combined stat bonuses from gear + talents */
+    /** Calculate combined stat bonuses from gear + talents (kit-specific) */
     _calculateTotalBonuses() {
         const pd = RunProgress.getPlayerData();
+        const kitId = this._getActiveKitId();
         const bonuses = {
             damage: 0, health: 0, armor: 0, stamina: 0,
             critChance: 0, critMultiplier: 0, backstabMultiplier: 0,
@@ -385,7 +580,15 @@ export class HubManager {
             }
         }
 
-        // Talent bonuses
+        // Kit-specific talent bonuses (new system)
+        if (kitId) {
+            const kitBonuses = TalentSystem.calculateBonuses(kitId, RunProgress.getKitTalents(kitId));
+            for (const [k, v] of Object.entries(kitBonuses)) {
+                if (k in bonuses) bonuses[k] += v;
+            }
+        }
+
+        // Legacy talent bonuses (for any old unlocked talents)
         for (const talentId of pd.talents) {
             const t = getTalent(talentId);
             if (!t) continue;
@@ -400,6 +603,13 @@ export class HubManager {
     /** Get bonuses to apply to GameState at game start */
     getStatBonuses() {
         return this._calculateTotalBonuses();
+    }
+
+    /** Get special (non-stat) talent effects for the active kit */
+    getTalentEffects() {
+        const kitId = this._getActiveKitId();
+        if (!kitId) return {};
+        return TalentSystem.getSpecialEffects(kitId, RunProgress.getKitTalents(kitId));
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -445,8 +655,18 @@ export class HubManager {
             damage: 'DMG', health: 'HP', armor: 'Armor', stamina: 'Stamina',
             critChance: 'Crit', critMultiplier: 'Crit DMG', backstabMultiplier: 'Backstab',
             lifesteal: 'Lifesteal', runSpeed: 'Speed', jumpForce: 'Jump',
-            attackSpeed: 'Atk Speed', healthRegen: 'HP/s', soulBonus: 'Soul Bonus'
+            attackSpeed: 'Atk Speed', healthRegen: 'HP/s', soulBonus: 'Soul Bonus',
+            // Talent-specific effect labels
+            bloodDotBonus: 'Blood DoT', bleedDamage: 'Bleed DMG/s', bleedDuration: 'Bleed Duration',
+            frozenDamageBonus: 'Frozen DMG', freezeDurationMult: 'Freeze Duration',
+            poisonTickBonus: 'Poison DMG', maxPoisonCharges: 'Max Poison',
+            maxTrustCharges: 'Max Trust', maxRageIncrease: 'Max Rage',
+            vanishDurationBonus: 'Vanish Duration', teleportCdReduction: 'Teleport CD',
+            thickHideDurationBonus: 'Hide Duration', thornsDamage: 'Thorns',
+            frostStackBonus: 'Frost Stack Rate', healthPercent: 'Max HP %',
+            chargedDamageMult: 'Charged DMG', comboWindowBonus: 'Combo Window',
+            maxComboBonus: 'Max Combo',
         };
-        return labels[key] ?? key;
+        return labels[key] ?? key.replace(/([A-Z])/g, ' $1').trim();
     }
 }
