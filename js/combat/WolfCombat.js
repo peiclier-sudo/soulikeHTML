@@ -93,6 +93,9 @@ export class WolfCombat {
         this.frenzyAttackSpeedMult = abilF.attackSpeedMult ?? 1.5;
         this.frenzyLifesteal = abilF.lifesteal ?? 0.05;
 
+        // Claw slash VFX pool
+        this._clawSlashes = [];
+
         // Reusable vectors
         this._tmpV = new THREE.Vector3();
         this._tmpV2 = new THREE.Vector3();
@@ -102,11 +105,75 @@ export class WolfCombat {
     spawnClawStrike() {
         // Wolf uses base melee hit detection – no projectile spawned.
         // Rage gain and claw VFX are applied in onMeleeHit.
+        const pos = this.character.getWeaponPosition();
+        const fwd = this.character.getForwardDirection().normalize();
+
+        // Spawn a visible slash arc mesh
+        this._spawnClawSlashVfx(pos, fwd);
+
         if (this.particleSystem) {
-            const pos = this.character.getWeaponPosition();
-            const dir = this.character.getForwardDirection();
-            this.particleSystem.emitSparks(pos, 4);
-            this.particleSystem.emitEmbers(pos, 2, this._particleColor());
+            this.particleSystem.emitSparks(pos, 8);
+            this.particleSystem.emitEmbers(pos, 5, this._particleColor());
+        }
+    }
+
+    _spawnClawSlashVfx(origin, direction) {
+        // Alternating left/right slash arcs
+        this._clawSlashSide = (this._clawSlashSide ?? 1) * -1;
+        const side = this._clawSlashSide;
+
+        const geo = new THREE.RingGeometry(0.15, 0.6, 16, 1, 0, Math.PI * 0.55);
+        const mat = createBloodFireMaterial({
+            coreBrightness: 2.5,
+            plasmaSpeed: 18,
+            isCharged: 1.0,
+            layerScale: 1.8,
+            rimPower: 2.0,
+            alpha: 0.95,
+            redTint: 0.0,
+            tintColor: this._tintColor
+        });
+        const mesh = new THREE.Mesh(geo, mat);
+        // Orient slash vertically, angled to match swipe direction
+        mesh.rotation.x = -Math.PI * 0.35;
+        mesh.rotation.z = side * 0.6;
+        mesh.scale.setScalar(1.8);
+
+        const group = new THREE.Group();
+        group.add(mesh);
+        group.position.copy(origin);
+        // Face the slash toward the attack direction
+        const dirNorm = direction.clone(); dirNorm.y = 0; dirNorm.normalize();
+        group.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), dirNorm);
+        this.scene.add(group);
+
+        this._clawSlashes.push({
+            mesh: group, geo, mat,
+            elapsed: 0,
+            maxLife: 0.22,
+            side
+        });
+    }
+
+    _updateClawSlashes(dt) {
+        for (let i = this._clawSlashes.length - 1; i >= 0; i--) {
+            const s = this._clawSlashes[i];
+            s.elapsed += dt;
+            const t = s.elapsed / s.maxLife;
+            // Quick scale up then fade
+            const scale = t < 0.3 ? (t / 0.3) * 2.2 : 2.2 * (1 - (t - 0.3) / 0.7);
+            s.mesh.scale.setScalar(Math.max(0.01, scale));
+            s.mesh.children[0].rotation.z += s.side * dt * 12; // spin the slash arc
+            if (s.mat.uniforms) {
+                const alpha = t < 0.2 ? 0.95 : Math.max(0, 0.95 * (1 - (t - 0.2) / 0.8));
+                updateBloodFireMaterial(s.mat, s.elapsed * 20, alpha);
+            }
+            if (s.elapsed >= s.maxLife) {
+                this.scene.remove(s.mesh);
+                s.geo?.dispose();
+                s.mat?.dispose();
+                this._clawSlashes.splice(i, 1);
+            }
         }
     }
 
@@ -569,6 +636,7 @@ export class WolfCombat {
         this.pounceCooldown = Math.max(0, this.pounceCooldown - dt);
         this.howlCooldown = Math.max(0, this.howlCooldown - dt);
         this.instinctCooldown = Math.max(0, this.instinctCooldown - dt);
+        this._updateClawSlashes(dt);
         this._updateLunge(dt);
         this._updatePounce(dt);
         this._updatePounceVfx(dt);

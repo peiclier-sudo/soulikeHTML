@@ -1342,7 +1342,7 @@ export class Character {
 
             this.currentAction = this.upperAction || this.locoAction;
         } else if (this.locoOnly) {
-            // Loco-only mode (RogueV3): movement stays perfectly smooth, attacks are VFX-only.
+            // Loco-only mode (wolf/bear/RogueV3): movement stays smooth, attacks are procedural bone poses.
             // Combat states never interrupt locomotion — the character keeps running/walking.
             let targetAnimation = 'Idle';
             if (this.isDashing) {
@@ -1368,7 +1368,9 @@ export class Character {
                 const fromJump = this.currentAnimation === 'Jump';
                 const toJump = targetAnimation === 'Jump';
                 const fromDash = this.currentAnimation === 'Fast running' || this.currentAnimation === 'Run';
-                const fadeDur = toJump ? 0.1 : fromJump ? 0.15 : fromDash ? 0.28 : 0.18;
+                // Beast models: shorter transitions for snappier feel
+                const isBeast = this._isBeastModel;
+                const fadeDur = toJump ? 0.08 : fromJump ? 0.12 : fromDash ? (isBeast ? 0.15 : 0.28) : (isBeast ? 0.12 : 0.18);
                 this.fadeToAction(targetAnimation, fadeDur);
                 this.currentAnimation = targetAnimation;
                 // Landing squash: brief mesh scale compression on landing from jump
@@ -1877,17 +1879,17 @@ export class Character {
         }
         this._combatPoseTarget = newType !== 'none' ? 1 : 0;
 
-        // Smooth blend in/out
-        const blendSpeed = this._combatPoseTarget > 0.5 ? 20 : 12;
+        // Smooth blend in/out — fast snap in, smooth ease out
+        const blendSpeed = this._combatPoseTarget > 0.5 ? 30 : 10;
         this._combatPoseBlend += (this._combatPoseTarget - this._combatPoseBlend) * Math.min(1, dt * blendSpeed);
         if (Math.abs(this._combatPoseBlend) < 0.001) { this._combatPoseBlend = 0; return; }
 
         // Swing timer — wolf attacks are faster, bear attacks are heavier
         const swingSpeeds = {
-            basic:    isWolf ? 9.0 : 6.0,
-            charged:  isWolf ? 6.0 : 4.5,
-            charging: 1.0,
-            ability:  isWolf ? 6.5 : 5.0
+            basic:    isWolf ? 11.0 : 7.0,
+            charged:  isWolf ? 7.0 : 5.0,
+            charging: 1.2,
+            ability:  isWolf ? 8.0 : 6.0
         };
         const swingSpeed = swingSpeeds[newType] || 1.0;
         this._combatSwingT = Math.min(1, this._combatSwingT + dt * swingSpeed);
@@ -1903,65 +1905,65 @@ export class Character {
         if (newType === 'basic') {
             // ── CLAW SWIPE: alternating left/right front leg swipe + spine twist ──
             const s = strike * blend;
-            const swipeIntensity = isWolf ? 1.0 : 0.75;
+            const swipeIntensity = isWolf ? 1.3 : 1.0;
 
             // Spine lunges forward and twists toward swipe direction
             if (bones.spine) {
-                e.set(s * 0.25 * swipeIntensity, -s * dir * 0.2, s * dir * 0.06);
+                e.set(s * 0.35 * swipeIntensity, -s * dir * 0.28, s * dir * 0.08);
                 q.setFromEuler(e); bones.spine.quaternion.multiply(q);
             }
             if (bones.spine2) {
-                e.set(s * 0.15 * swipeIntensity, -s * dir * 0.12, 0);
+                e.set(s * 0.22 * swipeIntensity, -s * dir * 0.18, 0);
                 q.setFromEuler(e); bones.spine2.quaternion.multiply(q);
             }
             // Neck and head snap toward target
             if (bones.neck) {
-                e.set(s * 0.2, -s * dir * 0.1, 0);
+                e.set(s * 0.3, -s * dir * 0.15, 0);
                 q.setFromEuler(e); bones.neck.quaternion.multiply(q);
             }
             if (bones.head) {
-                e.set(s * 0.15, -s * dir * 0.08, s * dir * 0.05);
+                e.set(s * 0.22, -s * dir * 0.12, s * dir * 0.08);
                 q.setFromEuler(e); bones.head.quaternion.multiply(q);
             }
             // Jaw snaps open on strike peak
             if (bones.jaw) {
-                e.set(snap * 0.35 * blend, 0, 0);
+                e.set(snap * 0.5 * blend, 0, 0);
                 q.setFromEuler(e); bones.jaw.quaternion.multiply(q);
             }
-            // Lead front leg swipes outward
+            // Lead front leg swipes outward — big dramatic movement
             const leadFront = dir > 0 ? bones.rFrontUpper : bones.lFrontUpper;
             const leadFrontLower = dir > 0 ? bones.rFrontLower : bones.lFrontLower;
             if (leadFront) {
-                e.set(-s * 0.7 * swipeIntensity, -s * dir * 0.3, -s * dir * 0.25);
+                e.set(-s * 0.9 * swipeIntensity, -s * dir * 0.4, -s * dir * 0.35);
                 q.setFromEuler(e); leadFront.quaternion.multiply(q);
             }
             if (leadFrontLower) {
-                e.set(-s * 0.4 * swipeIntensity, 0, -s * dir * 0.15);
+                e.set(-s * 0.6 * swipeIntensity, 0, -s * dir * 0.2);
                 q.setFromEuler(e); leadFrontLower.quaternion.multiply(q);
             }
             // Trail front leg braces
             const trailFront = dir > 0 ? bones.lFrontUpper : bones.rFrontUpper;
             if (trailFront) {
-                e.set(s * 0.15, s * dir * 0.1, 0);
+                e.set(s * 0.2, s * dir * 0.15, 0);
                 q.setFromEuler(e); trailFront.quaternion.multiply(q);
             }
             // Rear legs push forward for lunge
             if (bones.rRearUpper) {
-                e.set(-s * 0.12, 0, 0);
+                e.set(-s * 0.18, 0, 0);
                 q.setFromEuler(e); bones.rRearUpper.quaternion.multiply(q);
             }
             if (bones.lRearUpper) {
-                e.set(-s * 0.12, 0, 0);
+                e.set(-s * 0.18, 0, 0);
                 q.setFromEuler(e); bones.lRearUpper.quaternion.multiply(q);
             }
-            // Tail flicks with the swipe
+            // Tail flicks aggressively with the swipe
             if (bones.tail) {
-                e.set(0, s * dir * 0.3, s * dir * 0.15);
+                e.set(0, s * dir * 0.45, s * dir * 0.2);
                 q.setFromEuler(e); bones.tail.quaternion.multiply(q);
             }
-            // Hips shift
+            // Hips shift into the attack
             if (bones.hips) {
-                e.set(s * 0.05, -s * dir * 0.04, 0);
+                e.set(s * 0.08, -s * dir * 0.06, 0);
                 q.setFromEuler(e); bones.hips.quaternion.multiply(q);
             }
 
@@ -2207,6 +2209,13 @@ export class Character {
             const worldPos = new THREE.Vector3();
             this.weapon.getWorldPosition(worldPos);
             return worldPos;
+        }
+        // Beast models (wolf/bear): position in front of the character's mouth/paws
+        if (this._isBeastModel) {
+            const fwd = this.getForwardDirection();
+            return this.position.clone().add(
+                new THREE.Vector3(fwd.x * 1.5, 0.6, fwd.z * 1.5)
+            );
         }
         return this.position.clone().add(new THREE.Vector3(0.5, 1, 0.5));
     }

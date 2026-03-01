@@ -805,7 +805,8 @@ export class CombatSystem {
         if (this.isWolfKit && this.gameState.combat.wolfFrenzyRemaining > 0) {
             basicTimeScale *= (this.gameState.combat.wolfFrenzyAttackSpeedMult ?? 1);
         }
-        this.attackDuration = basicClip?.duration ? basicClip.duration / basicTimeScale : 0.28;
+        const beastFallback = this.isWolfKit ? 0.18 : this.isBearKit ? 0.38 : 0.28;
+        this.attackDuration = basicClip?.duration ? basicClip.duration / basicTimeScale : beastFallback;
         this.attackTimer = this.attackDuration;
         this._meleeHitThisSwing = false;
 
@@ -855,8 +856,9 @@ export class CombatSystem {
             const hitRadius = enemy.hitRadius ?? (enemy.isBoss ? 2.5 : 0.8);
             if (dist > range + hitRadius) continue;
             this._meleeToEnemy.normalize();
-            // Slightly wider lateral hit cone to reduce near-miss frustration at close range.
-            if (this._meleeToEnemy.dot(playerForward) < 0.22) continue;
+            // Wider hit cone for beasts (claw swipe arc), tighter for sword users.
+            const minDot = (this.isWolfKit || this.isBearKit) ? -0.1 : 0.22;
+            if (this._meleeToEnemy.dot(playerForward) < minDot) continue;
             this._meleeHitThisSwing = true;
             this.onHit({ object: enemyMesh, point: this._enemyPos.clone(), distance: dist });
             return;
@@ -900,13 +902,13 @@ export class CombatSystem {
                 const gain = isCharged ? (chargedCfg.trustChargeGain ?? 2) : (basicCfg.trustChargeGain ?? 1);
                 this.gameState.addTrustCharge(gain);
             }
+            const hitPos = hitInfo.point?.clone() ?? hitInfo.object.getWorldPosition?.(new THREE.Vector3()) ?? this.character.position.clone();
             if (this.isWolfKit && this.wolfCombat) {
                 this.wolfCombat.onMeleeHit(enemy, damage, hitPos);
             }
             if (this.isBearKit && this.bearCombat) {
                 this.bearCombat.onMeleeHit(enemy, damage, hitPos);
             }
-            const hitPos = hitInfo.point?.clone() ?? hitInfo.object.getWorldPosition?.(new THREE.Vector3()) ?? this.character.position.clone();
             this.gameState.emit('damageNumber', { position: hitPos, damage, isCritical, isBackstab, anchorId: this._getDamageAnchorId(enemy) });
         }
     }
