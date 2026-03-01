@@ -496,18 +496,22 @@ export class Game {
             }
         }
 
-        // C = Hunter's Mark Zone (bow) / Vanish (dagger) / Shield (others)
+        // C = Hunter's Mark Zone (bow) / Vanish (dagger) / Feral Instinct (wolf) / Thick Hide (bear) / Shield (others)
         if (input.shield && !this.gameState.combat.shieldActive) {
             if (this.combatSystem?.isBowRangerKit && this.combatSystem?.bowRangerCombat) {
                 this.combatSystem.bowRangerCombat.executeDamageZone();
             } else if (this.combatSystem?.isDaggerKit && this.combatSystem?.daggerCombat) {
                 this.combatSystem.daggerCombat.executeVanish();
+            } else if (this.combatSystem?.isWolfKit && this.combatSystem?.wolfCombat) {
+                this.combatSystem.wolfCombat.executeInstinct();
+            } else if (this.combatSystem?.isBearKit && this.combatSystem?.bearCombat) {
+                this.combatSystem.bearCombat.executeThickHide();
             } else {
                 this.gameState.activateShield(this.combatSystem.shieldDuration);
             }
         }
 
-        // X = Multi Shot (bow) / Toxic Focus (dagger)
+        // X = Multi Shot (bow) / Toxic Focus (dagger) / Blood Howl (wolf) / Thunderous Roar (bear)
         if (input.bloodNova && this.combatSystem?.isBowRangerKit && this.combatSystem?.bowRangerCombat) {
             this.combatSystem.bowRangerCombat.executeMultiShot();
         }
@@ -515,6 +519,12 @@ export class Game {
             if (!this.combatSystem.daggerCombat.executeToxicFocus()) {
                 this.uiManager.showNoBloodEssenceFeedback();
             }
+        }
+        if (input.bloodNova && this.combatSystem?.isWolfKit && this.combatSystem?.wolfCombat) {
+            this.combatSystem.wolfCombat.executeHowl();
+        }
+        if (input.bloodNova && this.combatSystem?.isBearKit && this.combatSystem?.bearCombat) {
+            this.combatSystem.bearCombat.executeRoar();
         }
 
         // Ultimate slash spawn (after short delay when F is pressed)
@@ -538,6 +548,10 @@ export class Game {
                     this.combatSystem.daggerCombat.spawnTwinDaggersUltimate();
                 } else if (this.combatSystem.isFrostKit && this.combatSystem.frostCombat) {
                     this.combatSystem.frostCombat.beginBlizzardTargeting();
+                } else if (this.combatSystem.isWolfKit && this.combatSystem.wolfCombat) {
+                    this.combatSystem.wolfCombat.executeFrenzy();
+                } else if (this.combatSystem.isBearKit && this.combatSystem.bearCombat) {
+                    this.combatSystem.bearCombat.executeFury();
                 } else {
                     this.combatSystem.spawnUltimateSlash(pos, dir);
                 }
@@ -592,13 +606,24 @@ export class Game {
             this._blizzardMouseX = null;
         }
 
-        // Q ability: Frost Mage → Ice Claw, others → Crimson Eruption targeting
+        // Q ability: Frost Mage → Ice Claw, Wolf → Savage Pounce, Bear → Earthquake, others → Crimson Eruption targeting
         if (this.combatSystem && input.crimsonEruption && !this.combatSystem.isDaggerKit && this.combatSystem.isFrostKit && this.combatSystem.frostCombat) {
             this.combatSystem.frostCombat.castIceClaw();
             input.crimsonEruption = false;
         }
+        if (this.combatSystem && input.crimsonEruption && this.combatSystem.isWolfKit && this.combatSystem.wolfCombat) {
+            // Wolf Q: Savage Pounce – leap forward in camera direction
+            const groundPos = this.getGroundPositionInCameraDirection(5);
+            this.combatSystem.wolfCombat.executePounce(groundPos);
+            input.crimsonEruption = false;
+        }
         if (this.combatSystem && typeof this.combatSystem.updateCrimsonEruptionPreview === 'function') {
-            if (input.crimsonEruption && !this.combatSystem.isDaggerKit && !this.combatSystem.isBowRangerKit && this.combatSystem.crimsonEruptionCooldown <= 0) {
+            // Bear Q: Earthquake uses ground targeting like crimson eruption
+            const isBearQ = this.combatSystem.isBearKit && this.combatSystem.bearCombat;
+            const qCooldownReady = isBearQ
+                ? (this.combatSystem.bearCombat.quakeCooldown ?? 0) <= 0
+                : this.combatSystem.crimsonEruptionCooldown <= 0;
+            if (input.crimsonEruption && !this.combatSystem.isDaggerKit && !this.combatSystem.isBowRangerKit && !this.combatSystem.isWolfKit && qCooldownReady) {
                 this.crimsonEruptionTargeting = true;
                 const w = this.canvas?.clientWidth || 1;
                 const h = this.canvas?.clientHeight || 1;
@@ -624,7 +649,11 @@ export class Game {
                 }
                 this.combatSystem.updateCrimsonEruptionPreview(groundPos);
                 if (input.attack) {
-                    this.combatSystem.spawnCrimsonEruption(groundPos);
+                    if (isBearQ) {
+                        this.combatSystem.bearCombat.executeEarthquake(groundPos);
+                    } else {
+                        this.combatSystem.spawnCrimsonEruption(groundPos);
+                    }
                     this.shakeIntensity = 0.012;
                     this.shakeDuration = 0.12;
                     this.shakeTime = this.shakeDuration;

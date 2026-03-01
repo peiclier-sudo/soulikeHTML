@@ -178,14 +178,20 @@ export class UIManager {
         const isFrost = this.combatSystem?.isFrostKit;
         const isDagger = this.combatSystem?.isDaggerKit;
         const isBow = this.combatSystem?.isBowRangerKit;
+        const isWolf = this.combatSystem?.isWolfKit;
+        const isBear = this.combatSystem?.isBearKit;
         const fc = this.combatSystem?.frostCombat;
         const dc = this.combatSystem?.daggerCombat;
         const bc = this.combatSystem?.bowRangerCombat;
+        const wc = this.combatSystem?.wolfCombat;
+        const brc = this.combatSystem?.bearCombat;
 
         // Q ability slot
         const eruptionCd = isDagger ? (dc?.teleportCooldown ?? 0)
             : isBow ? (bc?.recoilShotCooldown ?? 0)
             : isFrost ? (fc?.iceClawCooldown ?? 0)
+            : isWolf ? (wc?.pounceCooldown ?? 0)
+            : isBear ? (brc?.quakeCooldown ?? 0)
             : (this.combatSystem?.crimsonEruptionCooldown ?? 0);
         setBox('ability-eruption', eruptionCd <= 0, eruptionCd <= 0 ? 'Ready' : fmt(eruptionCd));
 
@@ -193,6 +199,8 @@ export class UIManager {
         const novaCd = isDagger ? (dc?.toxicFocusCooldown ?? 0)
             : isBow ? (bc?.multiShotCooldown ?? 0)
             : isFrost ? (fc?.stalactiteCooldown ?? 0)
+            : isWolf ? (wc?.howlCooldown ?? 0)
+            : isBear ? (brc?.roarCooldown ?? 0)
             : (this.combatSystem?.bloodNovaCooldown ?? 0);
         setBox('ability-nova', novaCd <= 0, novaCd <= 0 ? 'Ready' : fmt(novaCd));
 
@@ -203,6 +211,12 @@ export class UIManager {
         } else if (isBow) {
             const zoneCd = bc?.damageZoneCooldown ?? 0;
             setBox('ability-shield', zoneCd <= 0, zoneCd <= 0 ? 'Ready' : fmt(zoneCd));
+        } else if (isWolf) {
+            const instinctCd = wc?.instinctCooldown ?? 0;
+            setBox('ability-shield', instinctCd <= 0, instinctCd <= 0 ? 'Ready' : fmt(instinctCd));
+        } else if (isBear) {
+            const thickHideCd = brc?.thickHideCooldown ?? 0;
+            setBox('ability-shield', thickHideCd <= 0, thickHideCd <= 0 ? 'Ready' : fmt(thickHideCd));
         } else {
             const shieldActive = this.gameState.combat.shieldActive;
             const shieldTime = this.gameState.combat.shieldTimeRemaining ?? 0;
