@@ -1113,8 +1113,9 @@ export class Character {
             // Default fast run when moving; Vanish (dagger C) gives +60% speed
             const isRunning = this.gameState.player.stamina > 5;
             const vanishMult = (this.gameState?.combat?.vanishRemaining > 0) ? 1.6 : 1;
+            const wolfInstinctMult = (this.gameState?.combat?.wolfInstinctRemaining > 0) ? (this.gameState.combat.wolfInstinctSpeedMult ?? 1) : 1;
             const speedBonus = this.gameState?.bonuses?.runSpeed ?? 0;
-            const speed = ((isRunning ? this.runSpeed : this.walkSpeed) + speedBonus) * vanishMult;
+            const speed = ((isRunning ? this.runSpeed : this.walkSpeed) + speedBonus) * vanishMult * wolfInstinctMult;
 
             // Drain stamina while running
             if (isRunning) {

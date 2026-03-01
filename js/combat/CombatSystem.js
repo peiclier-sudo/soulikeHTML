@@ -9,6 +9,8 @@ import { createIceMaterial, updateIceMaterial } from '../shaders/IceShader.js';
 import { FrostCombat } from './FrostCombat.js';
 import { DaggerCombat } from './DaggerCombat.js';
 import { BowCombat } from './BowCombat.js';
+import { WolfCombat } from './WolfCombat.js';
+import { BearCombat } from './BearCombat.js';
 
 export class CombatSystem {
     constructor(scene, character, gameState, particleSystem = null, onProjectileHit = null) {
@@ -148,6 +150,10 @@ export class CombatSystem {
         this.daggerCombat = this.isDaggerKit ? new DaggerCombat(this) : null;
         this.isBowRangerKit = (kit?.id === 'bow_ranger');
         this.bowRangerCombat = this.isBowRangerKit ? new BowCombat(this) : null;
+        this.isWolfKit = (kit?.id === 'werewolf');
+        this.wolfCombat = this.isWolfKit ? new WolfCombat(this) : null;
+        this.isBearKit = (kit?.id === 'bear');
+        this.bearCombat = this.isBearKit ? new BearCombat(this) : null;
 
         // Crit / backstab stats from kit
         const stats = kit?.stats;
@@ -163,7 +169,8 @@ export class CombatSystem {
     /** Roll crit based on kit's critChance + gear/talent bonuses. */
     _rollCrit() {
         const bonus = this.gameState?.bonuses?.critChance ?? 0;
-        return Math.random() < (this._critChance + bonus);
+        const wolfCritBonus = this.gameState?.combat?.wolfCritBuffRemaining > 0 ? (this.gameState.combat.wolfCritBuffAmount ?? 0) : 0;
+        return Math.random() < (this._critChance + bonus + wolfCritBonus);
     }
 
     /**
@@ -470,7 +477,7 @@ export class CombatSystem {
     update(deltaTime, input) {
         if (this.crimsonEruptionCooldown > 0) this.crimsonEruptionCooldown -= deltaTime;
         if (this.bloodNovaCooldown > 0) this.bloodNovaCooldown -= deltaTime;
-        if (input.bloodNova && !this.isDaggerKit && !this.isBowRangerKit) {
+        if (input.bloodNova && !this.isDaggerKit && !this.isBowRangerKit && !this.isWolfKit && !this.isBearKit) {
             if (this.isFrostKit && this.frostCombat) {
                 this.frostCombat.beginStalactiteTargeting();
             } else {
@@ -620,6 +627,10 @@ export class CombatSystem {
                         this._nextMeleeIsCharged = true;
                         this.checkHits();
                         this.spawnDaggerChargedSlash();
+                    } else if (this.isWolfKit && this.wolfCombat) {
+                        this.wolfCombat.executeLunge();
+                    } else if (this.isBearKit && this.bearCombat) {
+                        this.bearCombat.executeGroundSlam();
                     } else {
                         this.spawnFireball(true);
                     }
@@ -658,6 +669,8 @@ export class CombatSystem {
         if (this.frostCombat) this.frostCombat.update(deltaTime);
         if (this.daggerCombat) this.daggerCombat.update(deltaTime);
         if (this.bowRangerCombat) this.bowRangerCombat.update(deltaTime);
+        if (this.wolfCombat) this.wolfCombat.update(deltaTime);
+        if (this.bearCombat) this.bearCombat.update(deltaTime);
     }
 
     updateChargeOrb(deltaTime) {
@@ -681,7 +694,7 @@ export class CombatSystem {
                 this.chargeOrb = new THREE.Mesh(geometry, material);
                 this.chargeOrb.castShadow = false;
                 // Hide the sphere mesh for bow and dagger — only show ring particles
-                this.chargeOrb.userData._hideSphere = !!(this.isBowRangerKit || this.isDaggerKit);
+                this.chargeOrb.userData._hideSphere = !!(this.isBowRangerKit || this.isDaggerKit || this.isWolfKit || this.isBearKit);
                 this.chargeOrb.userData.orbTime = 0;
                 // Tightening ring of embers
                 const ringCount = co.ringCount ?? 36;
@@ -778,12 +791,20 @@ export class CombatSystem {
             this.bowRangerCombat.spawnArrow(false);
         } else if (this.isDaggerKit) {
             this.spawnDaggerBladeWave();
+        } else if (this.isWolfKit && this.wolfCombat) {
+            this.wolfCombat.spawnClawStrike();
+        } else if (this.isBearKit && this.bearCombat) {
+            this.bearCombat.spawnPawStrike();
         } else {
             this.spawnFireball(false);
         }
 
         const basicClip = this.character.actions?.['Basic attack']?.getClip();
-        const basicTimeScale = this.isDaggerKit ? 8.0 : ((this.isBowRangerKit) ? 2.25 : 3.8);
+        let basicTimeScale = this.isDaggerKit ? 8.0 : this.isBowRangerKit ? 2.25 : this.isWolfKit ? 5.5 : this.isBearKit ? 2.5 : 3.8;
+        // Wolf frenzy attack speed buff
+        if (this.isWolfKit && this.gameState.combat.wolfFrenzyRemaining > 0) {
+            basicTimeScale *= (this.gameState.combat.wolfFrenzyAttackSpeedMult ?? 1);
+        }
         this.attackDuration = basicClip?.duration ? basicClip.duration / basicTimeScale : 0.28;
         this.attackTimer = this.attackDuration;
         this._meleeHitThisSwing = false;
@@ -858,6 +879,8 @@ export class CombatSystem {
         if (c.teleportDamageBuffRemaining > 0) mult *= 2.0;
         if (c.poisonDamageBuffRemaining > 0) mult *= (c.poisonDamageBuffMultiplier ?? 1);
         if (c.bowDamageZoneMultiplier > 1) mult *= c.bowDamageZoneMultiplier;
+        if (c.wolfFrenzyRemaining > 0) mult *= (c.wolfFrenzyDamageMult ?? 1);
+        if (c.bearFuryRemaining > 0) mult *= (c.bearFuryDamageMult ?? 1);
         let rawDamage = Math.floor(baseDamage * comboMultiplier * mult);
 
         const enemy = hitInfo.object.userData.enemy;
@@ -876,6 +899,12 @@ export class CombatSystem {
                 const chargedCfg = this.gameState.selectedKit?.combat?.chargedAttack || {};
                 const gain = isCharged ? (chargedCfg.trustChargeGain ?? 2) : (basicCfg.trustChargeGain ?? 1);
                 this.gameState.addTrustCharge(gain);
+            }
+            if (this.isWolfKit && this.wolfCombat) {
+                this.wolfCombat.onMeleeHit(enemy, damage, hitPos);
+            }
+            if (this.isBearKit && this.bearCombat) {
+                this.bearCombat.onMeleeHit(enemy, damage, hitPos);
             }
             const hitPos = hitInfo.point?.clone() ?? hitInfo.object.getWorldPosition?.(new THREE.Vector3()) ?? this.character.position.clone();
             this.gameState.emit('damageNumber', { position: hitPos, damage, isCritical, isBackstab, anchorId: this._getDamageAnchorId(enemy) });
@@ -923,10 +952,18 @@ export class CombatSystem {
         }
     }
 
-    /** E = Blood Crescend / Frost Beam: consume stacks and discharge. */
+    /** E = Blood Crescend / Frost Beam / Rend / Maul: consume stacks and discharge. */
     executeBloodflail(chargesUsed, multiplier) {
         if (this.isFrostKit && this.frostCombat) {
             this.frostCombat.executeFrostBeam(chargesUsed, multiplier);
+            return;
+        }
+        if (this.isWolfKit && this.wolfCombat) {
+            this.wolfCombat.executeRend(chargesUsed, multiplier);
+            return;
+        }
+        if (this.isBearKit && this.bearCombat) {
+            this.bearCombat.executeMaul(chargesUsed, multiplier);
             return;
         }
         this.executeBloodCrescend(chargesUsed, multiplier);

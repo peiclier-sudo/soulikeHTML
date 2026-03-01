@@ -78,7 +78,22 @@ export class GameState {
             poisonDamageBuffMultiplier: 1.0,
             poisonDamageBuffRemaining: 0,
             // Bow ranger: damage zone multiplier (updated each frame by BowCombat)
-            bowDamageZoneMultiplier: 1.0
+            bowDamageZoneMultiplier: 1.0,
+            // Wolf kit: buff timers
+            wolfCritBuffRemaining: 0,
+            wolfCritBuffAmount: 0,
+            wolfInstinctRemaining: 0,
+            wolfInstinctSpeedMult: 1.0,
+            wolfFrenzyRemaining: 0,
+            wolfFrenzyDamageMult: 1.0,
+            wolfFrenzyAttackSpeedMult: 1.0,
+            // Bear kit: buff timers
+            bearArmorBuffRemaining: 0,
+            bearArmorBuffAmount: 0,
+            bearFuryRemaining: 0,
+            bearFuryDamageMult: 1.0,
+            bearFuryArmorBonus: 0,
+            bearFuryStompTimer: 0
         };
 
         // Movement state
@@ -137,7 +152,9 @@ export class GameState {
     // Health management
     takeDamage(amount) {
         if (this.combat.shieldActive) return 0;
-        const actualDamage = Math.max(0, amount - this.equipment.armor.defense);
+        const bearArmorBonus = (this.combat.bearArmorBuffRemaining > 0 ? (this.combat.bearArmorBuffAmount ?? 0) : 0)
+            + (this.combat.bearFuryRemaining > 0 ? (this.combat.bearFuryArmorBonus ?? 0) : 0);
+        const actualDamage = Math.max(0, amount - this.equipment.armor.defense - bearArmorBonus);
         this.player.health = Math.max(0, this.player.health - actualDamage);
         this.emit('healthChanged', this.player.health);
         

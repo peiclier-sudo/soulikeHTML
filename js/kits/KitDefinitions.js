@@ -909,61 +909,71 @@ export const KIT_DEFINITIONS = {
         },
 
         combat: {
-            // LMB: spectral claw slash projectile
+            // LMB: melee claw strike (no projectile)
             basicAttack: {
-                type: 'projectile',
-                damage: 18,
-                speed: 22,
-                radius: 0.3,
-                lifetime: 0.9,
+                type: 'melee',
+                damage: 22,
                 staminaCost: 4
             },
-            // RMB: charged lunge claw
+            // RMB: Feral Lunge – dash forward + AoE claw damage
             chargedAttack: {
-                type: 'projectile_charged',
-                damage: 50,
+                type: 'melee_dash',
+                damage: 35,
                 speed: 28,
-                radius: 0.7,
-                lifetime: 1.4,
-                chargeDuration: 0.8
+                duration: 0.25,
+                radius: 2.5,
+                chargeDuration: 0.6
             },
-            // Q: Savage Pounce – leap AoE ground slam
+            // Q: Savage Pounce – leap to cursor, AoE on landing
             abilityQ: {
                 name: 'Savage Pounce',
-                type: 'ground_aoe',
+                type: 'leap_aoe',
                 damage: 45,
                 radius: 3.5,
                 cooldown: 7,
-                bloodChargeGain: 2
+                ragePerHit: 1,
+                rageDamageBonus: 5
             },
-            // E: Rend – claw finisher that tears flesh
+            // E: Rend – consume rage for multi-slash bleed attack
             abilityE: {
                 name: 'Rend',
-                type: 'melee_finisher',
-                baseDamage: 55,
+                type: 'melee_consume',
+                baseDamage: 25,
+                damagePerRage: 12,
                 range: 3.0,
+                slashCount: 3,
+                bleedDuration: 3.0,
+                bleedDmgPerRage: 5,
                 requiresBloodCharges: true
             },
-            // X: Blood Howl – AoE fear nova
+            // X: Blood Howl – AoE stun + crit buff
             abilityX: {
                 name: 'Blood Howl',
-                type: 'nova_aoe',
+                type: 'aoe_buff',
                 damage: 30,
                 radius: 9,
                 cooldown: 12,
-                freezeDuration: 2.5
+                stagger: 1.5,
+                critBuffDuration: 6,
+                critBuffAmount: 0.25,
+                rageGain: 3
             },
-            // C: Feral Instinct – dodge/evasion shield
+            // C: Feral Instinct – speed + evasion buff
             abilityC: {
                 name: 'Feral Instinct',
-                type: 'shield',
-                duration: 5
+                type: 'self_buff',
+                cooldown: 14,
+                duration: 5,
+                speedMult: 1.6
             },
-            // F: Bloodmoon Frenzy – ultimate
+            // F: Bloodmoon Frenzy – ultimate buff mode
             abilityF: {
                 name: 'Bloodmoon Frenzy',
-                type: 'ultimate_projectile',
-                damage: 180,
+                type: 'ultimate_buff',
+                duration: 8,
+                damageMult: 1.3,
+                attackSpeedMult: 1.5,
+                lifesteal: 0.05,
                 chargeNeeded: 100
             }
         },
@@ -1133,61 +1143,69 @@ export const KIT_DEFINITIONS = {
         },
 
         combat: {
-            // LMB: hurled earth/rock projectile
+            // LMB: melee paw strike (no projectile)
             basicAttack: {
-                type: 'projectile',
-                damage: 30,
-                speed: 14,
-                radius: 0.4,
-                lifetime: 1.3,
+                type: 'melee',
+                damage: 38,
                 staminaCost: 8
             },
-            // RMB: charged boulder
+            // RMB: Ground Slam – charged AoE around self
             chargedAttack: {
-                type: 'projectile_charged',
+                type: 'melee_slam',
                 damage: 75,
-                speed: 12,
-                radius: 1.0,
-                lifetime: 2.0,
-                chargeDuration: 1.4
+                radius: 4.0,
+                chargeDuration: 1.0
             },
-            // Q: Earthquake – massive ground pound
+            // Q: Earthquake – ground AoE + lingering damage zone
             abilityQ: {
                 name: 'Earthquake',
-                type: 'ground_aoe',
+                type: 'ground_aoe_linger',
                 damage: 65,
                 radius: 4.5,
                 cooldown: 11,
-                bloodChargeGain: 2
+                ragePerHit: 2,
+                lingerDuration: 3.0,
+                lingerDamage: 8
             },
-            // E: Maul – devastating swipe finisher
+            // E: Maul – consume Primal Force for massive single-target + stagger
             abilityE: {
                 name: 'Maul',
-                type: 'melee_finisher',
+                type: 'melee_consume',
                 baseDamage: 65,
+                damagePerCharge: 18,
                 range: 3.5,
+                staggerDuration: 1.5,
                 requiresBloodCharges: true
             },
-            // X: Thunderous Roar – AoE stun nova
+            // X: Thunderous Roar – massive AoE stun + armor buff
             abilityX: {
                 name: 'Thunderous Roar',
-                type: 'nova_aoe',
+                type: 'aoe_buff',
                 damage: 40,
                 radius: 12,
                 cooldown: 15,
-                freezeDuration: 2.8
+                stagger: 2.0,
+                armorBuffDuration: 8,
+                armorBuffAmount: 10,
+                rageGain: 3
             },
             // C: Thick Hide – damage absorption shield
             abilityC: {
                 name: 'Thick Hide',
-                type: 'shield',
+                type: 'shield_absorb',
+                cooldown: 16,
                 duration: 9
             },
-            // F: Primal Fury – ultimate
+            // F: Primal Fury – ultimate buff mode with AoE stomp
             abilityF: {
                 name: 'Primal Fury',
-                type: 'ultimate_projectile',
-                damage: 200,
+                type: 'ultimate_buff',
+                duration: 10,
+                damageMult: 1.5,
+                armorBonus: 15,
+                stompInterval: 1.5,
+                stompDamage: 25,
+                stompRadius: 5,
                 chargeNeeded: 100
             }
         },
