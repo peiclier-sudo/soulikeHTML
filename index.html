@@ -208,8 +208,9 @@
             <span class="reticule-line reticule-e"></span>
             <span class="reticule-line reticule-w"></span>
         </div>
-        <!-- Health Bar -->
+        <!-- Health Bar (ghost trail sits behind the real fill) -->
         <div class="stat-bar health-bar">
+            <div class="bar-fill bar-ghost" id="health-ghost"></div>
             <div class="bar-fill" id="health-fill"></div>
             <span class="bar-text" id="health-text">100/100</span>
         </div>
@@ -271,6 +272,12 @@
             </div>
         </div>
         
+        <!-- Combo Counter -->
+        <div id="combo-counter" style="display: none;">
+            <span id="combo-count">0</span>
+            <span id="combo-label">HITS</span>
+        </div>
+
         <!-- Damage Numbers Container -->
         <div id="damage-numbers"></div>
         
@@ -281,6 +288,7 @@
         <div id="boss-health" style="display: none;">
             <span class="boss-name" id="boss-name">DARK KNIGHT</span>
             <div class="boss-bar">
+                <div class="bar-fill bar-ghost" id="boss-health-ghost"></div>
                 <div class="bar-fill" id="boss-health-fill"></div>
             </div>
         </div>

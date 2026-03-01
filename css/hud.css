@@ -98,7 +98,27 @@
     transition: width 0.3s ease;
 }
 
-.health-bar .bar-fill {
+/* Ghost bar: sits behind the real fill, drains slowly after damage */
+.bar-ghost {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    transition: width 0.85s cubic-bezier(0.25, 0.1, 0.25, 1) 0.25s;
+    z-index: 0;
+}
+.bar-fill:not(.bar-ghost) {
+    position: relative;
+    z-index: 1;
+}
+.health-bar .bar-ghost {
+    background: linear-gradient(180deg, rgba(255,255,255,0.45) 0%, rgba(200,180,180,0.35) 100%);
+}
+.boss-bar .bar-ghost {
+    background: linear-gradient(180deg, rgba(255,255,255,0.4) 0%, rgba(200,180,180,0.3) 100%);
+}
+
+.health-bar .bar-fill:not(.bar-ghost) {
     background: linear-gradient(180deg, #c9302c 0%, #8b0000 100%);
     box-shadow: 0 0 8px rgba(139, 0, 0, 0.4);
 }
@@ -822,6 +842,51 @@
 
 .tower-quit-btn:hover {
     opacity: 1;
+}
+
+/* ── Combo Counter ────────────────────────────────────────────── */
+#combo-counter {
+    position: absolute;
+    right: 32px;
+    top: 50%;
+    transform: translateY(-50%);
+    text-align: right;
+    pointer-events: none;
+    z-index: 120;
+}
+#combo-count {
+    display: block;
+    font-size: 4rem;
+    font-weight: 900;
+    color: #fff;
+    line-height: 1;
+    text-shadow:
+        0 0 12px rgba(0, 212, 255, 0.5),
+        0 2px 6px rgba(0,0,0,0.8);
+    -webkit-text-stroke: 1.5px rgba(0,0,0,0.3);
+}
+#combo-label {
+    display: block;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: rgba(0, 212, 255, 0.8);
+    letter-spacing: 0.35rem;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.7);
+}
+#combo-counter.combo-pop {
+    animation: comboPop 0.18s ease-out forwards;
+}
+@keyframes comboPop {
+    0%   { transform: translateY(-50%) scale(1.35); }
+    60%  { transform: translateY(-50%) scale(0.95); }
+    100% { transform: translateY(-50%) scale(1); }
+}
+#combo-counter.combo-fade {
+    animation: comboFade 0.4s ease-out forwards;
+}
+@keyframes comboFade {
+    0%   { opacity: 1; transform: translateY(-50%) scale(1); }
+    100% { opacity: 0; transform: translateY(-50%) scale(0.7); }
 }
 
 /* Responsive Design */

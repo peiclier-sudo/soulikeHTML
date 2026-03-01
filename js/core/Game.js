@@ -188,6 +188,7 @@ export class Game {
         this.boss = null;
         this.bossNumber = 0;           // index of current boss in this run
         this.pendingUltimateSlash = 0; // delay before spawning ultimate crescent (sync with anim)
+        this._bossDeathPending = false;
         this.spawnBoss();
 
         // Apply initial quality settings (low shadows + low particles = better FPS from frame 0)
@@ -217,6 +218,23 @@ export class Game {
             this.ultimateBloomTime = 0.07;
             this.ultimateBloomDuration = 0.07;
             this.triggerHitStop(0.025);
+        });
+
+        // Player damage feedback: camera shake + red bloom when taking damage
+        this._prevPlayerHealth = this.gameState.player.health;
+        this.gameState.on('healthChanged', (health) => {
+            if (health < this._prevPlayerHealth) {
+                const dmg = this._prevPlayerHealth - health;
+                // Camera shake proportional to damage (capped)
+                const intensity = Math.min(0.06, 0.012 + dmg * 0.0008);
+                this.shakeIntensity = Math.max(this.shakeIntensity, intensity);
+                this.shakeDuration = 0.22;
+                this.shakeTime = this.shakeDuration;
+                // Red-tinted bloom flash
+                this.ultimateBloomTime = Math.max(this.ultimateBloomTime, 0.12);
+                this.ultimateBloomDuration = Math.max(this.ultimateBloomDuration, 0.12);
+            }
+            this._prevPlayerHealth = health;
         });
 
         // Crimson Eruption (A): ground target, raycast
@@ -845,13 +863,32 @@ export class Game {
             if (this.boss.isAlive) {
                 this.boss.update(this.deltaTime, this.character.position);
                 this.uiManager.updateBossHealth(this.boss.health, this.boss.maxHealth);
-            } else {
+            } else if (!this._bossDeathPending) {
+                // Boss death celebration: VFX explosion → delayed tower screen
+                this._bossDeathPending = true;
+                const deathPos = this._tmpPosVec.copy(this.boss.position);
+                deathPos.y += (this.boss._bossHeight ?? 2.5) * 0.5;
+                // Massive spark + ember burst
+                this.particleSystem.emitSparks(deathPos, 40);
+                this.particleSystem.emitEmbers(deathPos, 25, 0xffcc44);
+                this.particleSystem.addTemporaryLight(deathPos, 0xffdd66, 80, 0.6);
+                // Heavy hit-stop + screen shake + bloom
+                this.triggerHitStop(0.28);
+                this.shakeIntensity = 0.09;
+                this.shakeDuration = 0.45;
+                this.shakeTime = this.shakeDuration;
+                this.ultimateBloomTime = 0.55;
+                this.ultimateBloomDuration = 0.55;
+                this.ultimateFovTime = 0.3;
                 this.uiManager.hideBossHealth();
                 this.gameState.flags.bossDefeated = true;
                 RunProgress.onBossDefeated(this.gameState);
                 this.boss = null;
-                // Show tower progression screen instead of auto-spawning
-                this.showTowerScreen();
+                // Delay tower screen so the VFX plays out
+                setTimeout(() => {
+                    this._bossDeathPending = false;
+                    this.showTowerScreen();
+                }, 850);
             }
         }
         
