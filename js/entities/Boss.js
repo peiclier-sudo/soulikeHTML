@@ -578,11 +578,11 @@ export class Boss extends Enemy {
             this._getFistPos(this._tmpVec);
             this._light.position.copy(this._tmpVec);
             this._light.intensity = 6 + 3 * Math.sin(t * 20);
-            this._light.color.setHex(0xeeeeee);
-            // Warmup telegraph ring for clearer read before damage frame.
+            this._light.color.setHex(0xff8833);
+            // Warmup telegraph ring — orange for punch (fast, frontal)
             if (!this._ringMesh.visible) this._ringMesh.visible = true;
             this._ringMesh.position.set(this.position.x, 0.14, this.position.z);
-            this._ringMat.color.setHex(0xffffff);
+            this._ringMat.color.setHex(0xff8833);
             this._ringMat.opacity = 0.15;
             this._ringMesh.scale.setScalar(this.hitRadius * 0.42);
 
@@ -593,7 +593,7 @@ export class Boss extends Enemy {
                     this._tmpVec.y + (Math.random() - 0.5) * s * 0.5,
                     this._tmpVec.z + (Math.random() - 0.5) * s,
                     (Math.random() - 0.5) * 4, 2 + Math.random() * 3, (Math.random() - 0.5) * 4,
-                    0.1 + Math.random() * 0.08, 0.3 + Math.random() * 0.2, 0xdddddd
+                    0.1 + Math.random() * 0.08, 0.3 + Math.random() * 0.2, 0xffaa44
                 );
             }
 
@@ -642,10 +642,11 @@ export class Boss extends Enemy {
             this._getFistPos(this._tmpVec);
             this._light.position.copy(this._tmpVec);
             this._light.intensity = 8 + 4 * Math.sin(t * 22);
-            this._light.color.setHex(0xeeeeee);
+            this._light.color.setHex(0x8866ff);
+            // Telegraph ring — blue-violet for reverse punch (wider, unexpected)
             if (!this._ringMesh.visible) this._ringMesh.visible = true;
             this._ringMesh.position.set(this.position.x, 0.16, this.position.z);
-            this._ringMat.color.setHex(0xffffff);
+            this._ringMat.color.setHex(0x8866ff);
             this._ringMat.opacity = 0.18;
             this._ringMesh.scale.setScalar(this.hitRadius * 0.52);
 
@@ -656,7 +657,7 @@ export class Boss extends Enemy {
                     this._tmpVec.y + (Math.random() - 0.5) * s * 0.5,
                     this._tmpVec.z + (Math.random() - 0.5) * s,
                     (Math.random() - 0.5) * 4.6, 2 + Math.random() * 3.2, (Math.random() - 0.5) * 4.6,
-                    0.1 + Math.random() * 0.1, 0.3 + Math.random() * 0.24, 0xcccccc
+                    0.1 + Math.random() * 0.1, 0.3 + Math.random() * 0.24, 0xaa88ff
                 );
             }
 
@@ -697,13 +698,14 @@ export class Boss extends Enemy {
             const pulse = 0.5 + 0.5 * Math.sin(t * 24);
             this._light.position.set(this.position.x, (this._bossHeight ?? 2.5) * 0.65, this.position.z);
             this._light.intensity = 3 + p * 14 + pulse * 3;
-            this._light.color.setHex(0xeeeeee);
+            this._light.color.setHex(0xff2222);
 
+            // Telegraph ring — red for charged smash (AoE, devastating)
             this._ringMesh.visible = true;
             this._ringMesh.position.set(this.position.x, 0.15, this.position.z);
             this._ringMesh.scale.setScalar(0.45 + p * (this.hitRadius * 0.42));
             this._ringMat.opacity = 0.2 + p * 0.18;
-            this._ringMat.color.setHex(0xffffff);
+            this._ringMat.color.setHex(0xff2222);
             // Telegraph pulse: the faster it pulses, the closer the slam.
             const pulseAlpha = 0.2 + 0.8 * (0.5 + 0.5 * Math.sin(t * (10 + p * 16)));
             this._ringMat.opacity *= pulseAlpha;
@@ -716,7 +718,7 @@ export class Boss extends Enemy {
                     0.25 + Math.random() * 1.4,
                     this.position.z + Math.sin(a) * r,
                     Math.cos(a) * (2 + Math.random() * 2), 2 + Math.random() * 3, Math.sin(a) * (2 + Math.random() * 2),
-                    0.1 + Math.random() * 0.08, 0.35 + Math.random() * 0.25, 0xbbbbbb
+                    0.1 + Math.random() * 0.08, 0.35 + Math.random() * 0.25, 0xff4444
                 );
             }
         }
@@ -736,7 +738,7 @@ export class Boss extends Enemy {
             this._ringMesh.position.set(this.position.x, 0.16, this.position.z);
             this._ringMesh.scale.setScalar((this.hitRadius + 7.5) * 0.55);
             this._ringMat.opacity = 0.4;
-            this._ringMat.color.setHex(0xffffff);
+            this._ringMat.color.setHex(0xff2222);
             this._light.intensity = 20;
         }
 
