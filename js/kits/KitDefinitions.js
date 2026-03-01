@@ -919,6 +919,7 @@ export const KIT_DEFINITIONS = {
             chargedAttack: {
                 type: 'melee_dash',
                 damage: 35,
+                rageDamageBonus: 3,
                 speed: 28,
                 duration: 0.25,
                 radius: 2.5,
@@ -1153,6 +1154,7 @@ export const KIT_DEFINITIONS = {
             chargedAttack: {
                 type: 'melee_slam',
                 damage: 75,
+                rageDamageBonus: 5,
                 radius: 4.0,
                 chargeDuration: 1.0
             },
@@ -1161,6 +1163,7 @@ export const KIT_DEFINITIONS = {
                 name: 'Earthquake',
                 type: 'ground_aoe_linger',
                 damage: 65,
+                rageDamageBonus: 8,
                 radius: 4.5,
                 cooldown: 11,
                 ragePerHit: 2,
