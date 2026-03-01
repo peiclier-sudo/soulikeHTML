@@ -1,5 +1,5 @@
 /**
- * Dash VFX – blood-red vortex, sparks, trail. Same pattern as BloodFireVFX.
+ * Dash VFX – blood-red vortex, sparks, trail, and ghost afterimages.
  * Vanilla Three.js; wire into Character startDash / updateDash / update.
  */
 
@@ -11,35 +11,34 @@ const VORTEX_POINTS_PER_RING = 18;
 const SPARK_COUNT = 56;
 const FADEOUT_DURATION = 0.4;
 
-const BLOOD_BRIGHT = 0xcc0c0c;
-const BLOOD_MID = 0x880808;
-const BLOOD_DARK = 0x2a0808;
+// Ghost afterimage settings
+const GHOST_COUNT = 6;
+const GHOST_FADE = 0.28;
+const GHOST_INTERVAL = 0.052;
 
-const ICE_BRIGHT = 0x88ddff;
-const ICE_MID = 0x44aaff;
-const ICE_DARK = 0x0a2a5a;
+// Per-kit dash color palettes: { bright, mid, dark }
+const KIT_DASH_COLORS = {
+    blood_mage:      { bright: 0xcc0c0c, mid: 0x880808, dark: 0x2a0808 },  // crimson red
+    frost_mage:      { bright: 0x88ddff, mid: 0x44aaff, dark: 0x0a2a5a },  // ice blue
+    shadow_assassin: { bright: 0x8bff7a, mid: 0x2bc95a, dark: 0x0b2a12 },  // poison green
+    bow_ranger:      { bright: 0xcc88ff, mid: 0x8844ff, dark: 0x1a0a3a },  // violet
+    werewolf:        { bright: 0xccddee, mid: 0x8899aa, dark: 0x2a3344 },  // moonlight silver
+    bear:            { bright: 0xffcc44, mid: 0xbb8833, dark: 0x3a2810 },  // amber gold
+};
 
-const POISON_BRIGHT = 0x8bff7a;
-const POISON_MID = 0x2bc95a;
-const POISON_DARK = 0x0b2a12;
-
-const BOW_BRIGHT = 0xcc88ff;
-const BOW_MID = 0x8844ff;
-const BOW_DARK = 0x1a0a3a;
+const DEFAULT_COLORS = KIT_DASH_COLORS.blood_mage;
 
 /**
  * @param {THREE.Scene} scene
- * @param {{ isFrost?: boolean, isPoison?: boolean, isBow?: boolean }} opts
+ * @param {{ kitId?: string }} opts
  * @returns {{ update: (dt: number, position: THREE.Vector3, direction: THREE.Vector3, progress: number, isDashing: boolean) => boolean, dispose: () => void }}
  * update returns true while VFX is active (keep calling); false when done and disposed.
  */
 export function createDashVFX(scene, opts = {}) {
-    const isFrost = !!opts.isFrost;
-    const isPoison = !!opts.isPoison;
-    const isBow = !!opts.isBow;
-    const COL_BRIGHT = isBow ? BOW_BRIGHT : (isPoison ? POISON_BRIGHT : (isFrost ? ICE_BRIGHT : BLOOD_BRIGHT));
-    const COL_MID = isBow ? BOW_MID : (isPoison ? POISON_MID : (isFrost ? ICE_MID : BLOOD_MID));
-    const COL_DARK = isBow ? BOW_DARK : (isPoison ? POISON_DARK : (isFrost ? ICE_DARK : BLOOD_DARK));
+    const palette = KIT_DASH_COLORS[opts.kitId] || DEFAULT_COLORS;
+    const COL_BRIGHT = palette.bright;
+    const COL_MID = palette.mid;
+    const COL_DARK = palette.dark;
     let fadeOutTimer = -1;
 
     // —— Trail (world-space, blood red)
@@ -126,8 +125,42 @@ export function createDashVFX(scene, opts = {}) {
     scene.add(sparkMesh);
     const sparkBasePos = new THREE.Vector3();
 
+    // —— Ghost afterimages: pool of semi-transparent capsules
+    const ghostGeo = new THREE.CapsuleGeometry(0.22, 0.85, 2, 6);
+    const ghosts = [];
+    for (let i = 0; i < GHOST_COUNT; i++) {
+        const mat = new THREE.MeshBasicMaterial({
+            color: COL_BRIGHT,
+            transparent: true,
+            opacity: 0,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            side: THREE.DoubleSide
+        });
+        const mesh = new THREE.Mesh(ghostGeo, mat);
+        mesh.visible = false;
+        mesh.frustumCulled = false;
+        scene.add(mesh);
+        ghosts.push({ mesh, mat, life: 0, active: false });
+    }
+    let ghostTimer = 0;
+    let ghostIdx = 0;
+
     function update(dt, position, direction, progress, isDashing) {
         vortexAngle += dt * 14;
+
+        // Always tick ghost fade regardless of dash state
+        for (const g of ghosts) {
+            if (!g.active) continue;
+            g.life -= dt;
+            if (g.life <= 0) {
+                g.active = false;
+                g.mesh.visible = false;
+            } else {
+                const t = g.life / GHOST_FADE;
+                g.mat.opacity = 0.45 * t * t; // quadratic fade
+            }
+        }
 
         if (fadeOutTimer >= 0) {
             fadeOutTimer -= dt;
@@ -189,6 +222,20 @@ export function createDashVFX(scene, opts = {}) {
                 sparkPositions[i * 3 + 2] = sparkBasePos.z + sparkVelocities[i * 3 + 2] * life * 0.35;
             }
             sparkGeo.getAttribute('position').needsUpdate = true;
+
+            // Ghost afterimages: spawn at intervals
+            ghostTimer += dt;
+            if (ghostTimer >= GHOST_INTERVAL) {
+                ghostTimer -= GHOST_INTERVAL;
+                const g = ghosts[ghostIdx % GHOST_COUNT];
+                g.mesh.position.set(position.x, position.y + 0.65, position.z);
+                g.mesh.rotation.set(0, Math.atan2(direction.x, direction.z), 0);
+                g.mat.opacity = 0.45;
+                g.mesh.visible = true;
+                g.life = GHOST_FADE;
+                g.active = true;
+                ghostIdx++;
+            }
         } else {
             fadeOutTimer = FADEOUT_DURATION;
         }
@@ -205,6 +252,11 @@ export function createDashVFX(scene, opts = {}) {
         scene.remove(sparkMesh);
         sparkGeo.dispose();
         sparkMat.dispose();
+        for (const g of ghosts) {
+            scene.remove(g.mesh);
+            g.mat.dispose();
+        }
+        ghostGeo.dispose();
     }
 
     return { update, dispose };

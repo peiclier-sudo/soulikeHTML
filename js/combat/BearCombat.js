@@ -34,6 +34,7 @@ export class BearCombat {
         // ── Ground Slam (RMB) ───────────────────────────────────
         const charged = kc.chargedAttack || {};
         this.slamDamage = charged.damage ?? 75;
+        this.slamRageDamageBonus = charged.rageDamageBonus ?? 5;
         this.slamRadius = charged.radius ?? 4.0;
         this.slamWindup = 0;
         this.slamWindupDuration = 0.4;
@@ -48,6 +49,7 @@ export class BearCombat {
         this.quakeRadius = abilQ.radius ?? 4.5;
         this.quakeRagePerHit = abilQ.ragePerHit ?? 2;
         this.quakeLingerDuration = abilQ.lingerDuration ?? 3.0;
+        this.quakeRageDamageBonus = abilQ.rageDamageBonus ?? 8;
         this.quakeLingerDamage = abilQ.lingerDamage ?? 8;
         this._quakeZones = [];
         this._quakeVfx = null;
@@ -205,7 +207,7 @@ export class BearCombat {
     _groundSlamImpact() {
         const center = this.character.position.clone();
         const rageStacks = this.gameState.bloodCharges;
-        const totalDamage = this.slamDamage + rageStacks * 5;
+        const totalDamage = this.slamDamage + rageStacks * this.slamRageDamageBonus;
 
         for (const enemyMesh of this.cs.enemies) {
             const enemy = enemyMesh.userData?.enemy;
@@ -302,7 +304,7 @@ export class BearCombat {
         }
 
         const rageStacks = this.gameState.bloodCharges;
-        const totalDamage = this.quakeDamage + rageStacks * 8;
+        const totalDamage = this.quakeDamage + rageStacks * this.quakeRageDamageBonus;
 
         // Immediate AoE damage
         for (const enemyMesh of this.cs.enemies) {

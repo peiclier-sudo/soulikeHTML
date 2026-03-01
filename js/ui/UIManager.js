@@ -37,8 +37,23 @@ export class UIManager {
             superDashBar: document.getElementById('superdash-bar'),
             superDashFill: document.getElementById('superdash-fill'),
             noBloodEssence: document.getElementById('no-blood-essence'),
-            reticule: document.getElementById('reticule')
+            reticule: document.getElementById('reticule'),
+            healthGhost: document.getElementById('health-ghost'),
+            bossHealthGhost: document.getElementById('boss-health-ghost'),
+            comboCounter: document.getElementById('combo-counter'),
+            comboCount: document.getElementById('combo-count')
         };
+
+        // Ghost health bar state
+        this._ghostHealthPct = 100;
+        this._ghostBossPct = 100;
+
+        // Combo counter state
+        this._comboCount = 0;
+        this._comboTimer = 0;
+        this._comboResetDelay = 2.5; // seconds without hitting → combo resets
+        this._comboFading = false;
+        this._lastComboTime = 0;
 
         // Cache ability box + timer elements (avoids 8-10 getElementById per frame)
         this._abilityElements = {};
@@ -124,9 +139,10 @@ export class UIManager {
     }
 
     setupEventListeners() {
-        // Damage number events
+        // Damage number events + combo counter
         this.gameState.on('damageNumber', (data) => {
             this.showDamageNumber(data.position, data.damage, data.isCritical, data.anchorId, data.kind);
+            this._incrementCombo();
         });
 
         // Health change events
@@ -161,6 +177,7 @@ export class UIManager {
         this.updateUltimateBar(this.gameState.player.ultimateCharge);
         this.updateChargeBar();
         this.updateAbilityCooldowns();
+        this._updateCombo();
     }
 
     updateAbilityCooldowns() {
@@ -268,6 +285,22 @@ export class UIManager {
 
         if (this.elements.healthFill && pctRounded !== this._prevHealthPct) {
             this.elements.healthFill.style.width = `${percentage}%`;
+
+            // Ghost bar: on damage, set width (CSS delay+duration drains it slowly).
+            // On heal, snap immediately so ghost doesn't trail a heal.
+            if (this.elements.healthGhost) {
+                if (percentage >= this._ghostHealthPct) {
+                    this.elements.healthGhost.style.transition = 'none';
+                    this.elements.healthGhost.style.width = `${percentage}%`;
+                    requestAnimationFrame(() => {
+                        if (this.elements.healthGhost) this.elements.healthGhost.style.transition = '';
+                    });
+                } else {
+                    this.elements.healthGhost.style.width = `${percentage}%`;
+                }
+                this._ghostHealthPct = percentage;
+            }
+
             this._prevHealthPct = pctRounded;
 
             const isLow = percentage <= 25;
@@ -444,6 +477,15 @@ export class UIManager {
         if (this.elements.bossName) {
             this.elements.bossName.textContent = bossName;
         }
+        // Reset ghost bar to full for new boss
+        this._ghostBossPct = 100;
+        if (this.elements.bossHealthGhost) {
+            this.elements.bossHealthGhost.style.transition = 'none';
+            this.elements.bossHealthGhost.style.width = '100%';
+            requestAnimationFrame(() => {
+                if (this.elements.bossHealthGhost) this.elements.bossHealthGhost.style.transition = '';
+            });
+        }
         this.updateBossHealth(health, maxHealth);
     }
 
@@ -453,6 +495,19 @@ export class UIManager {
             const pctRounded = (percentage + 0.5) | 0;
             if (pctRounded !== this._prevBossPct) {
                 this.elements.bossHealthFill.style.width = `${percentage}%`;
+                // Ghost bar for boss (CSS delay makes it trail behind real bar)
+                if (this.elements.bossHealthGhost) {
+                    if (percentage >= this._ghostBossPct) {
+                        this.elements.bossHealthGhost.style.transition = 'none';
+                        this.elements.bossHealthGhost.style.width = `${percentage}%`;
+                        requestAnimationFrame(() => {
+                            if (this.elements.bossHealthGhost) this.elements.bossHealthGhost.style.transition = '';
+                        });
+                    } else {
+                        this.elements.bossHealthGhost.style.width = `${percentage}%`;
+                    }
+                    this._ghostBossPct = percentage;
+                }
                 this._prevBossPct = pctRounded;
             }
         }
@@ -463,6 +518,7 @@ export class UIManager {
             this.elements.bossHealth.style.display = 'none';
         }
         this._prevBossPct = -1;
+        this._ghostBossPct = 100;
     }
 
     showDeathScreen() {
@@ -471,6 +527,51 @@ export class UIManager {
             document.exitPointerLock();
             // Post-death cleanup is handled by main.js playerDeath handler (returns to hub)
         }
+    }
+
+    // ── Combo Counter ──────────────────────────────────────────────
+
+    _incrementCombo() {
+        this._comboCount++;
+        this._lastComboTime = performance.now();
+        this._comboFading = false;
+
+        const el = this.elements.comboCounter;
+        const countEl = this.elements.comboCount;
+        if (!el || !countEl) return;
+
+        countEl.textContent = this._comboCount;
+        el.style.display = '';
+        el.classList.remove('combo-fade', 'combo-pop');
+        void el.offsetWidth; // force reflow
+        el.classList.add('combo-pop');
+
+        // Scale text size with combo count
+        const scale = Math.min(6, 4 + this._comboCount * 0.04);
+        countEl.style.fontSize = `${scale}rem`;
+    }
+
+    _updateCombo() {
+        if (this._comboCount === 0) return;
+        const elapsed = (performance.now() - this._lastComboTime) / 1000;
+        if (elapsed >= this._comboResetDelay && !this._comboFading) {
+            this._comboFading = true;
+            const el = this.elements.comboCounter;
+            if (el) {
+                el.classList.remove('combo-pop');
+                el.classList.add('combo-fade');
+            }
+            setTimeout(() => {
+                this._comboCount = 0;
+                if (el) el.style.display = 'none';
+            }, 400);
+        }
+    }
+
+    resetCombo() {
+        this._comboCount = 0;
+        this._comboFading = false;
+        if (this.elements.comboCounter) this.elements.comboCounter.style.display = 'none';
     }
 
     // Show floating text (for pickups, messages, etc.)

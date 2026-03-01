@@ -1,9 +1,19 @@
 /**
  * Lighting System - Cinematic high-contrast arena lighting
  * Optimized: 4 lights (was 6) — fill + kicker baked into hemisphere
+ * Supports per-floor color themes via setFloorTheme().
  */
 
 import * as THREE from 'three';
+
+// Per-floor lighting presets: [hemisphere sky, hemisphere ground, key color, rim color]
+const FLOOR_LIGHTING = [
+    { sky: 0x3a4462, ground: 0x1a1510, key: 0xb0c8ff, rim: 0xc8b8ff }, // 0: default cool
+    { sky: 0x2a3a6a, ground: 0x101820, key: 0x88bbff, rim: 0x99aaff }, // 1: cold blue
+    { sky: 0x5a4232, ground: 0x201408, key: 0xffcc88, rim: 0xffaa66 }, // 2: amber forge
+    { sky: 0x4a2028, ground: 0x1a0808, key: 0xff8888, rim: 0xff6666 }, // 3: crimson
+    { sky: 0x302050, ground: 0x0a0614, key: 0xcc99ff, rim: 0xaa77ff }, // 4+: void purple
+];
 
 export class LightingSystem {
     constructor(scene) {
@@ -45,6 +55,16 @@ export class LightingSystem {
         this.topLight.position.set(0.5, 15, 0.5);
         this.topLight.castShadow = false;
         this.scene.add(this.topLight);
+    }
+
+    /** Shift lighting colors to match current tower floor. */
+    setFloorTheme(floorNumber) {
+        const i = Math.min(floorNumber, FLOOR_LIGHTING.length - 1);
+        const preset = FLOOR_LIGHTING[i];
+        this.hemisphereLight.color.setHex(preset.sky);
+        this.hemisphereLight.groundColor.setHex(preset.ground);
+        this.keyLight.color.setHex(preset.key);
+        if (this.rimLight) this.rimLight.color.setHex(preset.rim);
     }
 
     update(deltaTime, elapsedTime) {}

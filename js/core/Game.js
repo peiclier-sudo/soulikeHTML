@@ -20,6 +20,7 @@ import { Boss } from '../entities/Boss.js';
 import { RunProgress } from './RunProgress.js';
 import { setBloodFireQuality } from '../shaders/BloodFireShader.js';
 import { setIceQuality } from '../shaders/IceShader.js';
+import { ArenaHazards } from '../world/ArenaHazards.js';
 
 export class Game {
     constructor(canvas, assetLoader, kitId = 'blood_mage') {
@@ -180,15 +181,61 @@ export class Game {
         this.uiManager = new UIManager(this.gameState, this.camera, this.combatSystem, this.character);
         this.uiManager.applyKitToHud();
 
+        // Arena hazards (flame geysers that scale with floor)
+        this.arenaHazards = new ArenaHazards(this.scene, this.particleSystem);
+
         // Boss tracking
         this.boss = null;
         this.bossNumber = 0;           // index of current boss in this run
         this.pendingUltimateSlash = 0; // delay before spawning ultimate crescent (sync with anim)
+        this._bossDeathPending = false;
         this.spawnBoss();
 
         // Apply initial quality settings (low shadows + low particles = better FPS from frame 0)
         this.updateShadowQuality(this.qualitySettings.shadows);
         this.particleSystem?.setQuality(this.qualitySettings.particles);
+
+        // Apply floor 0 theme
+        this._applyFloorTheme(0);
+
+        // Near-miss dodge feedback: bright spark burst when player i-frames through a boss attack
+        this._nearMissPos = new THREE.Vector3();
+        this.gameState.on('nearMiss', () => {
+            this._nearMissPos.copy(this.character.position);
+            this._nearMissPos.y += 0.8;
+            // White-gold spark burst — visually distinct from damage sparks
+            for (let i = 0; i < 14; i++) {
+                const theta = Math.random() * Math.PI * 2;
+                const speed = 5 + Math.random() * 8;
+                this.particleSystem.sparkPool.emit(
+                    this._nearMissPos.x, this._nearMissPos.y, this._nearMissPos.z,
+                    Math.cos(theta) * speed, Math.random() * 5 + 2, Math.sin(theta) * speed,
+                    Math.random() > 0.4 ? 0xffffff : 0xffdd66, 1.3, 0.25 + Math.random() * 0.2
+                );
+            }
+            this.particleSystem.addTemporaryLight(this._nearMissPos, 0xffffff, 45, 0.18);
+            // Brief bloom flash + hit-stop for emphasis
+            this.ultimateBloomTime = 0.07;
+            this.ultimateBloomDuration = 0.07;
+            this.triggerHitStop(0.025);
+        });
+
+        // Player damage feedback: camera shake + red bloom when taking damage
+        this._prevPlayerHealth = this.gameState.player.health;
+        this.gameState.on('healthChanged', (health) => {
+            if (health < this._prevPlayerHealth) {
+                const dmg = this._prevPlayerHealth - health;
+                // Camera shake proportional to damage (capped)
+                const intensity = Math.min(0.06, 0.012 + dmg * 0.0008);
+                this.shakeIntensity = Math.max(this.shakeIntensity, intensity);
+                this.shakeDuration = 0.22;
+                this.shakeTime = this.shakeDuration;
+                // Red-tinted bloom flash
+                this.ultimateBloomTime = Math.max(this.ultimateBloomTime, 0.12);
+                this.ultimateBloomDuration = Math.max(this.ultimateBloomDuration, 0.12);
+            }
+            this._prevPlayerHealth = health;
+        });
 
         // Crimson Eruption (A): ground target, raycast
         this.crimsonEruptionTargeting = false;
@@ -197,6 +244,13 @@ export class Game {
         this._groundIntersect = new THREE.Vector3();
         this._crimsonMouse = new THREE.Vector2();
 
+    }
+
+    /** Apply color theme + hazard config for the current tower floor. */
+    _applyFloorTheme(floorNumber) {
+        this.environment.setFloorTheme(floorNumber);
+        this.lightingSystem.setFloorTheme(floorNumber);
+        this.arenaHazards.setFloor(floorNumber, 16);
     }
 
     getMouseGroundPosition(mouseScreenX, mouseScreenY) {
@@ -259,6 +313,8 @@ export class Game {
 
     /** Show the tower progression overlay after a boss is defeated. */
     showTowerScreen() {
+        // Clear hazards before pausing
+        this.arenaHazards.clear();
         // Pause the game and release pointer
         this.pause();
         document.exitPointerLock();
@@ -309,6 +365,7 @@ export class Game {
 
         this.bossNumber++;
         this.gameState.flags.bossDefeated = false;
+        this._applyFloorTheme(this.bossNumber);
         this.spawnBoss();
         this.resume();
         requestAnimationFrame(() => document.getElementById('game-canvas').requestPointerLock());
@@ -806,22 +863,44 @@ export class Game {
             if (this.boss.isAlive) {
                 this.boss.update(this.deltaTime, this.character.position);
                 this.uiManager.updateBossHealth(this.boss.health, this.boss.maxHealth);
-            } else {
+            } else if (!this._bossDeathPending) {
+                // Boss death celebration: VFX explosion → delayed tower screen
+                this._bossDeathPending = true;
+                const deathPos = this._tmpPosVec.copy(this.boss.position);
+                deathPos.y += (this.boss._bossHeight ?? 2.5) * 0.5;
+                // Massive spark + ember burst
+                this.particleSystem.emitSparks(deathPos, 40);
+                this.particleSystem.emitEmbers(deathPos, 25, 0xffcc44);
+                this.particleSystem.addTemporaryLight(deathPos, 0xffdd66, 80, 0.6);
+                // Heavy hit-stop + screen shake + bloom
+                this.triggerHitStop(0.28);
+                this.shakeIntensity = 0.09;
+                this.shakeDuration = 0.45;
+                this.shakeTime = this.shakeDuration;
+                this.ultimateBloomTime = 0.55;
+                this.ultimateBloomDuration = 0.55;
+                this.ultimateFovTime = 0.3;
                 this.uiManager.hideBossHealth();
                 this.gameState.flags.bossDefeated = true;
                 RunProgress.onBossDefeated(this.gameState);
                 this.boss = null;
-                // Show tower progression screen instead of auto-spawning
-                this.showTowerScreen();
+                // Delay tower screen so the VFX plays out
+                setTimeout(() => {
+                    this._bossDeathPending = false;
+                    this.showTowerScreen();
+                }, 850);
             }
         }
         
         // Update environment animations
         this.environment.update(this.deltaTime, this.elapsedTime);
-        
+
         // Update lighting (torch flicker, etc)
         this.lightingSystem.update(this.deltaTime, this.elapsedTime);
-        
+
+        // Update arena hazards (flame geysers)
+        this.arenaHazards.update(this.deltaTime, this.character.position, this.gameState);
+
         // Update particles
         this.particleSystem.update(this.deltaTime);
         

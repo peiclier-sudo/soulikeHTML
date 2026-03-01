@@ -44,7 +44,8 @@ export class Character {
         // State
         this.isGrounded = true;
 
-        // Dash (R key) - smooth, snappy feel
+        // Dash (R key) - per-kit tuning via kit.dash config
+        const dashConfig = this.gameState?.selectedKit?.dash || {};
         this.isDashing = false;
         this.dashTimer = 0;
         this.dashDuration = 0.28;
@@ -52,8 +53,11 @@ export class Character {
         this.dashStartPos = new THREE.Vector3();
         this.dashDirection = new THREE.Vector3();
         this.dashCooldown = 0;
+        this.dashCooldownDuration = dashConfig.cooldown ?? 0.7;
+        this.dashStaminaCost = dashConfig.staminaCost ?? 12;
         this.superDashCooldown = 0;
-        this.superDashCooldownDuration = 20;
+        this.superDashCooldownDuration = dashConfig.superDashCooldown ?? 20;
+        this.superDashStaminaCost = dashConfig.superDashStamina ?? 20;
         this.superDashDamage = 80;
         this.isSuperDashing = false;
         this.superDashHitSet = new Set();
@@ -427,7 +431,7 @@ export class Character {
             if (modelKey === 'character_3k_mage') {
                 this.mesh.scale.setScalar(7.5);
             } else if (modelKey === 'character_3k_rogue') {
-                this.mesh.scale.setScalar(0.55);
+                this.mesh.scale.setScalar(0.275);
             } else if (modelKey === 'wolf') {
                 this.mesh.scale.setScalar(0.7);
             } else if (modelKey === 'bear') {
@@ -1165,7 +1169,7 @@ export class Character {
         }
 
         // é (AZERTY Digit2) = Super Dash
-        if (input.superDash && this.superDashCooldown <= 0 && !this.isDashing && this.gameState.useStamina(20)) {
+        if (input.superDash && this.superDashCooldown <= 0 && !this.isDashing && this.gameState.useStamina(this.superDashStaminaCost)) {
             const dashDir = moveVector.length() > 0 ? moveVector.clone().normalize() : forward;
             this.startDash(dashDir, true);
             this.gameState.combat.nextAttackDamageMultiplier = 2.0;
@@ -1173,7 +1177,7 @@ export class Character {
 
         // R = dash in movement direction (or forward if not moving)
         if (input.dash && this.dashCooldown <= 0 &&
-            this.gameState.useStamina(12)) {
+            this.gameState.useStamina(this.dashStaminaCost)) {
             const dashDir = moveVector.length() > 0
                 ? moveVector.clone().normalize()
                 : forward;
@@ -1191,14 +1195,12 @@ export class Character {
         this.isSuperDashing = isSuper;
         this.superDashHitSet.clear();
         this.dashTimer = isSuper ? this.dashDuration * 1.15 : this.dashDuration;
-        this.dashCooldown = isSuper ? 1.2 : 0.7;
+        this.dashCooldown = isSuper ? this.dashCooldownDuration * 1.5 : this.dashCooldownDuration;
         if (isSuper) this.superDashCooldown = this.superDashCooldownDuration;
         this.gameState.combat.invulnerable = true;
         if (this.dashVfx) this.dashVfx.dispose();
         this.dashVfx = createDashVFX(this.scene, {
-            isFrost: this.gameState.selectedKit?.id === 'frost_mage',
-            isPoison: this.gameState.selectedKit?.id === 'shadow_assassin',
-            isBow: this.gameState.selectedKit?.id === 'bow_ranger'
+            kitId: this.gameState.selectedKit?.id
         });
     }
 

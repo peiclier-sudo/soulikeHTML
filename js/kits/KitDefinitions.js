@@ -244,6 +244,14 @@ export const KIT_DEFINITIONS = {
             uiClass: 'kit-blood-mage'
         },
 
+        // Dash tuning: mages dash at moderate frequency
+        dash: {
+            cooldown: 0.9,
+            staminaCost: 14,
+            superDashCooldown: 20,
+            superDashStamina: 22,
+        },
+
         model: 'character_3k_mage'
     },
 
@@ -471,6 +479,14 @@ export const KIT_DEFINITIONS = {
             uiClass: 'kit-frost-mage'
         },
 
+        // Dash tuning: mages dash at moderate frequency
+        dash: {
+            cooldown: 0.9,
+            staminaCost: 14,
+            superDashCooldown: 20,
+            superDashStamina: 22,
+        },
+
         model: 'character_3k_mage'
     },
 
@@ -665,6 +681,14 @@ export const KIT_DEFINITIONS = {
             accent: 0x8bff7a,
             particleColor: 0x4dff66,
             uiClass: 'kit-shadow-assassin'
+        },
+
+        // Dash tuning: rogues dash more often
+        dash: {
+            cooldown: 0.45,
+            staminaCost: 10,
+            superDashCooldown: 15,
+            superDashStamina: 16,
         },
 
         model: 'character_3k_rogue',
@@ -875,6 +899,14 @@ export const KIT_DEFINITIONS = {
             uiClass: 'kit-bow-ranger'
         },
 
+        // Dash tuning: rogues dash more often
+        dash: {
+            cooldown: 0.45,
+            staminaCost: 10,
+            superDashCooldown: 15,
+            superDashStamina: 16,
+        },
+
         model: 'character_3k_rogue',
         animationKey: 'character_3k_rogue_dagger'
     },
@@ -919,6 +951,7 @@ export const KIT_DEFINITIONS = {
             chargedAttack: {
                 type: 'melee_dash',
                 damage: 35,
+                rageDamageBonus: 3,
                 speed: 28,
                 duration: 0.25,
                 radius: 2.5,
@@ -1110,6 +1143,14 @@ export const KIT_DEFINITIONS = {
             uiClass: 'kit-werewolf'
         },
 
+        // Dash tuning: wolf dashes more often (agile predator)
+        dash: {
+            cooldown: 0.5,
+            staminaCost: 10,
+            superDashCooldown: 14,
+            superDashStamina: 16,
+        },
+
         model: 'wolf',
         animationKey: 'wolf'
     },
@@ -1153,6 +1194,7 @@ export const KIT_DEFINITIONS = {
             chargedAttack: {
                 type: 'melee_slam',
                 damage: 75,
+                rageDamageBonus: 5,
                 radius: 4.0,
                 chargeDuration: 1.0
             },
@@ -1161,6 +1203,7 @@ export const KIT_DEFINITIONS = {
                 name: 'Earthquake',
                 type: 'ground_aoe_linger',
                 damage: 65,
+                rageDamageBonus: 8,
                 radius: 4.5,
                 cooldown: 11,
                 ragePerHit: 2,
@@ -1340,6 +1383,14 @@ export const KIT_DEFINITIONS = {
             accent: 0xFFCC44,     // golden honey
             particleColor: 0xCC8822,
             uiClass: 'kit-bear'
+        },
+
+        // Dash tuning: bear dashes less often (heavy and tanky)
+        dash: {
+            cooldown: 1.3,
+            staminaCost: 18,
+            superDashCooldown: 25,
+            superDashStamina: 28,
         },
 
         model: 'bear',

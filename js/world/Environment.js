@@ -1,14 +1,28 @@
 /**
- * Environment System - Cyber training room (black/white grid shader)
+ * Environment System - Cyber training room with per-floor color themes.
+ * Grid shader tints shift as the player climbs the tower.
  */
 
 import * as THREE from 'three';
 
 const ARENA_HALF = 28;
 const WALL_HEIGHT = 14;
-const WALL_THICKNESS = 1.5;
 
-// mask: vec3 — set 1.0 for axes that should draw lines, 0.0 to skip.
+// Per-floor theme: lineColor (RGB 0-1), fogColor (hex), bgColor (hex)
+const FLOOR_THEMES = [
+    { line: [1.0, 1.0, 1.0],   fog: 0x080c14, bg: 0x080c14 }, // 0: default white
+    { line: [0.55, 0.75, 1.0], fog: 0x060a18, bg: 0x060a18 }, // 1: cold blue
+    { line: [1.0, 0.72, 0.35], fog: 0x120a04, bg: 0x120a04 }, // 2: amber forge
+    { line: [1.0, 0.25, 0.18], fog: 0x140606, bg: 0x140606 }, // 3: crimson
+    { line: [0.72, 0.35, 1.0], fog: 0x0a0614, bg: 0x0a0614 }, // 4+: void purple
+];
+
+function getTheme(floorNumber) {
+    const i = Math.min(floorNumber, FLOOR_THEMES.length - 1);
+    return FLOOR_THEMES[i];
+}
+
+// Grid shader with a tintable lineColor uniform
 function createGridMaterial(maskX, maskY, maskZ) {
     return new THREE.ShaderMaterial({
         uniforms: {
@@ -16,7 +30,8 @@ function createGridMaterial(maskX, maskY, maskZ) {
             gridOffset: { value: 5.0 },
             lineWidth: { value: 0.002 },
             lineAlpha: { value: 0.24 },
-            axisMask: { value: new THREE.Vector3(maskX, maskY, maskZ) }
+            axisMask: { value: new THREE.Vector3(maskX, maskY, maskZ) },
+            lineColor: { value: new THREE.Vector3(1, 1, 1) }
         },
         vertexShader: `
             varying vec3 vWorldPos;
@@ -32,6 +47,7 @@ function createGridMaterial(maskX, maskY, maskZ) {
             uniform float lineWidth;
             uniform float lineAlpha;
             uniform vec3 axisMask;
+            uniform vec3 lineColor;
             varying vec3 vWorldPos;
 
             float grid(float coord) {
@@ -46,7 +62,7 @@ function createGridMaterial(maskX, maskY, maskZ) {
                 float gy = grid(vWorldPos.y) * axisMask.y;
                 float gz = grid(vWorldPos.z) * axisMask.z;
                 float g = max(max(gx, gy), gz);
-                vec3 col = vec3(g * lineAlpha);
+                vec3 col = lineColor * g * lineAlpha;
                 gl_FragColor = vec4(col, 1.0);
             }
         `,
@@ -58,6 +74,7 @@ export class Environment {
     constructor(scene, assetLoader) {
         this.scene = scene;
         this.assetLoader = assetLoader;
+        this._gridMaterials = [];
 
         this.createFloor();
         this.createWalls();
@@ -66,7 +83,9 @@ export class Environment {
 
     createFloor() {
         const floorGeom = new THREE.PlaneGeometry(ARENA_HALF * 2, ARENA_HALF * 2, 1, 1);
-        const floor = new THREE.Mesh(floorGeom, createGridMaterial(1, 0, 1));
+        const mat = createGridMaterial(1, 0, 1);
+        this._gridMaterials.push(mat);
+        const floor = new THREE.Mesh(floorGeom, mat);
         floor.rotation.x = -Math.PI / 2;
         floor.position.y = -0.04;
         floor.receiveShadow = true;
@@ -86,7 +105,9 @@ export class Environment {
         ];
 
         for (const s of sides) {
-            const wall = new THREE.Mesh(wallGeom, createGridMaterial(s.mx, s.my, s.mz));
+            const mat = createGridMaterial(s.mx, s.my, s.mz);
+            this._gridMaterials.push(mat);
+            const wall = new THREE.Mesh(wallGeom, mat);
             wall.position.set(s.px, s.py, s.pz);
             wall.rotation.y = s.ry;
             wall.receiveShadow = true;
@@ -98,10 +119,23 @@ export class Environment {
 
     createCeiling() {
         const ceilGeom = new THREE.PlaneGeometry(ARENA_HALF * 2, ARENA_HALF * 2, 1, 1);
-        const ceil = new THREE.Mesh(ceilGeom, createGridMaterial(1, 0, 1));
+        const mat = createGridMaterial(1, 0, 1);
+        this._gridMaterials.push(mat);
+        const ceil = new THREE.Mesh(ceilGeom, mat);
         ceil.rotation.x = Math.PI / 2;
         ceil.position.y = WALL_HEIGHT + 0.04;
         this.scene.add(ceil);
+    }
+
+    /** Tint the arena grid + fog/background to match the current tower floor. */
+    setFloorTheme(floorNumber) {
+        const theme = getTheme(floorNumber);
+        const lc = theme.line;
+        for (const mat of this._gridMaterials) {
+            mat.uniforms.lineColor.value.set(lc[0], lc[1], lc[2]);
+        }
+        this.scene.background.setHex(theme.bg);
+        if (this.scene.fog) this.scene.fog.color.setHex(theme.fog);
     }
 
     update(deltaTime, elapsedTime) {}

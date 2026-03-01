@@ -155,6 +155,10 @@ export class GameState {
     
     // Health management
     takeDamage(amount) {
+        if (this.combat.invulnerable) {
+            this.emit('nearMiss', { damage: amount });
+            return 0;
+        }
         if (this.combat.shieldActive) return 0;
         const bearArmorBonus = (this.combat.bearArmorBuffRemaining > 0 ? (this.combat.bearArmorBuffAmount ?? 0) : 0)
             + (this.combat.bearFuryRemaining > 0 ? (this.combat.bearFuryArmorBonus ?? 0) : 0);

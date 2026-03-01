@@ -34,6 +34,7 @@ export class WolfCombat {
         // ── Feral Lunge (RMB) ────────────────────────────────────
         const lunge = kc.chargedAttack || {};
         this.lungeDamage = lunge.damage ?? 35;
+        this.lungeRageDamageBonus = lunge.rageDamageBonus ?? 3;
         this.lungeSpeed = lunge.speed ?? 28;
         this.lungeDuration = lunge.duration ?? 0.25;
         this.lungeRadius = lunge.radius ?? 2.5;
@@ -225,7 +226,7 @@ export class WolfCombat {
             if (dist > this.lungeRadius + hitRadius) continue;
             this._lungeHitSet.add(enemy);
             const rageStacks = this.gameState.bloodCharges;
-            let dmg = this.lungeDamage + rageStacks * 3;
+            let dmg = this.lungeDamage + rageStacks * this.lungeRageDamageBonus;
             const { damage, isCritical, isBackstab } = this.cs._applyCritBackstab(dmg, enemy, enemyMesh);
             enemy.takeDamage(damage);
             enemy.staggerTimer = Math.max(enemy.staggerTimer, 0.4);
