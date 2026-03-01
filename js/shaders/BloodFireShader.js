@@ -81,6 +81,7 @@ const fullFragmentShader = `
     uniform float layerScale;
     uniform float rimPower;
     uniform float redTint;
+    uniform vec3 tintColor;
 
     varying vec2 vUv;
     varying vec3 vPosition;
@@ -175,13 +176,16 @@ const fullFragmentShader = `
         float soulCore = smoothstep(0.85, 0.99, 1.0 - dist);
         soulCore *= (0.85 + 0.15 * sin(t * 3.0 + n1 * 6.28));
 
-        vec3 blackSmoke = vec3(0.03, 0.0, 0.0);
-        vec3 venousDark = vec3(0.18, 0.0, 0.02);
-        vec3 bloodDark = vec3(0.42, 0.02, 0.03);
-        vec3 arterialCrimson = vec3(0.78, 0.04, 0.02);
-        vec3 bloodBright = vec3(0.95, 0.08, 0.02);
-        vec3 bloodCore = vec3(1.0, 0.18, 0.05);
-        vec3 bloodHot = vec3(1.0, 0.35, 0.12);
+        // Palette derived from tintColor (default blood-red when tintColor = 0,0,0)
+        bool hasTint = (tintColor.r + tintColor.g + tintColor.b) > 0.01;
+        vec3 tc = hasTint ? tintColor : vec3(1.0, 0.08, 0.02);
+        vec3 blackSmoke = tc * 0.03;
+        vec3 venousDark = tc * 0.2;
+        vec3 bloodDark = tc * 0.45;
+        vec3 arterialCrimson = tc * 0.8;
+        vec3 bloodBright = tc * 0.95 + vec3(0.0, 0.02, 0.0);
+        vec3 bloodCore = tc + vec3(0.0, 0.1, 0.03);
+        vec3 bloodHot = tc + vec3(0.0, 0.22, 0.1);
 
         vec3 col = mix(blackSmoke, venousDark, plasma * 0.6);
         col = mix(col, bloodDark, plasma * n2);
@@ -190,11 +194,11 @@ const fullFragmentShader = `
         col = mix(col, bloodCore, core * coreBrightness);
         col = mix(col, bloodHot, soulCore * coreBrightness * 0.5);
 
-        col += vec3(0.95, 0.12, 0.02) * embers * 0.9;
+        col += tc * 0.95 * embers * 0.9;
 
         float rim = pow(vFresnel, rimPower);
         float rimPulse = 0.6 + 0.4 * sin(t * 1.8 + n1 * 6.28);
-        col += vec3(0.4, 0.0, 0.0) * rim * rimPulse;
+        col += tc * 0.4 * rim * rimPulse;
         col += bloodBright * rim * 0.65;
         col += bloodCore * rim * rim * 0.35;
         float edgeSmoke = smoothstep(0.3, 0.85, vFresnel);
@@ -203,9 +207,9 @@ const fullFragmentShader = `
         if (isCharged > 0.5) {
             float crackle = smoothstep(0.7, 0.95, nFine) * smoothstep(0.6, 0.8, n1);
             crackle *= (0.5 + 0.5 * sin(t * 8.0 + n2 * 12.0));
-            col += vec3(1.0, 0.25, 0.05) * crackle * 0.5;
+            col += (tc + vec3(0.0, 0.15, 0.03)) * crackle * 0.5;
             col *= 1.1;
-            col += vec3(0.1, 0.0, 0.01) * (0.5 + 0.5 * sin(t * 3.5));
+            col += tc * 0.1 * (0.5 + 0.5 * sin(t * 3.5));
             rim = pow(vFresnel, 1.8);
             col += bloodHot * rim * 0.25;
         }
@@ -245,6 +249,7 @@ const fastFragmentShader = `
     uniform float isCharged;
     uniform float rimPower;
     uniform float redTint;
+    uniform vec3 tintColor;
 
     varying vec2 vUv;
     varying vec3 vPosition;
@@ -268,24 +273,26 @@ const fastFragmentShader = `
         float core = smoothstep(0.6, 0.98, 1.0 - dist);
         core *= 0.92 + 0.08 * sin(t * 2.5);
 
-        // Same blood palette
-        vec3 blackSmoke = vec3(0.03, 0.0, 0.0);
-        vec3 venousDark = vec3(0.18, 0.0, 0.02);
-        vec3 arterialCrimson = vec3(0.78, 0.04, 0.02);
-        vec3 bloodBright = vec3(0.95, 0.08, 0.02);
-        vec3 bloodCore = vec3(1.0, 0.18, 0.05);
-        vec3 bloodHot = vec3(1.0, 0.35, 0.12);
+        // Palette derived from tintColor (default blood-red when tintColor = 0,0,0)
+        bool hasTint = (tintColor.r + tintColor.g + tintColor.b) > 0.01;
+        vec3 tc = hasTint ? tintColor : vec3(1.0, 0.08, 0.02);
+        vec3 blackSmoke = tc * 0.03;
+        vec3 venousDark = tc * 0.2;
+        vec3 arterialCrimson = tc * 0.8;
+        vec3 bloodBright = tc * 0.95 + vec3(0.0, 0.02, 0.0);
+        vec3 bloodCore = tc + vec3(0.0, 0.1, 0.03);
+        vec3 bloodHot = tc + vec3(0.0, 0.22, 0.1);
 
         vec3 col = mix(blackSmoke, venousDark, plasma * 0.6);
         col = mix(col, arterialCrimson, plasma * 0.9);
         col = mix(col, bloodBright, veins);
         col = mix(col, bloodCore, core * coreBrightness);
 
-        col += vec3(0.95, 0.12, 0.02) * embers * 0.7;
+        col += tc * 0.95 * embers * 0.7;
 
         // Rim glow
         float rim = pow(vFresnel, rimPower);
-        col += vec3(0.4, 0.0, 0.0) * rim * 0.8;
+        col += tc * 0.4 * rim * 0.8;
         col += bloodBright * rim * 0.5;
         float edgeSmoke = smoothstep(0.3, 0.85, vFresnel);
         col = mix(col, blackSmoke, edgeSmoke * 0.35);
@@ -314,6 +321,7 @@ export const BloodFireShader = {
         layerScale: { value: 1.0 },
         rimPower: { value: 2.2 },
         redTint: { value: 0.0 },
+        tintColor: { value: new THREE.Vector3(0, 0, 0) },
         displaceAmount: { value: 0.0 }
     },
     vertexShader: fullVertexShader,
@@ -329,6 +337,10 @@ export function setBloodFireQuality(fast) {
 
 export function createBloodFireMaterial(opts = {}) {
     const fast = opts.fast ?? _useFastShaders;
+    const tc = opts.tintColor;
+    const tintVec = tc
+        ? new THREE.Vector3(tc[0] ?? tc.r ?? 0, tc[1] ?? tc.g ?? 0, tc[2] ?? tc.b ?? 0)
+        : new THREE.Vector3(0, 0, 0);
     return new THREE.ShaderMaterial({
         uniforms: {
             time: { value: opts.time ?? 0 },
@@ -339,6 +351,7 @@ export function createBloodFireMaterial(opts = {}) {
             layerScale: { value: opts.layerScale ?? 1.0 },
             rimPower: { value: opts.rimPower ?? 2.2 },
             redTint: { value: opts.redTint ?? 0.0 },
+            tintColor: { value: tintVec },
             displaceAmount: { value: opts.displaceAmount ?? 0.0 }
         },
         vertexShader: fast ? fastVertexShader : fullVertexShader,
