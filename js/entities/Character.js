@@ -962,19 +962,29 @@ export class Character {
 
         // Ultimate (F): consume full bar and play Special attack 1 animation
         const ultimateAction = this.actions['Special attack 1'] || this.actions['Ultimate'];
-        if (input.ultimate && (this.gameState.player.ultimateCharge >= 100 || this.gameState.ultimateTestMode) && !this.isPlayingUltimate && ultimateAction) {
-            this.gameState.useUltimate();
-            this.isPlayingUltimate = true;
-            const ultimateClip = ultimateAction.getClip();
-            const ultimateSpeed = 4.0; // 2x faster than before (100% increase)
-            this.ultimateAnimTimer = ultimateClip.duration / ultimateSpeed;
-            if (this.useDissociation) {
-                this.playLoco('Idle', 0.2);
-                this.playUpper(ultimateAction === this.actions['Special attack 1'] ? 'Special attack 1' : 'Ultimate', 0.12, 0.12);
-                this.currentUpperState = ultimateAction === this.actions['Special attack 1'] ? 'Special attack 1' : 'Ultimate';
-            } else {
-                this.fadeToAction(ultimateAction === this.actions['Special attack 1'] ? 'Special attack 1' : 'Ultimate', 0.1);
-                this.currentAnimation = ultimateAction === this.actions['Special attack 1'] ? 'Special attack 1' : 'Ultimate';
+        if (input.ultimate && (this.gameState.player.ultimateCharge >= 100 || this.gameState.ultimateTestMode) && !this.isPlayingUltimate) {
+            if (ultimateAction) {
+                this.gameState.useUltimate();
+                this.isPlayingUltimate = true;
+                const ultimateClip = ultimateAction.getClip();
+                const ultimateSpeed = 4.0; // 2x faster than before (100% increase)
+                this.ultimateAnimTimer = ultimateClip.duration / ultimateSpeed;
+                if (this.useDissociation) {
+                    this.playLoco('Idle', 0.2);
+                    this.playUpper(ultimateAction === this.actions['Special attack 1'] ? 'Special attack 1' : 'Ultimate', 0.12, 0.12);
+                    this.currentUpperState = ultimateAction === this.actions['Special attack 1'] ? 'Special attack 1' : 'Ultimate';
+                } else {
+                    this.fadeToAction(ultimateAction === this.actions['Special attack 1'] ? 'Special attack 1' : 'Ultimate', 0.1);
+                    this.currentAnimation = ultimateAction === this.actions['Special attack 1'] ? 'Special attack 1' : 'Ultimate';
+                }
+            } else if (this.locoOnly) {
+                // locoOnly models (wolf, bear, rogue): no ultimate animation clip — trigger
+                // procedural 'ability' pose via isWhipAttacking and fire the ultimate dispatch.
+                this.gameState.useUltimate();
+                this.isPlayingUltimate = true;
+                this.ultimateAnimTimer = 0.5;
+                this.gameState.combat.isWhipAttacking = true;
+                this._ultimateLocoTimer = 0.5;
             }
         }
         const whipAction = this.actions['Whip'] || this.actions['Special attack 2'];
@@ -1005,7 +1015,14 @@ export class Character {
         }
         if (this.isPlayingUltimate) {
             this.ultimateAnimTimer -= deltaTime;
-            if (this.ultimateAnimTimer <= 0) this.isPlayingUltimate = false;
+            if (this.ultimateAnimTimer <= 0) {
+                this.isPlayingUltimate = false;
+                // Clear procedural ability pose for locoOnly models
+                if (this._ultimateLocoTimer !== undefined) {
+                    this.gameState.combat.isWhipAttacking = false;
+                    this._ultimateLocoTimer = undefined;
+                }
+            }
         }
         // Update camera rotation
         this.updateCamera(input, mouseSensitivity, deltaTime);
