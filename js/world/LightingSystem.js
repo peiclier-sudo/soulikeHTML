@@ -16,11 +16,11 @@ export class LightingSystem {
 
     setupMainLights() {
         // Hemisphere replaces ambient + fill + kicker: warm ground, cool sky
-        this.hemisphereLight = new THREE.HemisphereLight(0x3a4462, 0x1a1510, 0.7);
+        this.hemisphereLight = new THREE.HemisphereLight(0x3a4462, 0x1a1510, 1.1);
         this.scene.add(this.hemisphereLight);
 
         // Strong cool key — main dramatic source, only shadow caster
-        this.keyLight = new THREE.DirectionalLight(0xb0c8ff, 1.85);
+        this.keyLight = new THREE.DirectionalLight(0xb0c8ff, 2.6);
         this.keyLight.position.set(5, 14, -7);
         this.keyLight.castShadow = true;
         this.keyLight.shadow.mapSize.width = this.shadowResolution;
@@ -36,12 +36,12 @@ export class LightingSystem {
         this.scene.add(this.keyLight);
 
         // Purple-white rim for silhouette pop
-        this.rimLight = new THREE.DirectionalLight(0xc8b8ff, 0.48);
+        this.rimLight = new THREE.DirectionalLight(0xc8b8ff, 0.72);
         this.rimLight.position.set(-12, 8, -10);
         this.scene.add(this.rimLight);
 
         // Top-down white for readability, no shadow
-        this.topLight = new THREE.DirectionalLight(0xffffff, 0.55);
+        this.topLight = new THREE.DirectionalLight(0xffffff, 0.85);
         this.topLight.position.set(0.5, 15, 0.5);
         this.topLight.castShadow = false;
         this.scene.add(this.topLight);
@@ -63,9 +63,9 @@ export class LightingSystem {
     }
 
     setBrightness(multiplier) {
-        this.hemisphereLight.intensity = 0.7 * multiplier;
-        this.keyLight.intensity = 1.85 * multiplier;
-        if (this.rimLight) this.rimLight.intensity = 0.48 * multiplier;
-        if (this.topLight) this.topLight.intensity = 0.55 * multiplier;
+        this.hemisphereLight.intensity = 1.1 * multiplier;
+        this.keyLight.intensity = 2.6 * multiplier;
+        if (this.rimLight) this.rimLight.intensity = 0.72 * multiplier;
+        if (this.topLight) this.topLight.intensity = 0.85 * multiplier;
     }
 }
