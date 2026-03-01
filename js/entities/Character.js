@@ -118,6 +118,8 @@ export class Character {
         this.bloodChargeIndicator.name = 'bloodChargeIndicator';
         const isFrost = this.gameState.selectedKit?.id === 'frost_mage';
         this._isFrostChargeIndicator = isFrost;
+        // Use kit VFX tintColor for charge indicator if available
+        const kitTintColor = this.gameState.selectedKit?.vfx?.tintColor;
         const innerRadius = 0.052;
         const outerRadius = 0.075;
         const circleRadius = 1.35;
@@ -141,10 +143,18 @@ export class Character {
                 layerScale: 1.1,
                 rimPower: 2.0,
                 alpha: 0.98,
-                redTint: 0.92
+                redTint: kitTintColor ? 0.0 : 0.92,
+                tintColor: kitTintColor || null
             });
+        // Outer glow color: use kit theme or default blood-red
+        let outerColor = isFrost ? 0x0a2a5a : 0x2a0808;
+        if (kitTintColor && !isFrost) {
+            outerColor = (Math.round(kitTintColor[0] * 42) << 16) |
+                         (Math.round(kitTintColor[1] * 42) << 8) |
+                          Math.round(kitTintColor[2] * 42);
+        }
         const sharedOuterMat = new THREE.MeshBasicMaterial({
-            color: isFrost ? 0x0a2a5a : 0x2a0808,
+            color: outerColor,
             transparent: true,
             opacity: 0.78,
             depthWrite: false
@@ -210,7 +220,8 @@ export class Character {
                     if (this._isFrostChargeIndicator) {
                         this.particleSystem.emitIceTrail(this._bloodOrbWorldPos, 1);
                     } else {
-                        this.particleSystem.emitEmbers(this._bloodOrbWorldPos, 1);
+                        const kitParticleColor = this.gameState.selectedKit?.theme?.particleColor ?? 0xff6600;
+                        this.particleSystem.emitEmbers(this._bloodOrbWorldPos, 1, kitParticleColor);
                     }
                     orbGroup.userData.lastParticleEmit = t;
                 }

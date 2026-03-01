@@ -202,13 +202,13 @@ export class ParticleSystem {
 
     // ─── Ember emitters ─────────────────────────────────────────
 
-    emitEmbers(position, count = 8) {
+    emitEmbers(position, count = 8, color = 0xff6600) {
         const n = Math.floor(count * this.qualityMultiplier);
         for (let i = 0; i < n; i++) {
             this.emberPool.emit(
                 position.x + (Math.random() - 0.5) * 2.5, position.y, position.z + (Math.random() - 0.5) * 2.5,
                 (Math.random() - 0.5) * 0.5, Math.random() * 2.5 + 1.2, (Math.random() - 0.5) * 0.5,
-                0xff6600, 0.8 + Math.random() * 0.6, 2.2
+                color, 0.8 + Math.random() * 0.6, 2.2
             );
         }
     }

@@ -298,7 +298,8 @@ export class CombatSystem {
             isCharged: outerParams.isCharged ?? (isCharged ? 1.0 : 0.0),
             layerScale: outerParams.layerScale ?? (isCharged ? 0.7 : 0.85),
             rimPower: outerParams.rimPower ?? (isCharged ? 2.0 : 1.8),
-            redTint: outerParams.redTint ?? 0.92
+            redTint: outerParams.redTint ?? 0.92,
+            tintColor: outerParams.tintColor || null
         });
         outerMat.uniforms.alpha.value = outerParams.alpha ?? (isCharged ? 0.5 : 0.45);
         const outerGeo = new THREE.SphereGeometry(radius, seg, seg);
@@ -313,7 +314,8 @@ export class CombatSystem {
             isCharged: coreParams.isCharged ?? (isCharged ? 1.0 : 0.0),
             layerScale: coreParams.layerScale ?? (isCharged ? 1.6 : 1.3),
             rimPower: coreParams.rimPower ?? (isCharged ? 2.0 : 1.8),
-            redTint: coreParams.redTint ?? 0.92
+            redTint: coreParams.redTint ?? 0.92,
+            tintColor: coreParams.tintColor || null
         });
         const coreRatio = pv.coreRatio ?? 0.55;
         const coreGeo = new THREE.SphereGeometry(radius * coreRatio, seg, seg);
@@ -1534,6 +1536,7 @@ export class CombatSystem {
         const fragmentShader = `
             uniform float alpha;
             uniform float time;
+            uniform vec3 tintColor;
             varying vec3 vNormal;
             varying vec3 vPosition;
             varying float vRadial;
@@ -1545,25 +1548,32 @@ export class CombatSystem {
                 float noise = n(vPosition * 8.0 + time) * 0.08;
                 r += noise;
                 r = clamp(r, 0.0, 1.0);
-                vec3 darkCore = vec3(0.03, 0.0, 0.005);
-                vec3 darkMid = vec3(0.12, 0.0, 0.01);
-                vec3 bloodMid = vec3(0.38, 0.01, 0.02);
-                vec3 bloodOuter = vec3(0.72, 0.02, 0.03);
-                vec3 redSurface = vec3(0.95, 0.04, 0.05);
+                bool hasTint = (tintColor.r + tintColor.g + tintColor.b) > 0.01;
+                vec3 tc = hasTint ? tintColor : vec3(1.0, 0.04, 0.05);
+                vec3 darkCore = tc * 0.03;
+                vec3 darkMid = tc * 0.12;
+                vec3 bloodMid = tc * 0.4;
+                vec3 bloodOuter = tc * 0.75;
+                vec3 redSurface = tc * 0.95;
                 float fresnel = pow(1.0 - max(dot(normalize(vNormal), vec3(0, 0, 1)), 0.0), 1.8);
                 vec3 col = mix(darkCore, darkMid, smoothstep(0.0, 0.35, r));
                 col = mix(col, bloodMid, smoothstep(0.35, 0.6, r));
                 col = mix(col, bloodOuter, smoothstep(0.6, 0.82, r));
                 col = mix(col, redSurface, smoothstep(0.82, 1.0, r));
-                col += vec3(0.2, 0.02, 0.02) * fresnel;
+                col += tc * 0.2 * fresnel;
                 gl_FragColor = vec4(col, alpha);
             }
         `;
+        const kitTintColor = this._vfx?.tintColor;
+        const tintVec = kitTintColor
+            ? new THREE.Vector3(kitTintColor[0], kitTintColor[1], kitTintColor[2])
+            : new THREE.Vector3(0, 0, 0);
         const mat = new THREE.ShaderMaterial({
             uniforms: {
                 time: { value: 0 },
                 alpha: { value: 0.9 },
-                uRadius: { value: 0.52 }
+                uRadius: { value: 0.52 },
+                tintColor: { value: tintVec }
             },
             vertexShader,
             fragmentShader,
@@ -1592,7 +1602,8 @@ export class CombatSystem {
             layerScale: discMatParams.layerScale ?? 2.5,
             rimPower: discMatParams.rimPower ?? 3.0,
             alpha: discMatParams.alpha ?? 0.9,
-            redTint: discMatParams.redTint ?? 0.92
+            redTint: discMatParams.redTint ?? 0.92,
+            tintColor: discMatParams.tintColor || null
         });
         mat.side = THREE.DoubleSide;
         const disc = new THREE.Mesh(discGeo, mat);
@@ -1813,7 +1824,8 @@ export class CombatSystem {
             layerScale: outerCfg.layerScale ?? 1.36,
             rimPower: outerCfg.rimPower ?? 1.5,
             alpha: Math.min(1.0, (outerCfg.alphaBase ?? 0.96) + stackScale * 0.04),
-            redTint: outerCfg.redTint ?? 0.95
+            redTint: outerCfg.redTint ?? 0.95,
+            tintColor: outerCfg.tintColor || null
         });
         const meshOuter = new THREE.Mesh(geoOuter, matOuter);
 
@@ -1976,7 +1988,8 @@ export class CombatSystem {
                 isCharged: coreCfg.isCharged ?? 0.4,
                 layerScale: coreCfg.layerScale ?? 1.3,
                 rimPower: coreCfg.rimPower ?? 2.2,
-                redTint: coreCfg.redTint ?? 0.92
+                redTint: coreCfg.redTint ?? 0.92,
+                tintColor: coreCfg.tintColor || null
             });
             coreMat.side = THREE.DoubleSide;
             coreMat.uniforms.alpha.value = coreCfg.alpha ?? 0.88;
@@ -1988,7 +2001,8 @@ export class CombatSystem {
                 isCharged: outerCfg.isCharged ?? 0.3,
                 layerScale: outerCfg.layerScale ?? 0.9,
                 rimPower: outerCfg.rimPower ?? 1.6,
-                redTint: outerCfg.redTint ?? 0.92
+                redTint: outerCfg.redTint ?? 0.92,
+                tintColor: outerCfg.tintColor || null
             });
             outerMat.side = THREE.DoubleSide;
             outerMat.uniforms.alpha.value = outerCfg.alpha ?? 0.5;
@@ -2000,7 +2014,8 @@ export class CombatSystem {
                 isCharged: strandCfg.isCharged ?? 0.5,
                 layerScale: strandCfg.layerScale ?? 1.6,
                 rimPower: strandCfg.rimPower ?? 2.4,
-                redTint: strandCfg.redTint ?? 0.92
+                redTint: strandCfg.redTint ?? 0.92,
+                tintColor: strandCfg.tintColor || null
             });
             strandMat.side = THREE.DoubleSide;
             strandMat.uniforms.alpha.value = strandCfg.alpha ?? 0.9;

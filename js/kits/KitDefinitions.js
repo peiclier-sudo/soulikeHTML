@@ -969,14 +969,16 @@ export const KIT_DEFINITIONS = {
         },
 
         vfx: {
+            // Kit tint color for all bloodfire VFX: silver/steel grey
+            tintColor: [0.55, 0.6, 0.75],
             // ── LMB / RMB: Spectral Claw projectile ──
             projectile: {
                 materialType: 'bloodfire',
                 basic: {
                     segments: 8,
                     coreRatio: 0.6,
-                    outer: { coreBrightness: 0.7, plasmaSpeed: 5.0, isCharged: 0.0, layerScale: 0.9, rimPower: 2.2, redTint: 0.45, alpha: 0.4 },
-                    core:  { coreBrightness: 1.8, plasmaSpeed: 7.0, isCharged: 0.0, layerScale: 1.4, rimPower: 2.0, redTint: 0.35 },
+                    outer: { coreBrightness: 0.7, plasmaSpeed: 5.0, isCharged: 0.0, layerScale: 0.9, rimPower: 2.2, redTint: 0.0, tintColor: [0.55, 0.6, 0.75], alpha: 0.4 },
+                    core:  { coreBrightness: 1.8, plasmaSpeed: 7.0, isCharged: 0.0, layerScale: 1.4, rimPower: 2.0, redTint: 0.0, tintColor: [0.55, 0.6, 0.75] },
                     launchSparks: 6, launchEmbers: 2,
                     hitSparks: 5, hitEmbers: 3,
                     expireSmoke: 1
@@ -984,8 +986,8 @@ export const KIT_DEFINITIONS = {
                 charged: {
                     segments: 14,
                     coreRatio: 0.55,
-                    outer: { coreBrightness: 1.2, plasmaSpeed: 4.5, isCharged: 1.0, layerScale: 0.8, rimPower: 2.4, redTint: 0.5, alpha: 0.55 },
-                    core:  { coreBrightness: 2.5, plasmaSpeed: 8.0, isCharged: 1.0, layerScale: 1.8, rimPower: 2.2, redTint: 0.4 },
+                    outer: { coreBrightness: 1.2, plasmaSpeed: 4.5, isCharged: 1.0, layerScale: 0.8, rimPower: 2.4, redTint: 0.0, tintColor: [0.55, 0.6, 0.75], alpha: 0.55 },
+                    core:  { coreBrightness: 2.5, plasmaSpeed: 8.0, isCharged: 1.0, layerScale: 1.8, rimPower: 2.2, redTint: 0.0, tintColor: [0.55, 0.6, 0.75] },
                     releaseBurst: 0.12,
                     burstScale: 0.6, burstDur: 0.12,
                     launchSparks: 12, launchEmbers: 5,
@@ -1001,7 +1003,7 @@ export const KIT_DEFINITIONS = {
                 sphereRadius: 0.18,
                 sphereSegments: 28,
                 materialType: 'bloodfire',
-                material: { coreBrightness: 1.1, plasmaSpeed: 6.0, isCharged: 1.0, layerScale: 1.4, rimPower: 2.4, redTint: 0.35 },
+                material: { coreBrightness: 1.1, plasmaSpeed: 6.0, isCharged: 1.0, layerScale: 1.4, rimPower: 2.4, redTint: 0.0, tintColor: [0.55, 0.6, 0.75] },
                 ringCount: 28,
                 ringSize: 0.035,
                 ringColor: 0x778899,
@@ -1019,7 +1021,7 @@ export const KIT_DEFINITIONS = {
                 previewRing: { inset: 0.3, segments: 48, color: 0x556677, opacity: 0.55, groundY: 0.02 },
                 disc: {
                     segments: 48,
-                    material: { coreBrightness: 2.0, plasmaSpeed: 14, isCharged: 1.0, layerScale: 2.8, rimPower: 3.2, alpha: 0.85, redTint: 0.3 },
+                    material: { coreBrightness: 2.0, plasmaSpeed: 14, isCharged: 1.0, layerScale: 2.8, rimPower: 3.2, alpha: 0.85, redTint: 0.0, tintColor: [0.55, 0.6, 0.75] },
                     groundY: 0.02
                 },
                 expandDuration: 0.18,
@@ -1038,7 +1040,7 @@ export const KIT_DEFINITIONS = {
                     bladeWidthBase: 0.65, bladeWidthPerCharge: 0.18, bladeWidthScale: [0.95, 0.5],
                     outerSegments: 38, innerSegments: 30, coreSegments: 24,
                     innerScale: [0.88, 0.72], coreScale: [0.7, 0.48],
-                    outer: { coreBrightnessBase: 1.4, coreBrightnessPerCharge: 0.2, plasmaSpeedBase: 9.0, layerScale: 1.5, rimPower: 1.8, alphaBase: 0.92, redTint: 0.4 },
+                    outer: { coreBrightnessBase: 1.4, coreBrightnessPerCharge: 0.2, plasmaSpeedBase: 9.0, layerScale: 1.5, rimPower: 1.8, alphaBase: 0.92, redTint: 0.0, tintColor: [0.55, 0.6, 0.75] },
                     innerColor: 0x99aabb, innerOpacity: 0.55,
                     coreColor: 0xddeeff, coreOpacity: 0.35,
                     speedBase: 30, speedPerCharge: 1.8,
@@ -1063,9 +1065,9 @@ export const KIT_DEFINITIONS = {
             lifeDrain: {
                 beamPoints: 120,
                 maxSegmentLength: 0.1,
-                core:   { radiusTop: 0.006, radiusBot: 0.012, segments: 8, coreBrightness: 1.6, plasmaSpeed: 12, isCharged: 0.5, layerScale: 1.5, rimPower: 2.4, redTint: 0.3, alpha: 0.85 },
-                outer:  { radiusTop: 0.017, radiusBot: 0.025, segments: 8, coreBrightness: 0.8, plasmaSpeed: 7,  isCharged: 0.4, layerScale: 1.0, rimPower: 1.8, redTint: 0.3, alpha: 0.45 },
-                strand: { radiusTop: 0.002, radiusBot: 0.004, segments: 6, coreBrightness: 1.3, plasmaSpeed: 14, isCharged: 0.6, layerScale: 1.8, rimPower: 2.6, redTint: 0.35, alpha: 0.88 },
+                core:   { radiusTop: 0.006, radiusBot: 0.012, segments: 8, coreBrightness: 1.6, plasmaSpeed: 12, isCharged: 0.5, layerScale: 1.5, rimPower: 2.4, redTint: 0.0, tintColor: [0.55, 0.6, 0.75], alpha: 0.85 },
+                outer:  { radiusTop: 0.017, radiusBot: 0.025, segments: 8, coreBrightness: 0.8, plasmaSpeed: 7,  isCharged: 0.4, layerScale: 1.0, rimPower: 1.8, redTint: 0.0, tintColor: [0.55, 0.6, 0.75], alpha: 0.45 },
+                strand: { radiusTop: 0.002, radiusBot: 0.004, segments: 6, coreBrightness: 1.3, plasmaSpeed: 14, isCharged: 0.6, layerScale: 1.8, rimPower: 2.6, redTint: 0.0, tintColor: [0.55, 0.6, 0.75], alpha: 0.88 },
                 light: { color: 0x8899bb, distance: 12, decay: 2.2, intensityBase: 20, intensityPulse: 6, pulseFreq: 20 },
                 waver: { seedMult: 22, ampBase: 0.3, ampPerDist: 0.032 },
                 pulse: { base: 0.85, amp: 0.1, freq: 16 },
@@ -1191,14 +1193,16 @@ export const KIT_DEFINITIONS = {
         },
 
         vfx: {
+            // Kit tint color for all bloodfire VFX: amber/brown earth
+            tintColor: [0.9, 0.55, 0.15],
             // ── LMB / RMB: Earth boulder projectile ──
             projectile: {
                 materialType: 'bloodfire',
                 basic: {
                     segments: 10,
                     coreRatio: 0.5,
-                    outer: { coreBrightness: 0.6, plasmaSpeed: 3.0, isCharged: 0.0, layerScale: 0.75, rimPower: 1.6, redTint: 0.7, alpha: 0.5 },
-                    core:  { coreBrightness: 1.5, plasmaSpeed: 4.5, isCharged: 0.0, layerScale: 1.2, rimPower: 1.6, redTint: 0.65 },
+                    outer: { coreBrightness: 0.6, plasmaSpeed: 3.0, isCharged: 0.0, layerScale: 0.75, rimPower: 1.6, redTint: 0.0, tintColor: [0.9, 0.55, 0.15], alpha: 0.5 },
+                    core:  { coreBrightness: 1.5, plasmaSpeed: 4.5, isCharged: 0.0, layerScale: 1.2, rimPower: 1.6, redTint: 0.0, tintColor: [0.9, 0.55, 0.15] },
                     launchSparks: 4, launchEmbers: 4,
                     hitSparks: 5, hitEmbers: 4,
                     expireSmoke: 2
@@ -1206,8 +1210,8 @@ export const KIT_DEFINITIONS = {
                 charged: {
                     segments: 14,
                     coreRatio: 0.5,
-                    outer: { coreBrightness: 0.8, plasmaSpeed: 2.8, isCharged: 1.0, layerScale: 0.65, rimPower: 1.8, redTint: 0.75, alpha: 0.55 },
-                    core:  { coreBrightness: 1.8, plasmaSpeed: 5.5, isCharged: 1.0, layerScale: 1.5, rimPower: 1.8, redTint: 0.7 },
+                    outer: { coreBrightness: 0.8, plasmaSpeed: 2.8, isCharged: 1.0, layerScale: 0.65, rimPower: 1.8, redTint: 0.0, tintColor: [0.9, 0.55, 0.15], alpha: 0.55 },
+                    core:  { coreBrightness: 1.8, plasmaSpeed: 5.5, isCharged: 1.0, layerScale: 1.5, rimPower: 1.8, redTint: 0.0, tintColor: [0.9, 0.55, 0.15] },
                     releaseBurst: 0.18,
                     burstScale: 0.55, burstDur: 0.18,
                     launchSparks: 8, launchEmbers: 8,
@@ -1223,7 +1227,7 @@ export const KIT_DEFINITIONS = {
                 sphereRadius: 0.26,
                 sphereSegments: 24,
                 materialType: 'bloodfire',
-                material: { coreBrightness: 0.8, plasmaSpeed: 3.5, isCharged: 1.0, layerScale: 1.0, rimPower: 1.8, redTint: 0.72 },
+                material: { coreBrightness: 0.8, plasmaSpeed: 3.5, isCharged: 1.0, layerScale: 1.0, rimPower: 1.8, redTint: 0.0, tintColor: [0.9, 0.55, 0.15] },
                 ringCount: 32,
                 ringSize: 0.05,
                 ringColor: 0x8B6914,
@@ -1241,7 +1245,7 @@ export const KIT_DEFINITIONS = {
                 previewRing: { inset: 0.4, segments: 48, color: 0x6B4226, opacity: 0.5, groundY: 0.02 },
                 disc: {
                     segments: 48,
-                    material: { coreBrightness: 1.8, plasmaSpeed: 10, isCharged: 1.0, layerScale: 2.2, rimPower: 2.8, alpha: 0.92, redTint: 0.68 },
+                    material: { coreBrightness: 1.8, plasmaSpeed: 10, isCharged: 1.0, layerScale: 2.2, rimPower: 2.8, alpha: 0.92, redTint: 0.0, tintColor: [0.9, 0.55, 0.15] },
                     groundY: 0.02
                 },
                 expandDuration: 0.28,
@@ -1260,7 +1264,7 @@ export const KIT_DEFINITIONS = {
                     bladeWidthBase: 0.85, bladeWidthPerCharge: 0.2, bladeWidthScale: [0.9, 0.5],
                     outerSegments: 36, innerSegments: 28, coreSegments: 22,
                     innerScale: [0.84, 0.7], coreScale: [0.65, 0.45],
-                    outer: { coreBrightnessBase: 1.3, coreBrightnessPerCharge: 0.15, plasmaSpeedBase: 6.0, layerScale: 1.2, rimPower: 1.4, alphaBase: 0.94, redTint: 0.7 },
+                    outer: { coreBrightnessBase: 1.3, coreBrightnessPerCharge: 0.15, plasmaSpeedBase: 6.0, layerScale: 1.2, rimPower: 1.4, alphaBase: 0.94, redTint: 0.0, tintColor: [0.9, 0.55, 0.15] },
                     innerColor: 0xBB8833, innerOpacity: 0.5,
                     coreColor: 0xFFCC66, coreOpacity: 0.3,
                     speedBase: 22, speedPerCharge: 1.2,
@@ -1285,9 +1289,9 @@ export const KIT_DEFINITIONS = {
             lifeDrain: {
                 beamPoints: 100,
                 maxSegmentLength: 0.13,
-                core:   { radiusTop: 0.008, radiusBot: 0.015, segments: 8, coreBrightness: 1.3, plasmaSpeed: 8,  isCharged: 0.4, layerScale: 1.2, rimPower: 2.0, redTint: 0.7, alpha: 0.9 },
-                outer:  { radiusTop: 0.022, radiusBot: 0.032, segments: 8, coreBrightness: 0.7, plasmaSpeed: 5,  isCharged: 0.3, layerScale: 0.8, rimPower: 1.4, redTint: 0.7, alpha: 0.5 },
-                strand: { radiusTop: 0.003, radiusBot: 0.005, segments: 6, coreBrightness: 1.2, plasmaSpeed: 10, isCharged: 0.5, layerScale: 1.4, rimPower: 2.2, redTint: 0.65, alpha: 0.88 },
+                core:   { radiusTop: 0.008, radiusBot: 0.015, segments: 8, coreBrightness: 1.3, plasmaSpeed: 8,  isCharged: 0.4, layerScale: 1.2, rimPower: 2.0, redTint: 0.0, tintColor: [0.9, 0.55, 0.15], alpha: 0.9 },
+                outer:  { radiusTop: 0.022, radiusBot: 0.032, segments: 8, coreBrightness: 0.7, plasmaSpeed: 5,  isCharged: 0.3, layerScale: 0.8, rimPower: 1.4, redTint: 0.0, tintColor: [0.9, 0.55, 0.15], alpha: 0.5 },
+                strand: { radiusTop: 0.003, radiusBot: 0.005, segments: 6, coreBrightness: 1.2, plasmaSpeed: 10, isCharged: 0.5, layerScale: 1.4, rimPower: 2.2, redTint: 0.0, tintColor: [0.9, 0.55, 0.15], alpha: 0.88 },
                 light: { color: 0xBB8833, distance: 12, decay: 2.0, intensityBase: 18, intensityPulse: 6, pulseFreq: 14 },
                 waver: { seedMult: 14, ampBase: 0.2, ampPerDist: 0.024 },
                 pulse: { base: 0.9, amp: 0.06, freq: 12 },
