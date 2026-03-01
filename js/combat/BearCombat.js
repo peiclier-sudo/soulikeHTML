@@ -86,6 +86,9 @@ export class BearCombat {
         this.furyStompDamage = abilF.stompDamage ?? 25;
         this.furyStompRadius = abilF.stompRadius ?? 5;
 
+        // Paw strike VFX pool
+        this._pawStrikes = [];
+
         // Reusable vectors
         this._tmpV = new THREE.Vector3();
         this._tmpV2 = new THREE.Vector3();
@@ -95,10 +98,67 @@ export class BearCombat {
     spawnPawStrike() {
         // Bear uses base melee hit detection – no projectile spawned.
         // Primal Force gain is applied in onMeleeHit.
+        const pos = this.character.getWeaponPosition();
+        const fwd = this.character.getForwardDirection().normalize();
+
+        // Spawn visible ground-slam impact ring + dust VFX
+        this._spawnPawStrikeVfx(pos, fwd);
+
         if (this.particleSystem) {
-            const pos = this.character.getWeaponPosition();
-            this.particleSystem.emitSparks(pos, 3);
-            this.particleSystem.emitEmbers(pos, 3, this._particleColor());
+            this.particleSystem.emitSparks(pos, 6);
+            this.particleSystem.emitPunchBurst(pos);
+            this.particleSystem.emitEmbers(pos, 5, this._particleColor());
+        }
+    }
+
+    _spawnPawStrikeVfx(origin, direction) {
+        // Ground-level impact ring that expands and fades
+        const geo = new THREE.RingGeometry(0.2, 0.8, 24, 1);
+        const mat = createBloodFireMaterial({
+            coreBrightness: 2.0,
+            plasmaSpeed: 12,
+            isCharged: 1.0,
+            layerScale: 2.0,
+            rimPower: 2.5,
+            alpha: 0.9,
+            redTint: 0.0,
+            tintColor: this._tintColor
+        });
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.rotation.x = -Math.PI / 2;
+        // Position slightly in front of character on the ground
+        const impactPos = origin.clone();
+        impactPos.y = 0.05;
+        mesh.position.copy(impactPos);
+        mesh.scale.setScalar(0.3);
+        this.scene.add(mesh);
+
+        this._pawStrikes.push({
+            mesh, geo, mat,
+            elapsed: 0,
+            maxLife: 0.35,
+            maxScale: 2.5
+        });
+    }
+
+    _updatePawStrikes(dt) {
+        for (let i = this._pawStrikes.length - 1; i >= 0; i--) {
+            const s = this._pawStrikes[i];
+            s.elapsed += dt;
+            const t = s.elapsed / s.maxLife;
+            // Expand outward quickly then fade
+            const scale = s.maxScale * (1 - (1 - Math.min(1, t * 2.5)) * (1 - Math.min(1, t * 2.5)));
+            s.mesh.scale.setScalar(Math.max(0.01, scale));
+            if (s.mat.uniforms) {
+                const alpha = t < 0.15 ? 0.9 : Math.max(0, 0.9 * (1 - (t - 0.15) / 0.85));
+                updateBloodFireMaterial(s.mat, s.elapsed * 14, alpha);
+            }
+            if (s.elapsed >= s.maxLife) {
+                this.scene.remove(s.mesh);
+                s.geo?.dispose();
+                s.mat?.dispose();
+                this._pawStrikes.splice(i, 1);
+            }
         }
     }
 
@@ -635,6 +695,7 @@ export class BearCombat {
         this.quakeCooldown = Math.max(0, this.quakeCooldown - dt);
         this.roarCooldown = Math.max(0, this.roarCooldown - dt);
         this.thickHideCooldown = Math.max(0, this.thickHideCooldown - dt);
+        this._updatePawStrikes(dt);
         this._updateGroundSlam(dt);
         this._updateSlamVfx(dt);
         this._updateQuakeVfx(dt);
