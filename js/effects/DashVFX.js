@@ -146,6 +146,23 @@ export function createDashVFX(scene, opts = {}) {
     let ghostTimer = 0;
     let ghostIdx = 0;
 
+    // —— Motion blur streak: elongated quad stretched behind the player
+    const streakGeo = new THREE.PlaneGeometry(1, 1);
+    const streakMat = new THREE.MeshBasicMaterial({
+        color: COL_MID,
+        transparent: true,
+        opacity: 0,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        side: THREE.DoubleSide
+    });
+    const streakMesh = new THREE.Mesh(streakGeo, streakMat);
+    streakMesh.frustumCulled = false;
+    streakMesh.rotation.order = 'YXZ';
+    streakMesh.visible = false;
+    scene.add(streakMesh);
+    const _streakDir = new THREE.Vector3();
+
     function update(dt, position, direction, progress, isDashing) {
         vortexAngle += dt * 14;
 
@@ -168,6 +185,8 @@ export function createDashVFX(scene, opts = {}) {
             trailMat.opacity = 0.9 * alpha;
             vortexMat.opacity = 0.85 * alpha;
             sparkMat.opacity = 0.95 * alpha;
+            streakMat.opacity = 0.2 * alpha;
+            streakMesh.visible = alpha > 0.01;
             if (fadeOutTimer <= 0) {
                 dispose();
                 return false;
@@ -236,7 +255,26 @@ export function createDashVFX(scene, opts = {}) {
                 g.active = true;
                 ghostIdx++;
             }
+
+            // Motion blur streak: stretched quad behind the player
+            _streakDir.copy(direction);
+            _streakDir.y = 0;
+            if (_streakDir.lengthSq() > 0.0001) _streakDir.normalize();
+            const streakLen = 2.5 + progress * 3.5; // grows as dash progresses
+            const streakWidth = 0.35 + progress * 0.15;
+            streakMesh.scale.set(streakLen, streakWidth, 1);
+            streakMesh.position.set(
+                position.x - _streakDir.x * streakLen * 0.45,
+                position.y + 0.55,
+                position.z - _streakDir.z * streakLen * 0.45
+            );
+            // Orient: yaw first (Y), then pitch flat (X) via YXZ euler order
+            streakMesh.rotation.set(-Math.PI / 2, Math.atan2(_streakDir.x, _streakDir.z), 0);
+            const streakAlpha = 0.18 + progress * 0.12;
+            streakMat.opacity = streakAlpha;
+            streakMesh.visible = true;
         } else {
+            streakMesh.visible = false;
             fadeOutTimer = FADEOUT_DURATION;
         }
         return true;
@@ -257,6 +295,9 @@ export function createDashVFX(scene, opts = {}) {
             g.mat.dispose();
         }
         ghostGeo.dispose();
+        scene.remove(streakMesh);
+        streakGeo.dispose();
+        streakMat.dispose();
     }
 
     return { update, dispose };

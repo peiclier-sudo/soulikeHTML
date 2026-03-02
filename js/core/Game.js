@@ -72,6 +72,12 @@ export class Game {
 
         // Hit-stop (brief time freeze on heavy impacts)
         this.hitStopTime = 0;
+
+        // Time-scale (smooth slow-mo for kills and boss wind-ups)
+        this.timeScale = 1.0;
+        this._timeScaleTarget = 1.0;
+        this._timeScaleTimer = 0;
+        this._timeScaleEaseRate = 8; // how fast timeScale eases back to 1.0
         
         // Initialize core systems
         this.initRenderer();
@@ -484,13 +490,23 @@ export class Game {
 
         requestAnimationFrame(this.gameLoop);
 
-        this.deltaTime = Math.min(this.clock.getDelta(), 0.1);
+        const rawDt = Math.min(this.clock.getDelta(), 0.1);
         this.elapsedTime = this.clock.getElapsedTime();
+
+        // Ease timeScale toward target
+        if (this._timeScaleTimer > 0) {
+            this._timeScaleTimer = Math.max(0, this._timeScaleTimer - rawDt);
+            if (this._timeScaleTimer <= 0) this._timeScaleTarget = 1.0;
+        }
+        this.timeScale += (this._timeScaleTarget - this.timeScale) * Math.min(1, rawDt * this._timeScaleEaseRate);
+        if (Math.abs(this.timeScale - this._timeScaleTarget) < 0.005) this.timeScale = this._timeScaleTarget;
+
+        this.deltaTime = rawDt * this.timeScale;
 
         this.updateFPS();
 
         if (this.hitStopTime > 0) {
-            this.hitStopTime = Math.max(0, this.hitStopTime - this.deltaTime);
+            this.hitStopTime = Math.max(0, this.hitStopTime - rawDt);
             this.render();
             this.inputManager.resetFrameInput();
             return;
@@ -861,6 +877,8 @@ export class Game {
             if (this.boss.isAlive) {
                 this.boss.update(this.deltaTime, this.character.position);
                 this.uiManager.updateBossHealth(this.boss.health, this.boss.maxHealth);
+                // Boss wind-up time-slow: slight slow-mo during telegraph for tension
+                this._updateBossWindUpTimeSlow();
             } else if (!this._bossDeathPending) {
                 // Boss death celebration
                 this._bossDeathPending = true;
@@ -869,13 +887,14 @@ export class Game {
                 this.particleSystem.emitSparks(dp, 35);
                 this.particleSystem.emitEmbers(dp, 20, 0xffcc44);
                 this.particleSystem.addTemporaryLight(dp, 0xffdd66, 70, 0.5);
-                this.triggerHitStop(0.25);
+                // Smooth slow-mo instead of hard freeze for cinematic kill feel
+                this.setTimeScale(0.18, 0.35, 4);
                 this.shakeIntensity = 0.08;
-                this.shakeDuration = 0.4;
-                this.shakeTime = 0.4;
-                this.ultimateBloomTime = 0.45;
-                this.ultimateBloomDuration = 0.45;
-                this.ultimateFovTime = 0.25;
+                this.shakeDuration = 0.5;
+                this.shakeTime = 0.5;
+                this.ultimateBloomTime = 0.5;
+                this.ultimateBloomDuration = 0.5;
+                this.ultimateFovTime = 0.3;
                 this.uiManager.hideBossHealth();
                 this.gameState.flags.bossDefeated = true;
                 RunProgress.onBossDefeated(this.gameState);
@@ -1089,8 +1108,42 @@ export class Game {
     setMouseSensitivity(value) {
         this.targetMouseSensitivity = value;
     }
-    
 
+    /** Smooth slow-mo: scale game time for `duration` seconds, then ease back to 1.0. */
+    setTimeScale(scale, duration, easeRate = 8) {
+        this.timeScale = scale;
+        this._timeScaleTarget = scale;
+        this._timeScaleTimer = duration;
+        this._timeScaleEaseRate = easeRate;
+    }
+
+    /** Slight time-slow during boss telegraph wind-ups for dramatic tension. */
+    _updateBossWindUpTimeSlow() {
+        const b = this.boss;
+        if (!b || b.activeAttack < 0) {
+            // No active attack — if we were slowing for wind-up, ease back
+            if (this._bossWindUpSlow) {
+                this._bossWindUpSlow = false;
+                this._timeScaleTarget = 1.0;
+                this._timeScaleEaseRate = 12;
+            }
+            return;
+        }
+        const t = b.activeAttackTimer;
+        // Only slow during the telegraph/wind-up phase (before the hit window)
+        const windUpEnd = b.activeAttack === 2 ? 1.1 : (b.activeAttack === 1 ? 0.36 : 0.28);
+        if (t < windUpEnd) {
+            const scale = b.activeAttack === 2 ? 0.82 : 0.88;
+            this._timeScaleTarget = scale;
+            this._timeScaleEaseRate = 10;
+            this._bossWindUpSlow = true;
+        } else if (this._bossWindUpSlow) {
+            // Hit phase started — snap back to full speed
+            this._bossWindUpSlow = false;
+            this._timeScaleTarget = 1.0;
+            this._timeScaleEaseRate = 18; // fast snap-back
+        }
+    }
 
     triggerHitStop(duration = 0.05) {
         this.hitStopTime = Math.max(this.hitStopTime, duration);
