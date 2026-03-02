@@ -1,5 +1,7 @@
 /**
  * ORDALIE - Main Entry Point
+ *
+ * Flow: Loading → Character Select → Hub → Fight / Character / Boutique
  */
 
 import { Game } from './core/Game.js';
@@ -17,7 +19,11 @@ let hubManager = null;
 /** Currently selected kit id from the class selection screen */
 let selectedKitId = null;
 
-/** Show the right account panel (none / info / form) based on saved state. */
+/** Currently active character id */
+let activeCharId = null;
+
+// ─── Account UI helpers ─────────────────────────────────────────
+
 function refreshAccountUI() {
     const acct = RunProgress.getAccount();
     const noneEl = document.getElementById('account-none');
@@ -26,14 +32,7 @@ function refreshAccountUI() {
     const restoreEl = document.getElementById('account-restore-form');
     const codeEl = document.getElementById('account-code-display');
     if (!noneEl) return;
-
-    // Hide all panels first
-    noneEl.style.display = 'none';
-    infoEl.style.display = 'none';
-    createEl.style.display = 'none';
-    restoreEl.style.display = 'none';
-    codeEl.style.display = 'none';
-
+    [noneEl, infoEl, createEl, restoreEl, codeEl].forEach(e => e.style.display = 'none');
     if (acct) {
         infoEl.style.display = '';
         document.getElementById('account-name-text').textContent = acct.name;
@@ -42,97 +41,54 @@ function refreshAccountUI() {
     }
 }
 
-/** Update the "Continue Run" button visibility on the start screen. */
-function refreshContinueButton() {
-    const btn = document.getElementById('continue-button');
-    if (!btn) return;
-    const saved = RunProgress.getSavedRun();
-    if (saved) {
-        btn.style.display = '';
-        btn.textContent = `CONTINUE RUN  (Boss ${saved.bossesDefeated + 1})`;
-    } else {
-        btn.style.display = 'none';
-    }
-}
+// ─── Initialization ─────────────────────────────────────────────
 
-// Initialize the game
 async function init() {
     try {
-        // Get DOM elements
         canvas = document.getElementById('game-canvas');
         const loadingScreen = document.getElementById('loading-screen');
-        const startScreen = document.getElementById('start-screen');
         const loadingBar = document.getElementById('loading-bar');
         const loadingText = document.getElementById('loading-text');
 
-        // Create asset loader with progress callback
         assetLoader = new AssetLoader((progress, message) => {
             loadingBar.style.width = `${progress * 100}%`;
             loadingText.textContent = message;
         });
 
-        // Load all game assets
         await assetLoader.loadAll();
 
-        // Hide loading screen, show start screen
-        loadingScreen.style.display = 'none';
-        startScreen.style.display = 'flex';
-
-        // Show "Continue" button if a saved run exists
-        const continueButton = document.getElementById('continue-button');
-        const startButton = document.getElementById('start-button');
-        refreshContinueButton();
+        // Migrate legacy save data to multi-character system
+        RunProgress.migrateToCharacters();
 
         // Create HubManager (once)
         hubManager = new HubManager({
             onStartTower: () => {
+                const char = RunProgress.getCharacterById(activeCharId);
+                if (!char) return;
                 const saved = RunProgress.getSavedRun();
-                if (saved) {
+                if (saved?.characterId === activeCharId) {
                     startGameWithKit(saved.kitId, saved);
-                } else if (selectedKitId) {
-                    startGameWithKit(selectedKitId);
+                } else {
+                    startGameWithKit(char.kitId);
                 }
             },
-            onBackToStart: () => {
-                showStartScreen();
+            onBackToCharSelect: () => {
+                showCharacterSelect();
             }
         });
 
-        // Continue saved run → hub (kit already selected)
-        continueButton.addEventListener('click', () => {
-            const saved = RunProgress.getSavedRun();
-            if (!saved) return;
-            selectedKitId = saved.kitId;
-            hubManager.setSelectedKit(selectedKitId);
-            startScreen.style.display = 'none';
-            hubManager.showHub();
-        });
+        // Hide loading, show character select
+        loadingScreen.style.display = 'none';
+        showCharacterSelect();
 
-        // New game → class selection (clears any saved run)
-        startButton.addEventListener('click', () => {
-            RunProgress.clearRun();
-            startScreen.style.display = 'none';
-            showClassSelection();
-        });
-
-        // Setup pause menu buttons
         setupMenuButtons();
-
-        // Setup keyboard shortcuts
         setupKeyboardShortcuts();
-
-        // Setup class selection UI
         setupClassSelection();
-
-        // Setup account / recovery code UI
         setupAccountUI();
-        refreshAccountUI();
-
-        // Setup tower progression screen buttons
         setupTowerScreen();
+        setupCharTabs();
 
         console.log('ORDALIE initialized successfully');
-
     } catch (error) {
         console.error('Failed to initialize game:', error);
         document.getElementById('loading-text').textContent =
@@ -140,13 +96,98 @@ async function init() {
     }
 }
 
-// ─── Class Selection UI ────────────────────────────────────────
+// ─── Character Select (Page 1) ──────────────────────────────────
+
+function showCharacterSelect() {
+    hideAllScreens();
+    const screen = document.getElementById('char-select-screen');
+    screen.style.display = 'flex';
+    renderCharacterGrid();
+    refreshAccountUI();
+    // Update souls display
+    const pd = RunProgress.getPlayerData();
+    const soulsEl = document.getElementById('charselect-souls');
+    if (soulsEl) soulsEl.textContent = `${pd.souls} SOULS`;
+}
+
+function renderCharacterGrid() {
+    const grid = document.getElementById('char-select-grid');
+    if (!grid) return;
+    grid.innerHTML = '';
+
+    const chars = RunProgress.getCharacters();
+
+    for (const char of chars) {
+        const kit = KIT_DEFINITIONS[char.kitId];
+        const icon = kit?.icon ?? '\u{1F464}';
+        const className = kit?.name ?? char.kitId;
+        const savedRun = RunProgress.getSavedRun();
+        const hasRun = savedRun?.characterId === char.id;
+
+        const slot = document.createElement('div');
+        slot.className = 'char-slot';
+        slot.innerHTML = `
+            <div class="char-slot-cylinder">
+                <span class="char-slot-icon">${icon}</span>
+                <button class="char-slot-delete" title="Delete character">\u2715</button>
+            </div>
+            <div class="char-slot-name">${char.name}</div>
+            <div class="char-slot-class">${className}</div>
+            ${hasRun ? `<div class="char-slot-run">Boss ${savedRun.bossesDefeated + 1}</div>` : ''}
+        `;
+
+        // Click cylinder → select character → hub
+        slot.querySelector('.char-slot-cylinder').addEventListener('click', (e) => {
+            if (e.target.closest('.char-slot-delete')) return;
+            selectCharacter(char.id);
+        });
+
+        // Delete button
+        slot.querySelector('.char-slot-delete').addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (confirm(`Delete ${char.name}?`)) {
+                RunProgress.deleteCharacter(char.id);
+                renderCharacterGrid();
+            }
+        });
+
+        grid.appendChild(slot);
+    }
+
+    // Create button (only if < 6)
+    if (chars.length < 6) {
+        const createSlot = document.createElement('div');
+        createSlot.className = 'char-slot char-slot-create';
+        createSlot.id = 'char-create-btn';
+        createSlot.innerHTML = `
+            <div class="char-slot-cylinder">
+                <span class="char-slot-icon">+</span>
+            </div>
+            <div class="char-slot-name">CREATE NEW</div>
+        `;
+        createSlot.addEventListener('click', () => {
+            document.getElementById('char-select-screen').style.display = 'none';
+            showClassSelection();
+        });
+        grid.appendChild(createSlot);
+    }
+}
+
+function selectCharacter(charId) {
+    const char = RunProgress.getCharacterById(charId);
+    if (!char) return;
+    activeCharId = charId;
+    selectedKitId = char.kitId;
+    hubManager.setActiveCharacter(charId, char.kitId);
+    document.getElementById('char-select-screen').style.display = 'none';
+    hubManager.showHub();
+}
+
+// ─── Class Selection (character creation) ───────────────────────
 
 function showClassSelection() {
     const screen = document.getElementById('class-select-screen');
     screen.style.display = 'flex';
-
-    // Reset to step 1
     document.getElementById('class-step').style.display = '';
     document.getElementById('kit-step').style.display = 'none';
     document.getElementById('confirm-step').style.display = 'none';
@@ -186,12 +227,16 @@ function setupClassSelection() {
         document.getElementById('kit-step').style.animation = '';
     });
 
-    // Confirm button → go to Hub (game starts from Hub → Boss Tower)
+    // Confirm button → create character and go to hub
     document.getElementById('confirm-btn').addEventListener('click', () => {
         if (!selectedKitId) return;
-        hubManager.setSelectedKit(selectedKitId);
+        const nameInput = document.getElementById('char-name-input');
+        const name = nameInput?.value.trim() || KIT_DEFINITIONS[selectedKitId]?.name || 'Champion';
+        const char = RunProgress.createCharacter(name, selectedKitId);
+        if (!char) return;
+        nameInput.value = '';
         document.getElementById('class-select-screen').style.display = 'none';
-        hubManager.showHub();
+        selectCharacter(char.id);
     });
 }
 
@@ -236,16 +281,12 @@ function showConfirmStep(kit) {
     void confirmStep.offsetWidth;
     confirmStep.style.animation = '';
 
-    // Preview header
-    const preview = document.getElementById('kit-preview');
-    preview.innerHTML = `
+    document.getElementById('kit-preview').innerHTML = `
         <h2>${kit.icon} ${kit.name.toUpperCase()}</h2>
         <p>${kit.description}</p>
     `;
 
-    // Stats
-    const statsEl = document.getElementById('kit-preview-stats');
-    statsEl.innerHTML = `
+    document.getElementById('kit-preview-stats').innerHTML = `
         <div class="preview-stat"><span class="preview-stat-value">${kit.stats.health}</span><span class="preview-stat-label">Health</span></div>
         <div class="preview-stat"><span class="preview-stat-value">${kit.stats.stamina}</span><span class="preview-stat-label">Stamina</span></div>
         <div class="preview-stat"><span class="preview-stat-value">${kit.stats.armor}</span><span class="preview-stat-label">Armor</span></div>
@@ -254,10 +295,8 @@ function showConfirmStep(kit) {
         <div class="preview-stat"><span class="preview-stat-value">${kit.weapon.name}</span><span class="preview-stat-label">Weapon</span></div>
     `;
 
-    // Abilities
     const kc = kit.combat;
-    const abilitiesEl = document.getElementById('kit-preview-abilities');
-    abilitiesEl.innerHTML = `
+    document.getElementById('kit-preview-abilities').innerHTML = `
         <div class="preview-ability"><div class="preview-ability-key">LMB</div><div class="preview-ability-name">Basic Attack</div></div>
         <div class="preview-ability"><div class="preview-ability-key">RMB</div><div class="preview-ability-name">Charged Attack</div></div>
         <div class="preview-ability"><div class="preview-ability-key">Q</div><div class="preview-ability-name">${kc.abilityQ?.name ?? '???'}</div></div>
@@ -266,41 +305,49 @@ function showConfirmStep(kit) {
         <div class="preview-ability"><div class="preview-ability-key">C</div><div class="preview-ability-name">${kc.abilityC?.name ?? '???'}</div></div>
         <div class="preview-ability"><div class="preview-ability-key">F</div><div class="preview-ability-name">${kc.abilityF?.name ?? '???'}</div></div>
     `;
+
+    // Suggest a default name
+    const nameInput = document.getElementById('char-name-input');
+    if (nameInput && !nameInput.value) nameInput.placeholder = kit.name;
 }
 
-function startGameWithKit(kitId, savedRun = null) {
-    // Create or recreate game with selected kit
-    if (game) {
-        game.stop();
-        game = null;
-    }
+// ─── Character Tabs ─────────────────────────────────────────────
 
-    // If this is a fresh new game, start a new run in localStorage
+function setupCharTabs() {
+    document.getElementById('char-tabs')?.addEventListener('click', (e) => {
+        const tab = e.target.closest('.char-tab');
+        if (!tab) return;
+        document.querySelectorAll('.char-tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        const target = tab.dataset.tab;
+        document.getElementById('char-tab-gear').style.display = target === 'gear' ? '' : 'none';
+        document.getElementById('char-tab-talent').style.display = target === 'talent' ? '' : 'none';
+    });
+}
+
+// ─── Game Start ─────────────────────────────────────────────────
+
+function startGameWithKit(kitId, savedRun = null) {
+    if (game) { game.stop(); game = null; }
+
     if (!savedRun) {
-        RunProgress.startNewRun(kitId);
+        RunProgress.startNewRun(kitId, activeCharId);
     }
 
     game = new Game(canvas, assetLoader, kitId);
     window.game = game;
 
-    // Apply gear + talent stat bonuses from the character page
     if (hubManager) {
         game.applyStatBonuses(hubManager.getStatBonuses());
-        // Apply special talent effects (non-stat bonuses like bleed on crit, etc.)
         if (game.applyTalentEffects) {
             game.applyTalentEffects(hubManager.getTalentEffects());
         }
     }
 
-    // Restore saved run state (boss number, health, potions)
-    if (savedRun) {
-        game.restoreRun(savedRun);
-    }
+    if (savedRun) game.restoreRun(savedRun);
 
-    // Wire up death → end the run, return to hub
     game.gameState.on('playerDeath', () => {
         RunProgress.onPlayerDeath();
-        // After death animation, return to hub
         setTimeout(() => {
             document.getElementById('death-screen').style.display = 'none';
             document.getElementById('hud').style.display = 'none';
@@ -314,83 +361,57 @@ function startGameWithKit(kitId, savedRun = null) {
     requestAnimationFrame(() => canvas.requestPointerLock());
 }
 
-/** Show the start screen (from hub back button, etc.) */
-function showStartScreen() {
-    document.getElementById('start-screen').style.display = 'flex';
-    refreshContinueButton();
-    refreshAccountUI();
-}
-
-// ─── Menu Buttons ──────────────────────────────────────────────
+// ─── Menu Buttons ───────────────────────────────────────────────
 
 function setupMenuButtons() {
-    const resumeButton = document.getElementById('resume-button');
-    const settingsButton = document.getElementById('settings-button');
-    const quitButton = document.getElementById('quit-button');
-    const settingsBack = document.getElementById('settings-back');
-
-    resumeButton?.addEventListener('click', () => {
+    document.getElementById('resume-button')?.addEventListener('click', () => {
         document.getElementById('pause-menu').style.display = 'none';
         game?.resume();
         document.getElementById('game-canvas').requestPointerLock();
     });
 
-    settingsButton?.addEventListener('click', () => {
+    document.getElementById('settings-button')?.addEventListener('click', () => {
         document.getElementById('pause-menu').style.display = 'none';
         document.getElementById('settings-panel').style.display = 'flex';
     });
 
-    settingsBack?.addEventListener('click', () => {
+    document.getElementById('settings-back')?.addEventListener('click', () => {
         document.getElementById('settings-panel').style.display = 'none';
         document.getElementById('pause-menu').style.display = 'flex';
     });
 
-    quitButton?.addEventListener('click', () => {
+    document.getElementById('quit-button')?.addEventListener('click', () => {
         document.getElementById('pause-menu').style.display = 'none';
         document.getElementById('hud').style.display = 'none';
         game?.stop();
         hubManager.showHub();
     });
 
-    // Settings handlers
     setupSettings();
 }
 
 function setupSettings() {
-    const shadowQuality = document.getElementById('shadow-quality');
-    const particleQuality = document.getElementById('particle-quality');
-    const postProcessing = document.getElementById('post-processing');
-    const mouseSensitivity = document.getElementById('mouse-sensitivity');
-
-    shadowQuality?.addEventListener('change', (e) => {
+    document.getElementById('shadow-quality')?.addEventListener('change', (e) => {
         game?.setQualitySetting('shadows', e.target.value);
     });
-
-    particleQuality?.addEventListener('change', (e) => {
+    document.getElementById('particle-quality')?.addEventListener('change', (e) => {
         game?.setQualitySetting('particles', e.target.value);
     });
-
-    postProcessing?.addEventListener('change', (e) => {
+    document.getElementById('post-processing')?.addEventListener('change', (e) => {
         game?.setQualitySetting('postProcessing', e.target.checked);
     });
-
-    const motionSmoothing = document.getElementById('motion-smoothing');
-    motionSmoothing?.addEventListener('change', (e) => {
+    document.getElementById('motion-smoothing')?.addEventListener('change', (e) => {
         game?.setQualitySetting('motionSmoothing', e.target.checked);
     });
-
-    mouseSensitivity?.addEventListener('input', (e) => {
+    document.getElementById('mouse-sensitivity')?.addEventListener('input', (e) => {
         game?.setMouseSensitivity(parseFloat(e.target.value) / 5);
     });
 }
 
 function setupTowerScreen() {
-    // Continue → next boss
     document.getElementById('tower-continue-btn')?.addEventListener('click', () => {
         if (game) game.proceedFromTower();
     });
-
-    // Quit to menu from tower screen → back to hub
     document.getElementById('tower-quit-btn')?.addEventListener('click', () => {
         document.getElementById('tower-screen').style.display = 'none';
         document.getElementById('hud').style.display = 'none';
@@ -406,20 +427,30 @@ function setupAccountUI() {
     const restoreEl = document.getElementById('account-restore-form');
     const codeEl    = document.getElementById('account-code-display');
 
-    // helper to show one panel, hide others
     function showPanel(el) {
         [noneEl, infoEl, createEl, restoreEl, codeEl].forEach(e => e.style.display = 'none');
         el.style.display = '';
     }
 
-    // "Create Account" button
+    // Account overlay back button
+    document.getElementById('account-back-btn')?.addEventListener('click', () => {
+        document.getElementById('account-overlay').style.display = 'none';
+        showCharacterSelect();
+    });
+
+    // Open account overlay
+    document.getElementById('charselect-account-btn')?.addEventListener('click', () => {
+        document.getElementById('char-select-screen').style.display = 'none';
+        document.getElementById('account-overlay').style.display = 'flex';
+        refreshAccountUI();
+    });
+
     document.getElementById('create-account-btn')?.addEventListener('click', () => {
         showPanel(createEl);
         document.getElementById('account-name-input').value = '';
         document.getElementById('account-name-input').focus();
     });
 
-    // "Restore Account" button
     document.getElementById('restore-account-btn')?.addEventListener('click', () => {
         showPanel(restoreEl);
         document.getElementById('account-code-input').value = '';
@@ -427,30 +458,22 @@ function setupAccountUI() {
         document.getElementById('account-code-input').focus();
     });
 
-    // Confirm create
     document.getElementById('account-create-confirm')?.addEventListener('click', () => {
         const name = document.getElementById('account-name-input').value.trim();
         if (!name) return;
         const code = RunProgress.createAccount(name);
-        // Show the recovery code immediately
         document.getElementById('recovery-code-text').textContent = code;
         showPanel(codeEl);
-        refreshContinueButton();
     });
 
-    // Cancel create
-    document.getElementById('account-create-cancel')?.addEventListener('click', () => {
-        refreshAccountUI();
-    });
+    document.getElementById('account-create-cancel')?.addEventListener('click', () => refreshAccountUI());
 
-    // Confirm restore
     document.getElementById('account-restore-confirm')?.addEventListener('click', () => {
         const code = document.getElementById('account-code-input').value.trim();
         if (!code) return;
         const result = RunProgress.restoreFromCode(code);
         if (result.success) {
             refreshAccountUI();
-            refreshContinueButton();
         } else {
             const errEl = document.getElementById('account-restore-error');
             errEl.textContent = result.error;
@@ -458,19 +481,14 @@ function setupAccountUI() {
         }
     });
 
-    // Cancel restore
-    document.getElementById('account-restore-cancel')?.addEventListener('click', () => {
-        refreshAccountUI();
-    });
+    document.getElementById('account-restore-cancel')?.addEventListener('click', () => refreshAccountUI());
 
-    // "Show Recovery Code" button (from account-info panel)
     document.getElementById('show-code-btn')?.addEventListener('click', () => {
         const code = RunProgress.generateRecoveryCode();
         document.getElementById('recovery-code-text').textContent = code;
         showPanel(codeEl);
     });
 
-    // Copy code
     document.getElementById('copy-code-btn')?.addEventListener('click', () => {
         const code = document.getElementById('recovery-code-text').textContent;
         navigator.clipboard.writeText(code).then(() => {
@@ -481,10 +499,7 @@ function setupAccountUI() {
         });
     });
 
-    // Close code display
-    document.getElementById('close-code-btn')?.addEventListener('click', () => {
-        refreshAccountUI();
-    });
+    document.getElementById('close-code-btn')?.addEventListener('click', () => refreshAccountUI());
 }
 
 function setupKeyboardShortcuts() {
@@ -506,6 +521,19 @@ function setupKeyboardShortcuts() {
     });
 }
 
+// ─── Helpers ────────────────────────────────────────────────────
+
+function hideAllScreens() {
+    const ids = [
+        'char-select-screen', 'account-overlay', 'class-select-screen',
+        'hub-screen', 'fight-screen', 'boutique-screen', 'character-screen'
+    ];
+    ids.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = 'none';
+    });
+}
+
 // Handle pointer lock changes
 document.addEventListener('pointerlockchange', () => {
     if (!document.pointerLockElement && game?.isRunning && !game?.isPaused) {
@@ -514,17 +542,13 @@ document.addEventListener('pointerlockchange', () => {
     }
 });
 
-// Handle window resize
-window.addEventListener('resize', () => {
-    game?.handleResize();
-});
+window.addEventListener('resize', () => { game?.handleResize(); });
 
-// Start initialization when DOM is ready
+// Start initialization
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
 } else {
     init();
 }
 
-// Export for debugging
 window.game = game;

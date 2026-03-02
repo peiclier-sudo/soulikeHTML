@@ -15,6 +15,7 @@ const STORAGE_RUN  = 'eldenflame_run';
 const STORAGE_META = 'eldenflame_meta';
 const STORAGE_ACCT = 'eldenflame_account';
 const STORAGE_PLAYER = 'eldenflame_player'; // persistent player data (gear, talents, souls)
+const STORAGE_CHARS = 'eldenflame_characters'; // multi-character slots (max 6)
 
 // Kit ids mapped to short indices for compact encoding
 const KIT_IDS = [
@@ -70,13 +71,14 @@ export const RunProgress = {
     /**
      * Start a brand-new run.  Called when the player picks a kit and clicks "Enter the Abyss".
      */
-    startNewRun(kitId) {
+    startNewRun(kitId, characterId = null) {
         const meta = this.getMeta();
         meta.totalRuns++;
         this._saveMeta(meta);
 
         const run = {
             kitId,
+            characterId,
             bossesDefeated: 0,
             potions: 5,
             health: null, // filled from kit on first save
@@ -285,6 +287,120 @@ export const RunProgress = {
         const pd = this.getPlayerData();
         pd.talentPoints += count;
         this.savePlayerData(pd);
+    },
+
+    // ── character slots (multi-character) ────────────────────
+
+    getCharacters() {
+        return load(STORAGE_CHARS) ?? [];
+    },
+
+    saveCharacters(chars) {
+        save(STORAGE_CHARS, chars);
+    },
+
+    createCharacter(name, kitId) {
+        const chars = this.getCharacters();
+        if (chars.length >= 6) return null;
+        const char = {
+            id: 'c_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+            name: name || kitId,
+            kitId,
+            createdAt: Date.now(),
+            gear: { weapon: null, helmet: null, chest: null, boots: null },
+            kitTalents: []
+        };
+        chars.push(char);
+        this.saveCharacters(chars);
+        return char;
+    },
+
+    deleteCharacter(charId) {
+        let chars = this.getCharacters();
+        chars = chars.filter(c => c.id !== charId);
+        this.saveCharacters(chars);
+        const run = this.getSavedRun();
+        if (run?.characterId === charId) this.clearRun();
+    },
+
+    getCharacterById(charId) {
+        return this.getCharacters().find(c => c.id === charId) ?? null;
+    },
+
+    updateCharacter(charId, updates) {
+        const chars = this.getCharacters();
+        const c = chars.find(ch => ch.id === charId);
+        if (!c) return;
+        Object.assign(c, updates);
+        this.saveCharacters(chars);
+    },
+
+    equipItemForChar(charId, itemId, slot) {
+        const chars = this.getCharacters();
+        const c = chars.find(ch => ch.id === charId);
+        if (!c) return;
+        if (!c.gear) c.gear = { weapon: null, helmet: null, chest: null, boots: null };
+        c.gear[slot] = itemId;
+        this.saveCharacters(chars);
+    },
+
+    unequipSlotForChar(charId, slot) {
+        const chars = this.getCharacters();
+        const c = chars.find(ch => ch.id === charId);
+        if (!c) return;
+        if (c.gear) c.gear[slot] = null;
+        this.saveCharacters(chars);
+    },
+
+    getCharKitTalents(charId) {
+        const c = this.getCharacterById(charId);
+        return c?.kitTalents ?? [];
+    },
+
+    unlockCharKitTalent(charId, talentId, cost) {
+        const pd = this.getPlayerData();
+        if (pd.talentPoints < cost) return false;
+        const chars = this.getCharacters();
+        const c = chars.find(ch => ch.id === charId);
+        if (!c) return false;
+        if (!c.kitTalents) c.kitTalents = [];
+        if (c.kitTalents.includes(talentId)) return false;
+        pd.talentPoints -= cost;
+        this.savePlayerData(pd);
+        c.kitTalents.push(talentId);
+        this.saveCharacters(chars);
+        return true;
+    },
+
+    resetCharKitTalents(charId) {
+        const chars = this.getCharacters();
+        const c = chars.find(ch => ch.id === charId);
+        if (!c?.kitTalents?.length) return [];
+        const removed = [...c.kitTalents];
+        c.kitTalents = [];
+        this.saveCharacters(chars);
+        return removed;
+    },
+
+    /** Auto-migrate legacy single-player data into a character slot. */
+    migrateToCharacters() {
+        if (this.getCharacters().length > 0) return;
+        const pd = this.getPlayerData();
+        const run = this.getSavedRun();
+        const kitId = run?.kitId ?? null;
+        if (!kitId && !Object.values(pd.gear ?? {}).some(Boolean)) return;
+        const char = this.createCharacter(
+            this.getAccount()?.name || 'Champion',
+            kitId || 'blood_mage'
+        );
+        if (!char) return;
+        if (pd.gear) char.gear = { ...pd.gear };
+        if (pd.kitTalents?.[char.kitId]) char.kitTalents = [...pd.kitTalents[char.kitId]];
+        if (run) { run.characterId = char.id; save(STORAGE_RUN, run); }
+        const allChars = this.getCharacters();
+        const idx = allChars.findIndex(ch => ch.id === char.id);
+        if (idx >= 0) allChars[idx] = char;
+        this.saveCharacters(allChars);
     },
 
     // ── account / recovery code ───────────────────────────────

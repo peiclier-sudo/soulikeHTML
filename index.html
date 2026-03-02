@@ -25,26 +25,38 @@
         </div>
     </div>
 
-    <!-- Start Screen -->
-    <div id="start-screen" style="display: none;">
-        <div class="start-content">
-            <h1 class="game-title">ORDALIE</h1>
-            <p class="subtitle">Face the Trial</p>
-            <button id="continue-button" class="game-button" style="display: none;">CONTINUE RUN</button>
-            <button id="start-button" class="game-button">START NEW GAME</button>
-            <!-- Account / Recovery Code -->
+    <!-- ═══ CHARACTER SELECT — Page 1 (first screen after loading) ═══ -->
+    <div id="char-select-screen" class="hub-screen" style="display: none;">
+        <div class="hub-header">
+            <div class="hub-title">ORDALIE</div>
+            <div class="hub-subtitle">CHOOSE YOUR CHARACTER</div>
+            <div class="hub-souls" id="charselect-souls">0 SOULS</div>
+        </div>
+        <div class="char-select-grid" id="char-select-grid">
+            <!-- Dynamically populated: character cylinders + create button -->
+        </div>
+        <div class="charselect-footer">
+            <button class="hub-back-btn charselect-account-btn" id="charselect-account-btn">ACCOUNT</button>
+            <div class="controls-hint">
+                <p>AZERTY: Z/Q/D - Move | Space - Jump | R - Dash | LMB/RMB - Attack</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ ACCOUNT OVERLAY (accessible from char select) ═══ -->
+    <div id="account-overlay" class="hub-screen" style="display: none;">
+        <button class="hub-back-btn" id="account-back-btn">BACK</button>
+        <div class="start-content" style="padding-top:6rem;">
+            <h1 class="game-title" style="font-size:2.8rem;">ACCOUNT</h1>
             <div id="account-section" class="account-section">
-                <!-- No account yet -->
                 <div id="account-none">
                     <button id="create-account-btn" class="game-button account-btn">CREATE ACCOUNT</button>
                     <button id="restore-account-btn" class="game-button account-btn">RESTORE ACCOUNT</button>
                 </div>
-                <!-- Account exists -->
                 <div id="account-info" style="display:none;">
                     <p class="account-name">Account: <span id="account-name-text"></span></p>
                     <button id="show-code-btn" class="game-button account-btn">SHOW RECOVERY CODE</button>
                 </div>
-                <!-- Create account form -->
                 <div id="account-create-form" style="display:none;">
                     <p class="account-label">Choose a name for your account:</p>
                     <input type="text" id="account-name-input" class="account-input" maxlength="20" placeholder="Your name...">
@@ -53,7 +65,6 @@
                         <button id="account-create-cancel" class="game-button account-btn">CANCEL</button>
                     </div>
                 </div>
-                <!-- Restore account form -->
                 <div id="account-restore-form" style="display:none;">
                     <p class="account-label">Enter your recovery code:</p>
                     <input type="text" id="account-code-input" class="account-input" placeholder="XXXX-XXXX-XXXX-...">
@@ -63,19 +74,12 @@
                         <button id="account-restore-cancel" class="game-button account-btn">CANCEL</button>
                     </div>
                 </div>
-                <!-- Show recovery code -->
                 <div id="account-code-display" style="display:none;">
                     <p class="account-label">Your recovery code (save it!):</p>
                     <div class="recovery-code-box" id="recovery-code-text"></div>
                     <button id="copy-code-btn" class="game-button account-btn">COPY CODE</button>
                     <button id="close-code-btn" class="game-button account-btn">CLOSE</button>
                 </div>
-            </div>
-
-            <div class="controls-hint">
-                <p>AZERTY: Z - Avancer | Q - Gauche | D - Droite | Souris - Regarder</p>
-                <p>Espace - Saut | R - Dash | Clic gauche - Attaque | Clic droit - Attaque chargée</p>
-                <p>Q - Ability 1 | E - Finisher | X - Ability 3 | C - Shield | & - Potion | F - Ultimate</p>
             </div>
         </div>
     </div>
@@ -98,48 +102,68 @@
                 <button class="game-button back-button" id="kit-back-btn">BACK</button>
             </div>
 
-            <!-- Step 3: Confirm -->
+            <!-- Step 3: Confirm + Name -->
             <div id="confirm-step" class="selection-step" style="display: none;">
                 <div class="kit-preview" id="kit-preview"></div>
                 <div class="kit-preview-stats" id="kit-preview-stats"></div>
                 <div class="kit-preview-abilities" id="kit-preview-abilities"></div>
+                <div class="char-name-input-row">
+                    <label class="step-label" style="margin-bottom:0.5rem;">NAME YOUR CHARACTER</label>
+                    <input type="text" id="char-name-input" class="account-input" maxlength="16" placeholder="Champion...">
+                </div>
                 <div class="confirm-buttons">
                     <button class="game-button back-button" id="confirm-back-btn">BACK</button>
-                    <button class="game-button confirm-button" id="confirm-btn">ENTER THE HUB</button>
+                    <button class="game-button confirm-button" id="confirm-btn">CREATE CHARACTER</button>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- ═══ HUB — Main Navigation ═══ -->
+    <!-- ═══ HUB — Character-specific Page 2 ═══ -->
     <div id="hub-screen" class="hub-screen" style="display: none;">
-        <button class="hub-back-btn" id="hub-back-btn">MENU</button>
+        <button class="hub-back-btn" id="hub-back-btn">BACK</button>
         <div class="hub-header">
-            <div class="hub-title">ORDALIE</div>
-            <div class="hub-subtitle">CHOOSE YOUR PATH</div>
+            <div class="hub-title" id="hub-char-name">CHARACTER</div>
+            <div class="hub-subtitle" id="hub-char-class">Blood Mage</div>
             <div class="hub-souls" id="hub-souls">0 SOULS</div>
         </div>
         <div class="hub-nav">
-            <div class="hub-card" id="hub-tower">
-                <span class="hub-card-icon">\u{1F3F0}</span>
-                <div class="hub-card-title">BOSS TOWER</div>
-                <div class="hub-card-desc">Endless ascent. Each floor a deadlier guardian. How far can you climb?</div>
-            </div>
-            <div class="hub-card disabled" id="hub-pvx">
+            <div class="hub-card hub-card-fight" id="hub-fight">
                 <span class="hub-card-icon">\u2694</span>
-                <div class="hub-card-title">PVX ARENA</div>
-                <div class="hub-card-desc">Prove your worth against other warriors in the crucible.</div>
-                <div class="hub-card-badge">COMING SOON</div>
+                <div class="hub-card-title">FIGHT</div>
+                <div class="hub-card-desc">Enter the arena and face your trial.</div>
+            </div>
+            <div class="hub-card" id="hub-character">
+                <span class="hub-card-icon">\u{1F464}</span>
+                <div class="hub-card-title">PERSONALISE</div>
+                <div class="hub-card-desc">Equip gear, unlock talents, and forge your build.</div>
             </div>
             <div class="hub-card" id="hub-boutique">
                 <span class="hub-card-icon">\u{1F4B0}</span>
                 <div class="hub-card-title">BOUTIQUE</div>
-                <div class="hub-card-desc">Spend souls on weapons, armor, and consumables to grow stronger.</div>
+                <div class="hub-card-desc">Spend souls on weapons, armor, and consumables.</div>
             </div>
-            <div class="hub-card" id="hub-character">
-                <span class="hub-card-icon">\u{1F464}</span>
-                <div class="hub-card-title">CHARACTER</div>
-                <div class="hub-card-desc">Equip gear, unlock talents, and forge your build.</div>
+        </div>
+    </div>
+
+    <!-- ═══ FIGHT — Mode Selection ═══ -->
+    <div id="fight-screen" class="hub-screen" style="display: none;">
+        <button class="hub-back-btn" id="fight-back-btn">BACK</button>
+        <div class="hub-header">
+            <div class="hub-title">FIGHT</div>
+            <div class="hub-subtitle">SELECT A MODE</div>
+        </div>
+        <div class="hub-nav">
+            <div class="hub-card hub-card-fight" id="fight-tower">
+                <span class="hub-card-icon">\u{1F3F0}</span>
+                <div class="hub-card-title">TOWER</div>
+                <div class="hub-card-desc">Endless ascent. Each floor a deadlier guardian. How far can you climb?</div>
+            </div>
+            <div class="hub-card disabled" id="fight-pvmirror">
+                <span class="hub-card-icon">\u{1F93A}</span>
+                <div class="hub-card-title">PVMIRROR</div>
+                <div class="hub-card-desc">Face a mirror of yourself. Test your build against your own shadow.</div>
+                <div class="hub-card-badge">COMING SOON</div>
             </div>
         </div>
     </div>
@@ -161,7 +185,7 @@
         <div class="shop-grid" id="shop-grid"></div>
     </div>
 
-    <!-- ═══ CHARACTER — Gear + Talent Tree ═══ -->
+    <!-- ═══ CHARACTER — Tabbed Gear / Talent ═══ -->
     <div id="character-screen" class="hub-screen" style="display: none;">
         <button class="hub-back-btn" id="char-back-btn">BACK</button>
         <div class="hub-header">
@@ -169,19 +193,30 @@
             <div class="hub-souls" id="char-souls">0 SOULS</div>
         </div>
         <div class="char-stat-summary" id="char-stat-summary"></div>
-        <div class="char-layout">
-            <!-- Gear Panel -->
-            <div class="gear-panel">
-                <div class="gear-panel-title">EQUIPMENT</div>
-                <div class="gear-slots" id="gear-slots"></div>
-            </div>
-            <!-- Talent Tree -->
-            <div class="talent-panel">
-                <div class="talent-panel-header">
-                    <div class="talent-panel-title">TALENTS</div>
-                    <div class="talent-points-display" id="talent-points">0 POINTS</div>
+        <!-- Tab bar -->
+        <div class="char-tabs" id="char-tabs">
+            <button class="char-tab active" data-tab="gear">GEAR</button>
+            <button class="char-tab" data-tab="talent">TALENTS</button>
+        </div>
+        <!-- Gear tab content -->
+        <div class="char-tab-content" id="char-tab-gear">
+            <div class="char-layout">
+                <div class="gear-panel" style="flex:1;max-width:600px;">
+                    <div class="gear-panel-title">EQUIPMENT</div>
+                    <div class="gear-slots" id="gear-slots"></div>
                 </div>
-                <div class="talent-branches" id="talent-branches"></div>
+            </div>
+        </div>
+        <!-- Talent tab content -->
+        <div class="char-tab-content" id="char-tab-talent" style="display:none;">
+            <div class="char-layout">
+                <div class="talent-panel" style="flex:1;">
+                    <div class="talent-panel-header">
+                        <div class="talent-panel-title">TALENTS</div>
+                        <div class="talent-points-display" id="talent-points">0 POINTS</div>
+                    </div>
+                    <div class="talent-branches" id="talent-branches"></div>
+                </div>
             </div>
         </div>
         <!-- Gear picker modal -->
