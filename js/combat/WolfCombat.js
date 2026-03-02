@@ -406,10 +406,6 @@ export class WolfCombat {
         }
 
         this.gameState.combat.isWhipAttacking = true;
-        if (this.particleSystem) {
-            this.particleSystem.emitSparks(pos, 14 + stacks * 3);
-            this.particleSystem.emitEmbers(pos, 10 + stacks * 2, this._particleColor());
-        }
         if (this.cs.onProjectileHit) this.cs.onProjectileHit({ whipWindup: true, punchFinish: true });
     }
 
