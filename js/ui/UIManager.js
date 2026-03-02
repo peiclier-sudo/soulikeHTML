@@ -278,6 +278,20 @@ export class UIManager {
         }
     }
 
+    /** Update a ghost bar element: on damage the CSS transition drains it slowly; on heal snap instantly. */
+    _setGhostBar(el, pct, prevPct) {
+        if (!el) return;
+        if (pct >= prevPct) {
+            // Heal or init — snap ghost to match (no trailing a heal)
+            el.style.transition = 'none';
+            el.style.width = `${pct}%`;
+            requestAnimationFrame(() => { el.style.transition = ''; });
+        } else {
+            // Damage — just set target; CSS delay + ease handles the slow drain
+            el.style.width = `${pct}%`;
+        }
+    }
+
     updateHealthBar(health) {
         const maxHealth = this.gameState.player.maxHealth;
         const percentage = (health / maxHealth) * 100;
@@ -285,22 +299,8 @@ export class UIManager {
 
         if (this.elements.healthFill && pctRounded !== this._prevHealthPct) {
             this.elements.healthFill.style.width = `${percentage}%`;
-
-            // Ghost bar: on damage, set width (CSS delay+duration drains it slowly).
-            // On heal, snap immediately so ghost doesn't trail a heal.
-            if (this.elements.healthGhost) {
-                if (percentage >= this._ghostHealthPct) {
-                    this.elements.healthGhost.style.transition = 'none';
-                    this.elements.healthGhost.style.width = `${percentage}%`;
-                    requestAnimationFrame(() => {
-                        if (this.elements.healthGhost) this.elements.healthGhost.style.transition = '';
-                    });
-                } else {
-                    this.elements.healthGhost.style.width = `${percentage}%`;
-                }
-                this._ghostHealthPct = percentage;
-            }
-
+            this._setGhostBar(this.elements.healthGhost, percentage, this._ghostHealthPct);
+            this._ghostHealthPct = percentage;
             this._prevHealthPct = pctRounded;
 
             const isLow = percentage <= 25;
@@ -471,21 +471,10 @@ export class UIManager {
     }
 
     showBossHealth(bossName, health, maxHealth) {
-        if (this.elements.bossHealth) {
-            this.elements.bossHealth.style.display = 'block';
-        }
-        if (this.elements.bossName) {
-            this.elements.bossName.textContent = bossName;
-        }
-        // Reset ghost bar to full for new boss
+        if (this.elements.bossHealth) this.elements.bossHealth.style.display = 'block';
+        if (this.elements.bossName) this.elements.bossName.textContent = bossName;
         this._ghostBossPct = 100;
-        if (this.elements.bossHealthGhost) {
-            this.elements.bossHealthGhost.style.transition = 'none';
-            this.elements.bossHealthGhost.style.width = '100%';
-            requestAnimationFrame(() => {
-                if (this.elements.bossHealthGhost) this.elements.bossHealthGhost.style.transition = '';
-            });
-        }
+        this._setGhostBar(this.elements.bossHealthGhost, 100, 100);
         this.updateBossHealth(health, maxHealth);
     }
 
@@ -495,19 +484,8 @@ export class UIManager {
             const pctRounded = (percentage + 0.5) | 0;
             if (pctRounded !== this._prevBossPct) {
                 this.elements.bossHealthFill.style.width = `${percentage}%`;
-                // Ghost bar for boss (CSS delay makes it trail behind real bar)
-                if (this.elements.bossHealthGhost) {
-                    if (percentage >= this._ghostBossPct) {
-                        this.elements.bossHealthGhost.style.transition = 'none';
-                        this.elements.bossHealthGhost.style.width = `${percentage}%`;
-                        requestAnimationFrame(() => {
-                            if (this.elements.bossHealthGhost) this.elements.bossHealthGhost.style.transition = '';
-                        });
-                    } else {
-                        this.elements.bossHealthGhost.style.width = `${percentage}%`;
-                    }
-                    this._ghostBossPct = percentage;
-                }
+                this._setGhostBar(this.elements.bossHealthGhost, percentage, this._ghostBossPct);
+                this._ghostBossPct = percentage;
                 this._prevBossPct = pctRounded;
             }
         }
@@ -543,12 +521,11 @@ export class UIManager {
         countEl.textContent = this._comboCount;
         el.style.display = '';
         el.classList.remove('combo-fade', 'combo-pop');
-        void el.offsetWidth; // force reflow
+        void el.offsetWidth;
         el.classList.add('combo-pop');
 
-        // Scale text size with combo count
-        const scale = Math.min(6, 4 + this._comboCount * 0.04);
-        countEl.style.fontSize = `${scale}rem`;
+        // Subtle size bump capped at 5rem so it never gets absurd
+        countEl.style.fontSize = `${Math.min(5, 3.6 + this._comboCount * 0.03)}rem`;
     }
 
     _updateCombo() {
@@ -563,8 +540,8 @@ export class UIManager {
             }
             setTimeout(() => {
                 this._comboCount = 0;
-                if (el) el.style.display = 'none';
-            }, 400);
+                if (this.elements.comboCounter) this.elements.comboCounter.style.display = 'none';
+            }, 350);
         }
     }
 

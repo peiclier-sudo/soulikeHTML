@@ -8,13 +8,18 @@ import * as THREE from 'three';
 const ARENA_HALF = 28;
 const WALL_HEIGHT = 14;
 
+// Grid tuning
+const LINE_WIDTH = 0.018;    // thick, visible grid lines
+const LINE_ALPHA = 0.38;     // bright enough to read from any angle
+const GRID_SPACING = 10.0;
+
 // Per-floor theme: lineColor (RGB 0-1), fogColor (hex), bgColor (hex)
 const FLOOR_THEMES = [
-    { line: [1.0, 1.0, 1.0],   fog: 0x080c14, bg: 0x080c14 }, // 0: default white
-    { line: [0.55, 0.75, 1.0], fog: 0x060a18, bg: 0x060a18 }, // 1: cold blue
-    { line: [1.0, 0.72, 0.35], fog: 0x120a04, bg: 0x120a04 }, // 2: amber forge
-    { line: [1.0, 0.25, 0.18], fog: 0x140606, bg: 0x140606 }, // 3: crimson
-    { line: [0.72, 0.35, 1.0], fog: 0x0a0614, bg: 0x0a0614 }, // 4+: void purple
+    { line: [1.0, 1.0, 1.0],  fog: 0x080c14, bg: 0x080c14 }, // 0: default white
+    { line: [0.5, 0.7, 1.0],  fog: 0x060a18, bg: 0x060a18 }, // 1: cold blue
+    { line: [1.0, 0.7, 0.3],  fog: 0x120a04, bg: 0x120a04 }, // 2: amber forge
+    { line: [1.0, 0.2, 0.15], fog: 0x140606, bg: 0x140606 }, // 3: crimson
+    { line: [0.7, 0.3, 1.0],  fog: 0x0a0614, bg: 0x0a0614 }, // 4+: void purple
 ];
 
 function getTheme(floorNumber) {
@@ -22,16 +27,15 @@ function getTheme(floorNumber) {
     return FLOOR_THEMES[i];
 }
 
-// Grid shader with a tintable lineColor uniform
 function createGridMaterial(maskX, maskY, maskZ) {
     return new THREE.ShaderMaterial({
         uniforms: {
-            gridSpacing: { value: 10.0 },
-            gridOffset: { value: 5.0 },
-            lineWidth: { value: 0.002 },
-            lineAlpha: { value: 0.24 },
-            axisMask: { value: new THREE.Vector3(maskX, maskY, maskZ) },
-            lineColor: { value: new THREE.Vector3(1, 1, 1) }
+            gridSpacing: { value: GRID_SPACING },
+            gridOffset:  { value: GRID_SPACING * 0.5 },
+            lineWidth:   { value: LINE_WIDTH },
+            lineAlpha:   { value: LINE_ALPHA },
+            axisMask:    { value: new THREE.Vector3(maskX, maskY, maskZ) },
+            lineColor:   { value: new THREE.Vector3(1, 1, 1) }
         },
         vertexShader: `
             varying vec3 vWorldPos;
@@ -127,14 +131,13 @@ export class Environment {
         this.scene.add(ceil);
     }
 
-    /** Tint the arena grid + fog/background to match the current tower floor. */
     setFloorTheme(floorNumber) {
         const theme = getTheme(floorNumber);
         const lc = theme.line;
         for (const mat of this._gridMaterials) {
             mat.uniforms.lineColor.value.set(lc[0], lc[1], lc[2]);
         }
-        this.scene.background.setHex(theme.bg);
+        if (this.scene.background) this.scene.background.setHex(theme.bg);
         if (this.scene.fog) this.scene.fog.color.setHex(theme.fog);
     }
 

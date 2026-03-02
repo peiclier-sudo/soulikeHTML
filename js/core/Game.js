@@ -198,41 +198,37 @@ export class Game {
         // Apply floor 0 theme
         this._applyFloorTheme(0);
 
-        // Near-miss dodge feedback: bright spark burst when player i-frames through a boss attack
-        this._nearMissPos = new THREE.Vector3();
+        // Near-miss dodge feedback
+        this._tmpNearMiss = new THREE.Vector3();
         this.gameState.on('nearMiss', () => {
-            this._nearMissPos.copy(this.character.position);
-            this._nearMissPos.y += 0.8;
-            // White-gold spark burst — visually distinct from damage sparks
-            for (let i = 0; i < 14; i++) {
-                const theta = Math.random() * Math.PI * 2;
-                const speed = 5 + Math.random() * 8;
+            this._tmpNearMiss.copy(this.character.position).y += 0.8;
+            const p = this._tmpNearMiss;
+            for (let i = 0; i < 12; i++) {
+                const a = Math.random() * Math.PI * 2;
+                const spd = 5 + Math.random() * 7;
                 this.particleSystem.sparkPool.emit(
-                    this._nearMissPos.x, this._nearMissPos.y, this._nearMissPos.z,
-                    Math.cos(theta) * speed, Math.random() * 5 + 2, Math.sin(theta) * speed,
-                    Math.random() > 0.4 ? 0xffffff : 0xffdd66, 1.3, 0.25 + Math.random() * 0.2
+                    p.x, p.y, p.z,
+                    Math.cos(a) * spd, 2 + Math.random() * 4, Math.sin(a) * spd,
+                    i < 5 ? 0xffffff : 0xffdd66, 1.2, 0.2 + Math.random() * 0.15
                 );
             }
-            this.particleSystem.addTemporaryLight(this._nearMissPos, 0xffffff, 45, 0.18);
-            // Brief bloom flash + hit-stop for emphasis
-            this.ultimateBloomTime = 0.07;
-            this.ultimateBloomDuration = 0.07;
+            this.particleSystem.addTemporaryLight(p, 0xffffff, 40, 0.16);
+            this.ultimateBloomTime = Math.max(this.ultimateBloomTime, 0.06);
+            this.ultimateBloomDuration = Math.max(this.ultimateBloomDuration, 0.06);
             this.triggerHitStop(0.025);
         });
 
-        // Player damage feedback: camera shake + red bloom when taking damage
+        // Player damage feedback — camera shake + bloom on receiving damage
         this._prevPlayerHealth = this.gameState.player.health;
         this.gameState.on('healthChanged', (health) => {
             if (health < this._prevPlayerHealth) {
                 const dmg = this._prevPlayerHealth - health;
-                // Camera shake proportional to damage (capped)
-                const intensity = Math.min(0.06, 0.012 + dmg * 0.0008);
+                const intensity = Math.min(0.055, 0.01 + dmg * 0.0007);
                 this.shakeIntensity = Math.max(this.shakeIntensity, intensity);
-                this.shakeDuration = 0.22;
-                this.shakeTime = this.shakeDuration;
-                // Red-tinted bloom flash
-                this.ultimateBloomTime = Math.max(this.ultimateBloomTime, 0.12);
-                this.ultimateBloomDuration = Math.max(this.ultimateBloomDuration, 0.12);
+                this.shakeDuration = 0.2;
+                this.shakeTime = 0.2;
+                this.ultimateBloomTime = Math.max(this.ultimateBloomTime, 0.1);
+                this.ultimateBloomDuration = Math.max(this.ultimateBloomDuration, 0.1);
             }
             this._prevPlayerHealth = health;
         });
@@ -864,31 +860,28 @@ export class Game {
                 this.boss.update(this.deltaTime, this.character.position);
                 this.uiManager.updateBossHealth(this.boss.health, this.boss.maxHealth);
             } else if (!this._bossDeathPending) {
-                // Boss death celebration: VFX explosion → delayed tower screen
+                // Boss death celebration
                 this._bossDeathPending = true;
-                const deathPos = this._tmpPosVec.copy(this.boss.position);
-                deathPos.y += (this.boss._bossHeight ?? 2.5) * 0.5;
-                // Massive spark + ember burst
-                this.particleSystem.emitSparks(deathPos, 40);
-                this.particleSystem.emitEmbers(deathPos, 25, 0xffcc44);
-                this.particleSystem.addTemporaryLight(deathPos, 0xffdd66, 80, 0.6);
-                // Heavy hit-stop + screen shake + bloom
-                this.triggerHitStop(0.28);
-                this.shakeIntensity = 0.09;
-                this.shakeDuration = 0.45;
-                this.shakeTime = this.shakeDuration;
-                this.ultimateBloomTime = 0.55;
-                this.ultimateBloomDuration = 0.55;
-                this.ultimateFovTime = 0.3;
+                const dp = this._tmpPosVec.copy(this.boss.position);
+                dp.y += (this.boss._bossHeight ?? 2.5) * 0.5;
+                this.particleSystem.emitSparks(dp, 35);
+                this.particleSystem.emitEmbers(dp, 20, 0xffcc44);
+                this.particleSystem.addTemporaryLight(dp, 0xffdd66, 70, 0.5);
+                this.triggerHitStop(0.25);
+                this.shakeIntensity = 0.08;
+                this.shakeDuration = 0.4;
+                this.shakeTime = 0.4;
+                this.ultimateBloomTime = 0.45;
+                this.ultimateBloomDuration = 0.45;
+                this.ultimateFovTime = 0.25;
                 this.uiManager.hideBossHealth();
                 this.gameState.flags.bossDefeated = true;
                 RunProgress.onBossDefeated(this.gameState);
                 this.boss = null;
-                // Delay tower screen so the VFX plays out
                 setTimeout(() => {
                     this._bossDeathPending = false;
                     this.showTowerScreen();
-                }, 850);
+                }, 800);
             }
         }
         
