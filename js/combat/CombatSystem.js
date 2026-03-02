@@ -574,19 +574,11 @@ export class CombatSystem {
             if (this.whipTimer === null) {
                 this.whipTimer = this.whipDuration;
                 this.whipHitOnce = false;
-                if (this.particleSystem) this.particleSystem.emitPunchBurst(this.character.getWeaponPosition().clone());
                 if (this.onProjectileHit) this.onProjectileHit({ whipWindup: true });
             }
             this.whipTimer -= deltaTime;
             const whipT = 1 - this.whipTimer / this.whipDuration;
             if (whipT >= 0.2 && whipT <= 0.65 && !this.whipHitOnce) this.checkWhipHits();
-            if (this.particleSystem && this.whipTimer > 0 && whipT < 0.9) {
-                const ve = this._vfx.abilityE || {};
-                const wpos = this.character.getWeaponPosition();
-                const wdir = this.character.getForwardDirection();
-                this.particleSystem.emitSlashTrail(wpos, wdir, ve.whipTrailCount ?? 18);
-                this.particleSystem.emitOrbTrail(wpos, wdir, ve.whipOrbTrailCount ?? 10);
-            }
             if (this.whipTimer <= 0) {
                 this.gameState.combat.isWhipAttacking = false;
                 this.whipTimer = null;
@@ -1918,11 +1910,6 @@ export class CombatSystem {
             stackScale
         };
 
-        if (this.particleSystem) {
-            this.particleSystem.emitSparks(position, (cr.launchSparksBase ?? 14) + chargesUsed * (cr.launchSparksPerCharge ?? 3));
-            this.particleSystem.emitEmbers(position, (cr.launchEmbersBase ?? 10) + chargesUsed * (cr.launchEmbersPerCharge ?? 2));
-            this.particleSystem.emitSlashTrail(position, dirNorm, (cr.launchTrailBase ?? 10) + chargesUsed * (cr.launchTrailPerCharge ?? 2));
-        }
     }
 
     updateBloodCrescend(deltaTime) {
