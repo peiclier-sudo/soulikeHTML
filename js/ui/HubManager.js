@@ -1,70 +1,107 @@
 /**
- * HubManager — Controls Hub, Boutique, and Character pages.
+ * HubManager — Controls Hub, Fight, Boutique, and Character pages.
  *
- * Lifecycle: constructed once at init. Each page is a show/hide overlay.
- * All persistent data goes through RunProgress.
+ * Now character-aware: gear and talents are stored per-character,
+ * while souls/talentPoints/ownedItems remain global.
  */
 
 import { RunProgress } from '../core/RunProgress.js';
 import { ITEMS, RARITIES, GEAR_SLOTS, getItemsBySlot, getItem } from '../data/ItemDefinitions.js';
 import { TALENTS, TALENT_BRANCHES, getTalentsByBranch, getTalent, getKitTalent, getBranchTheme } from '../data/TalentDefinitions.js';
 import { TalentSystem } from '../core/TalentSystem.js';
+import { KIT_DEFINITIONS } from '../kits/KitDefinitions.js';
 
 export class HubManager {
     /**
      * @param {object} opts
-     * @param {function} opts.onStartTower — called when player clicks Boss Tower
-     * @param {function} opts.onBackToStart — called when player exits hub
+     * @param {function} opts.onStartTower — called when player clicks Tower in fight page
+     * @param {function} opts.onBackToCharSelect — called when player exits hub
      */
     constructor(opts = {}) {
         this.onStartTower = opts.onStartTower ?? (() => {});
-        this.onBackToStart = opts.onBackToStart ?? (() => {});
+        this.onBackToCharSelect = opts.onBackToCharSelect ?? (() => {});
 
-        /** Currently selected kit id — set by main.js before showing character */
+        /** Active character */
+        this._activeCharId = null;
         this._selectedKitId = null;
 
         // Cache DOM
         this.hubScreen = document.getElementById('hub-screen');
+        this.fightScreen = document.getElementById('fight-screen');
         this.boutiqueScreen = document.getElementById('boutique-screen');
         this.characterScreen = document.getElementById('character-screen');
 
         this._shopSlot = 'weapon';
         this._setupHub();
+        this._setupFight();
         this._setupBoutique();
         this._setupCharacter();
     }
 
-    /** Set the currently selected kit (called by main.js) */
+    /** Set active character (called by main.js when character is selected). */
+    setActiveCharacter(charId, kitId) {
+        this._activeCharId = charId;
+        this._selectedKitId = kitId;
+    }
+
+    /** Legacy compat */
     setSelectedKit(kitId) {
         this._selectedKitId = kitId;
     }
 
     // ═══════════════════════════════════════════════════════════
-    // HUB
+    // HUB — Page 2 (character-specific)
     // ═══════════════════════════════════════════════════════════
 
     showHub() {
         this._hideAll();
         this._refreshSouls();
+        // Update character info in header
+        const char = RunProgress.getCharacterById(this._activeCharId);
+        const kit = this._selectedKitId ? KIT_DEFINITIONS[this._selectedKitId] : null;
+        const nameEl = document.getElementById('hub-char-name');
+        const classEl = document.getElementById('hub-char-class');
+        if (nameEl) nameEl.textContent = char?.name ?? 'CHARACTER';
+        if (classEl) classEl.textContent = kit?.name ?? '';
         this.hubScreen.style.display = 'flex';
     }
 
     _setupHub() {
-        document.getElementById('hub-tower')?.addEventListener('click', () => {
+        document.getElementById('hub-fight')?.addEventListener('click', () => {
             this.hubScreen.style.display = 'none';
-            this.onStartTower();
-        });
-        document.getElementById('hub-boutique')?.addEventListener('click', () => {
-            this.hubScreen.style.display = 'none';
-            this.showBoutique();
+            this.showFight();
         });
         document.getElementById('hub-character')?.addEventListener('click', () => {
             this.hubScreen.style.display = 'none';
             this.showCharacter();
         });
+        document.getElementById('hub-boutique')?.addEventListener('click', () => {
+            this.hubScreen.style.display = 'none';
+            this.showBoutique();
+        });
         document.getElementById('hub-back-btn')?.addEventListener('click', () => {
             this.hubScreen.style.display = 'none';
-            this.onBackToStart();
+            this.onBackToCharSelect();
+        });
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // FIGHT — Mode Selection
+    // ═══════════════════════════════════════════════════════════
+
+    showFight() {
+        this._hideAll();
+        this.fightScreen.style.display = 'flex';
+    }
+
+    _setupFight() {
+        document.getElementById('fight-tower')?.addEventListener('click', () => {
+            this.fightScreen.style.display = 'none';
+            this.onStartTower();
+        });
+        document.getElementById('fight-back-btn')?.addEventListener('click', () => {
+            this.fightScreen.style.display = 'none';
+            this.showHub();
         });
     }
 
@@ -111,7 +148,6 @@ export class HubManager {
             const el = document.createElement('div');
             el.className = 'shop-item' + (owned ? ' owned' : '');
 
-            // Stats display
             const statsHTML = Object.entries(item.stats)
                 .filter(([, v]) => v)
                 .map(([k, v]) => {
@@ -137,11 +173,9 @@ export class HubManager {
                        </button>`
                 }
             `;
-
             grid.appendChild(el);
         }
 
-        // Purchase click handler
         grid.querySelectorAll('.shop-buy-btn:not(.cant-afford)').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -149,7 +183,6 @@ export class HubManager {
                 const cost = parseInt(btn.dataset.cost, 10);
                 const item = getItem(itemId);
 
-                // Consumables: spend souls + apply effect (repeatable)
                 if (item?.consumable) {
                     if (!RunProgress.spendSouls(cost)) return;
                     this._applyConsumable(item.effect);
@@ -167,7 +200,7 @@ export class HubManager {
     }
 
     // ═══════════════════════════════════════════════════════════
-    // CHARACTER
+    // CHARACTER — Tabbed Gear / Talents
     // ═══════════════════════════════════════════════════════════
 
     showCharacter() {
@@ -185,7 +218,6 @@ export class HubManager {
             this.showHub();
         });
 
-        // Close gear picker on overlay click
         document.getElementById('gear-picker-overlay')?.addEventListener('click', (e) => {
             if (e.target.id === 'gear-picker-overlay') {
                 e.target.style.display = 'none';
@@ -198,12 +230,14 @@ export class HubManager {
         if (!container) return;
         container.innerHTML = '';
 
+        const char = RunProgress.getCharacterById(this._activeCharId);
+        const charGear = char?.gear ?? {};
         const pd = RunProgress.getPlayerData();
         const slotLabels = { weapon: 'Weapon', helmet: 'Helmet', chest: 'Chest Armor', boots: 'Boots' };
         const emptyIcons = { weapon: '\u2694', helmet: '\u{1F3A9}', chest: '\u{1F6E1}', boots: '\u{1F462}' };
 
         for (const slot of GEAR_SLOTS) {
-            const equippedId = pd.gear[slot];
+            const equippedId = charGear[slot];
             const item = equippedId ? getItem(equippedId) : null;
             const rarity = item ? RARITIES[item.rarity] : null;
 
@@ -236,17 +270,19 @@ export class HubManager {
         const itemsEl = document.getElementById('gear-picker-items');
         if (!overlay || !itemsEl) return;
 
+        const char = RunProgress.getCharacterById(this._activeCharId);
+        const charGear = char?.gear ?? {};
         const pd = RunProgress.getPlayerData();
         const slotLabels = { weapon: 'WEAPON', helmet: 'HELMET', chest: 'CHEST ARMOR', boots: 'BOOTS' };
         titleEl.textContent = `SELECT ${slotLabels[slot]}`;
         itemsEl.innerHTML = '';
 
-        // "None" option to unequip
+        // "None" option
         const noneEl = document.createElement('div');
-        noneEl.className = 'gear-picker-item' + (!pd.gear[slot] ? ' equipped' : '');
+        noneEl.className = 'gear-picker-item' + (!charGear[slot] ? ' equipped' : '');
         noneEl.innerHTML = '<span style="color:rgba(255,255,255,0.4)">None (unequip)</span>';
         noneEl.addEventListener('click', () => {
-            RunProgress.unequipSlot(slot);
+            RunProgress.unequipSlotForChar(this._activeCharId, slot);
             overlay.style.display = 'none';
             this._renderGear();
             this._renderStatSummary();
@@ -257,7 +293,7 @@ export class HubManager {
         const slotItems = getItemsBySlot(slot).filter(i => pd.ownedItems.includes(i.id) || i.cost === 0);
         for (const item of slotItems) {
             const rarity = RARITIES[item.rarity];
-            const isEquipped = pd.gear[slot] === item.id;
+            const isEquipped = charGear[slot] === item.id;
 
             const el = document.createElement('div');
             el.className = 'gear-picker-item' + (isEquipped ? ' equipped' : '');
@@ -276,7 +312,7 @@ export class HubManager {
             `;
 
             el.addEventListener('click', () => {
-                RunProgress.equipItem(item.id, slot);
+                RunProgress.equipItemForChar(this._activeCharId, item.id, slot);
                 overlay.style.display = 'none';
                 this._renderGear();
                 this._renderStatSummary();
@@ -293,16 +329,15 @@ export class HubManager {
         container.innerHTML = '';
 
         const pd = RunProgress.getPlayerData();
-        const kitId = this._getActiveKitId();
+        const kitId = this._selectedKitId;
         document.getElementById('talent-points').textContent = `${pd.talentPoints} POINTS`;
 
-        // If no kit selected, show a message
         if (!kitId) {
             container.innerHTML = '<div style="color:rgba(255,255,255,0.4);text-align:center;padding:2rem;">Select a class to view talents.</div>';
             return;
         }
 
-        const unlockedTalents = RunProgress.getKitTalents(kitId);
+        const unlockedTalents = RunProgress.getCharKitTalents(this._activeCharId);
         const layout = TalentSystem.getTreeLayout(kitId);
 
         // Points spent counter
@@ -318,8 +353,7 @@ export class HubManager {
         resetBtn.textContent = 'RESET TALENTS';
         resetBtn.addEventListener('click', () => {
             if (totalSpent === 0) return;
-            const removed = RunProgress.resetKitTalents(kitId);
-            // Calculate refund from removed talent costs
+            const removed = RunProgress.resetCharKitTalents(this._activeCharId);
             let refund = 0;
             for (const tid of removed) {
                 const t = getKitTalent(kitId, tid);
@@ -331,7 +365,7 @@ export class HubManager {
         });
         container.appendChild(resetBtn);
 
-        // ── Spine (central column) ────────────────────────────
+        // Spine
         const treeEl = document.createElement('div');
         treeEl.className = 'talent-tree-layout';
 
@@ -343,7 +377,6 @@ export class HubManager {
             const t = layout.spine[i];
             const state = TalentSystem.getNodeState(kitId, t.id, unlockedTalents, pd.talentPoints);
 
-            // Connector line
             if (i > 0) {
                 const prevState = TalentSystem.getNodeState(kitId, layout.spine[i - 1].id, unlockedTalents, pd.talentPoints);
                 const conn = document.createElement('div');
@@ -351,12 +384,11 @@ export class HubManager {
                 spineCol.appendChild(conn);
             }
 
-            // If this is a connector node that unlocks a branch, render a fork indicator
             if (t.unlocksBranch) {
                 const forkEl = document.createElement('div');
                 forkEl.className = 'talent-fork-indicator';
                 const branchTheme = getBranchTheme(t.unlocksBranch);
-                forkEl.innerHTML = `<span style="color:${branchTheme.color}">→ ${branchTheme.icon} ${branchTheme.label}</span>`;
+                forkEl.innerHTML = `<span style="color:${branchTheme.color}">\u2192 ${branchTheme.icon} ${branchTheme.label}</span>`;
                 spineCol.appendChild(forkEl);
             }
 
@@ -366,7 +398,7 @@ export class HubManager {
 
         treeEl.appendChild(spineCol);
 
-        // ── Branches (side columns) ───────────────────────────
+        // Branches
         const branchesContainer = document.createElement('div');
         branchesContainer.className = 'talent-branches-container';
 
@@ -377,7 +409,6 @@ export class HubManager {
             const theme = branchData.theme;
             branchCol.innerHTML = `<div class="talent-branch-label" style="color:${theme.color}">${theme.icon} ${theme.label}</div>`;
 
-            // Check if branch is unlocked
             const connector = layout.spine.find(s => s.unlocksBranch === branchId);
             const branchUnlocked = connector ? unlockedTalents.includes(connector.id) : true;
 
@@ -397,10 +428,8 @@ export class HubManager {
                     ? TalentSystem.getNodeState(kitId, t.id, unlockedTalents, pd.talentPoints)
                     : 'locked';
 
-                // Connector line (skip for first node and between choice siblings)
                 if (i > 0 && !(t.choiceGroup && t.choiceGroup === prevChoiceGroup)) {
                     const prevT = talents[i - 1];
-                    // Skip connector if prev was a choice sibling
                     if (!(prevT.choiceGroup && prevT.choiceGroup === t.choiceGroup)) {
                         const prevState = branchUnlocked
                             ? TalentSystem.getNodeState(kitId, prevT.id, unlockedTalents, pd.talentPoints)
@@ -411,11 +440,9 @@ export class HubManager {
                     }
                 }
 
-                // Choice group: render side by side
                 if (t.choiceGroup && t.choiceGroup !== prevChoiceGroup) {
                     const choicePair = talents.filter(x => x.choiceGroup === t.choiceGroup);
                     if (choicePair.length === 2) {
-                        // Add connector before choice
                         if (i > 0) {
                             const prevT = talents[i - 1];
                             const prevState = branchUnlocked
@@ -448,17 +475,13 @@ export class HubManager {
                     }
                 }
 
-                // Skip second choice node (already rendered in pair)
-                if (t.choiceGroup && t.choiceGroup === prevChoiceGroup) {
-                    continue;
-                }
+                if (t.choiceGroup && t.choiceGroup === prevChoiceGroup) continue;
 
                 prevChoiceGroup = t.choiceGroup || null;
                 const nodeEl = this._createTalentNode(kitId, t, state, unlockedTalents, pd.talentPoints, theme);
                 branchCol.appendChild(nodeEl);
             }
 
-            // Points in branch counter
             const branchPts = TalentSystem.getPointsInBranch(kitId, branchId, unlockedTalents);
             if (branchPts > 0) {
                 const ptsBadge = document.createElement('div');
@@ -475,23 +498,20 @@ export class HubManager {
         container.appendChild(treeEl);
     }
 
-    /** Create a single talent node element */
     _createTalentNode(kitId, talent, state, unlockedTalents, availablePoints, theme) {
         const nodeEl = document.createElement('div');
         nodeEl.className = `talent-node talent-${talent.type} ${state}`;
 
-        // Type badge
-        const typeBadge = talent.type === 'keystone' ? '★ ' :
-                          talent.type === 'capstone' ? '♛ ' :
-                          talent.type === 'major' ? '◈ ' :
-                          talent.type === 'connector' ? '◇ ' : '';
+        const typeBadge = talent.type === 'keystone' ? '\u2605 ' :
+                          talent.type === 'capstone' ? '\u265B ' :
+                          talent.type === 'major' ? '\u25C8 ' :
+                          talent.type === 'connector' ? '\u25C7 ' : '';
 
         const costText = state === 'unlocked' ? 'UNLOCKED' :
                          state === 'excluded' ? 'LOCKED' :
                          talent.cost === 0 ? 'FREE' :
                          `${talent.cost} pt`;
 
-        // Build stats description for tooltip
         const statsDesc = talent.stats ? Object.entries(talent.stats).map(([k, v]) => {
             if (typeof v === 'boolean') return v ? k.replace(/([A-Z])/g, ' $1').trim() : '';
             return typeof v === 'number' && v < 1 && v > 0
@@ -510,15 +530,13 @@ export class HubManager {
             </div>
         `;
 
-        // Style based on type
         if (talent.type === 'keystone' || talent.type === 'capstone') {
             nodeEl.style.borderColor = state === 'unlocked' ? theme.color : '';
         }
 
-        // Click handler
         if (state === 'available') {
             nodeEl.addEventListener('click', () => {
-                if (RunProgress.unlockKitTalent(kitId, talent.id, talent.cost)) {
+                if (RunProgress.unlockCharKitTalent(this._activeCharId, talent.id, talent.cost)) {
                     this._renderTalents();
                     this._renderStatSummary();
                 }
@@ -526,13 +544,6 @@ export class HubManager {
         }
 
         return nodeEl;
-    }
-
-    /** Get the active kit ID from saved run or selection */
-    _getActiveKitId() {
-        if (this._selectedKitId) return this._selectedKitId;
-        const run = RunProgress.getSavedRun();
-        return run?.kitId ?? null;
     }
 
     _renderStatSummary() {
@@ -558,10 +569,11 @@ export class HubManager {
         ).join('');
     }
 
-    /** Calculate combined stat bonuses from gear + talents (kit-specific) */
+    /** Calculate combined stat bonuses from character gear + talents */
     _calculateTotalBonuses() {
         const pd = RunProgress.getPlayerData();
-        const kitId = this._getActiveKitId();
+        const char = RunProgress.getCharacterById(this._activeCharId);
+        const kitId = this._selectedKitId;
         const bonuses = {
             damage: 0, health: 0, armor: 0, stamina: 0,
             critChance: 0, critMultiplier: 0, backstabMultiplier: 0,
@@ -569,9 +581,10 @@ export class HubManager {
             healthRegen: 0, soulBonus: 0
         };
 
-        // Gear bonuses
+        // Gear bonuses (from character's equipped gear)
+        const charGear = char?.gear ?? {};
         for (const slot of GEAR_SLOTS) {
-            const itemId = pd.gear[slot];
+            const itemId = charGear[slot];
             if (!itemId) continue;
             const item = getItem(itemId);
             if (!item) continue;
@@ -580,16 +593,17 @@ export class HubManager {
             }
         }
 
-        // Kit-specific talent bonuses (new system)
-        if (kitId) {
-            const kitBonuses = TalentSystem.calculateBonuses(kitId, RunProgress.getKitTalents(kitId));
+        // Kit-specific talent bonuses (from character's talents)
+        if (kitId && this._activeCharId) {
+            const charTalents = RunProgress.getCharKitTalents(this._activeCharId);
+            const kitBonuses = TalentSystem.calculateBonuses(kitId, charTalents);
             for (const [k, v] of Object.entries(kitBonuses)) {
                 if (k in bonuses) bonuses[k] += v;
             }
         }
 
-        // Legacy talent bonuses (for any old unlocked talents)
-        for (const talentId of pd.talents) {
+        // Legacy talent bonuses
+        for (const talentId of (pd.talents ?? [])) {
             const t = getTalent(talentId);
             if (!t) continue;
             for (const [k, v] of Object.entries(t.stats)) {
@@ -600,16 +614,14 @@ export class HubManager {
         return bonuses;
     }
 
-    /** Get bonuses to apply to GameState at game start */
     getStatBonuses() {
         return this._calculateTotalBonuses();
     }
 
-    /** Get special (non-stat) talent effects for the active kit */
     getTalentEffects() {
-        const kitId = this._getActiveKitId();
-        if (!kitId) return {};
-        return TalentSystem.getSpecialEffects(kitId, RunProgress.getKitTalents(kitId));
+        const kitId = this._selectedKitId;
+        if (!kitId || !this._activeCharId) return {};
+        return TalentSystem.getSpecialEffects(kitId, RunProgress.getCharKitTalents(this._activeCharId));
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -636,6 +648,7 @@ export class HubManager {
 
     _hideAll() {
         this.hubScreen.style.display = 'none';
+        if (this.fightScreen) this.fightScreen.style.display = 'none';
         this.boutiqueScreen.style.display = 'none';
         this.characterScreen.style.display = 'none';
     }
@@ -643,7 +656,7 @@ export class HubManager {
     _refreshSouls() {
         const pd = RunProgress.getPlayerData();
         const text = `${pd.souls} SOULS`;
-        const els = ['hub-souls', 'boutique-souls', 'char-souls'];
+        const els = ['hub-souls', 'boutique-souls', 'char-souls', 'charselect-souls'];
         els.forEach(id => {
             const el = document.getElementById(id);
             if (el) el.textContent = text;
@@ -656,7 +669,6 @@ export class HubManager {
             critChance: 'Crit', critMultiplier: 'Crit DMG', backstabMultiplier: 'Backstab',
             lifesteal: 'Lifesteal', runSpeed: 'Speed', jumpForce: 'Jump',
             attackSpeed: 'Atk Speed', healthRegen: 'HP/s', soulBonus: 'Soul Bonus',
-            // Talent-specific effect labels
             bloodDotBonus: 'Blood DoT', bleedDamage: 'Bleed DMG/s', bleedDuration: 'Bleed Duration',
             frozenDamageBonus: 'Frozen DMG', freezeDurationMult: 'Freeze Duration',
             poisonTickBonus: 'Poison DMG', maxPoisonCharges: 'Max Poison',

@@ -431,7 +431,7 @@ export class Character {
             if (modelKey === 'character_3k_mage') {
                 this.mesh.scale.setScalar(7.5);
             } else if (modelKey === 'character_3k_rogue') {
-                this.mesh.scale.setScalar(0.1925);
+                this.mesh.scale.setScalar(0.09625);
             } else if (modelKey === 'wolf') {
                 this.mesh.scale.setScalar(0.7);
             } else if (modelKey === 'bear') {

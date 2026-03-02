@@ -1,6 +1,205 @@
 /* ═══════════════════════════════════════════════════════════════
-   Hub, Boutique & Character Pages — ORDALIE
+   Hub, Boutique, Character, Fight & Char-Select — ORDALIE
    ═══════════════════════════════════════════════════════════════ */
+
+/* ═══════════════════════════════════════════════════════════════
+   CHARACTER SELECT — Page 1 (cylinder grid)
+   ═══════════════════════════════════════════════════════════════ */
+.char-select-grid {
+    display: flex;
+    gap: 2rem;
+    flex-wrap: wrap;
+    justify-content: center;
+    padding: 2rem 1rem 1.5rem;
+    max-width: 1100px;
+}
+
+.char-slot {
+    width: 150px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.char-slot:hover {
+    transform: translateY(-6px);
+}
+
+.char-slot:hover .char-slot-cylinder {
+    border-color: rgba(0, 212, 255, 0.6);
+    box-shadow: 0 0 30px rgba(0, 212, 255, 0.15), 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.char-slot-cylinder {
+    width: 120px;
+    height: 160px;
+    margin: 0 auto 0.8rem;
+    background: rgba(10, 15, 20, 0.85);
+    border: 1px solid rgba(0, 212, 255, 0.2);
+    border-radius: 60px / 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+/* Subtle gradient shimmer on the cylinder */
+.char-slot-cylinder::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(0, 212, 255, 0.04) 0%, transparent 40%, rgba(0, 212, 255, 0.02) 100%);
+    border-radius: inherit;
+    pointer-events: none;
+}
+
+.char-slot-icon {
+    font-size: 2.8rem;
+    z-index: 1;
+}
+
+.char-slot-name {
+    font-size: 0.85rem;
+    color: #fff;
+    letter-spacing: 0.1rem;
+    margin-bottom: 0.2rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.char-slot-class {
+    font-size: 0.65rem;
+    color: rgba(255, 255, 255, 0.35);
+    letter-spacing: 0.08rem;
+}
+
+.char-slot-run {
+    font-size: 0.55rem;
+    color: #ffcc44;
+    letter-spacing: 0.06rem;
+    margin-top: 0.15rem;
+}
+
+/* Create button slot */
+.char-slot-create .char-slot-cylinder {
+    border-style: dashed;
+    border-color: rgba(0, 212, 255, 0.15);
+}
+
+.char-slot-create:hover .char-slot-cylinder {
+    border-color: rgba(0, 212, 255, 0.4);
+    background: rgba(0, 212, 255, 0.04);
+}
+
+.char-slot-create .char-slot-icon {
+    font-size: 2.5rem;
+    color: rgba(0, 212, 255, 0.4);
+    font-family: sans-serif;
+}
+
+.char-slot-create .char-slot-name {
+    color: rgba(255, 255, 255, 0.4);
+}
+
+/* Delete button on character slot */
+.char-slot-delete {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 22px;
+    height: 22px;
+    background: rgba(255, 50, 50, 0.15);
+    border: 1px solid rgba(255, 50, 50, 0.3);
+    border-radius: 50%;
+    color: rgba(255, 100, 100, 0.6);
+    font-size: 0.7rem;
+    cursor: pointer;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 2;
+    font-family: sans-serif;
+    line-height: 1;
+}
+
+.char-slot:hover .char-slot-delete { display: flex; }
+.char-slot-delete:hover { background: rgba(255, 50, 50, 0.3); color: #ff4444; }
+
+.charselect-footer {
+    text-align: center;
+    padding: 1rem;
+}
+
+.charselect-account-btn {
+    position: static !important;
+    display: inline-block;
+    margin-bottom: 0.5rem;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   FIGHT HUB card accent
+   ═══════════════════════════════════════════════════════════════ */
+.hub-card-fight {
+    border-color: rgba(255, 80, 50, 0.2);
+}
+
+.hub-card-fight:hover {
+    border-color: rgba(255, 80, 50, 0.5);
+    background: rgba(255, 80, 50, 0.04);
+    box-shadow: 0 0 25px rgba(255, 80, 50, 0.1);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   CHARACTER TABS
+   ═══════════════════════════════════════════════════════════════ */
+.char-tabs {
+    display: flex;
+    justify-content: center;
+    gap: 0;
+    margin-bottom: 1.5rem;
+    max-width: 400px;
+    width: 100%;
+}
+
+.char-tab {
+    flex: 1;
+    background: transparent;
+    border: 1px solid rgba(0, 212, 255, 0.2);
+    color: rgba(255, 255, 255, 0.5);
+    font-family: 'Cinzel', serif;
+    font-size: 0.9rem;
+    letter-spacing: 0.2rem;
+    padding: 0.7rem 1.5rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.char-tab:first-child { border-right: none; }
+
+.char-tab:hover {
+    color: #fff;
+    background: rgba(0, 212, 255, 0.04);
+}
+
+.char-tab.active {
+    color: #00d4ff;
+    background: rgba(0, 212, 255, 0.08);
+    border-color: rgba(0, 212, 255, 0.4);
+}
+
+.char-tab-content {
+    width: 100%;
+    max-width: 1400px;
+    padding: 0 1rem;
+}
+
+.char-name-input-row {
+    margin: 1.5rem 0 0.5rem;
+    text-align: center;
+}
 
 /* ── Shared full-screen overlay ──────────────────────────────── */
 .hub-screen {
