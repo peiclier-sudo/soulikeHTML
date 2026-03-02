@@ -2243,5 +2243,32 @@ export class Character {
         }
         return this.position.clone().add(new THREE.Vector3(0.5, 1, 0.5));
     }
+
+    /** Brief white flash on the player model when taking damage. */
+    flashOnHit() {
+        if (!this.mesh) return;
+        if (!this._hitFlashMeshes) {
+            this._hitFlashMeshes = [];
+            this._hitFlashOriginals = [];
+            this.mesh.traverse(child => {
+                if (child.isMesh && child.material && child.material.color) {
+                    this._hitFlashMeshes.push(child);
+                    this._hitFlashOriginals.push(child.material.color.clone());
+                }
+            });
+        }
+        const meshes = this._hitFlashMeshes;
+        const originals = this._hitFlashOriginals;
+        for (let i = 0; i < meshes.length; i++) {
+            meshes[i].material.color.setHex(0xffffff);
+        }
+        if (this._hitFlashTimer) clearTimeout(this._hitFlashTimer);
+        this._hitFlashTimer = setTimeout(() => {
+            for (let i = 0; i < meshes.length; i++) {
+                meshes[i].material.color.copy(originals[i]);
+            }
+            this._hitFlashTimer = null;
+        }, 80);
+    }
 }
 

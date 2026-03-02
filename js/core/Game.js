@@ -229,6 +229,8 @@ export class Game {
                 this.shakeTime = 0.2;
                 this.ultimateBloomTime = Math.max(this.ultimateBloomTime, 0.1);
                 this.ultimateBloomDuration = Math.max(this.ultimateBloomDuration, 0.1);
+                // Flash the player model white so the hit is visually obvious
+                this.character?.flashOnHit();
             }
             this._prevPlayerHealth = health;
         });
@@ -1222,6 +1224,8 @@ export class Game {
             // Subtle bloom flash on every hit
             this.ultimateBloomTime = Math.max(this.ultimateBloomTime, charged ? 0.15 : 0.1);
             this.ultimateBloomDuration = Math.max(this.ultimateBloomDuration, charged ? 0.15 : 0.1);
+            // Tiny FOV nudge so hits feel connected
+            this.ultimateFovTime = Math.max(this.ultimateFovTime, charged ? 0.06 : 0.04);
         }
         this.shakeTime = this.shakeDuration;
     }
@@ -1238,15 +1242,15 @@ export class Game {
             const amt = this.shakeIntensity * envelope;
             const time = this.elapsedTime + this.shakeSeed;
 
-            // Lower-frequency blended sine shake: smooth and impactful without jitter.
+            // Low-frequency sine shake: smooth, weighty, no jitter.
             this.targetShakeOffset.set(
-                amt * (Math.sin(time * 20.0) * 0.72 + Math.sin(time * 31.0 + 1.2) * 0.28),
-                amt * (Math.sin(time * 24.0 + 2.0) * 0.88 + Math.sin(time * 36.0 + 0.35) * 0.22),
-                amt * (Math.sin(time * 17.0 + 0.65) * 0.18)
+                amt * (Math.sin(time * 14.0) * 0.75 + Math.sin(time * 23.0 + 1.2) * 0.25),
+                amt * (Math.sin(time * 17.0 + 2.0) * 0.85 + Math.sin(time * 27.0 + 0.35) * 0.15),
+                amt * (Math.sin(time * 11.0 + 0.65) * 0.12)
             );
         }
 
-        const blend = Math.min(1, this.deltaTime * 22);
+        const blend = Math.min(1, this.deltaTime * 28);
         this.lastShakeOffset.lerp(this.targetShakeOffset, blend);
         if (this.lastShakeOffset.lengthSq() < 1e-7) this.lastShakeOffset.set(0, 0, 0);
         this.camera.position.add(this.lastShakeOffset);
