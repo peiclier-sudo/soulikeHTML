@@ -428,15 +428,19 @@ export class Character {
             this.mesh.position.copy(this.position);
 
             // Scale models to match each other
+            // _baseScale is used by landing-squash so it can restore the correct size
             if (modelKey === 'character_3k_mage') {
-                this.mesh.scale.setScalar(7.5);
+                this._baseScale = 7.5;
             } else if (modelKey === 'character_3k_rogue') {
-                this.mesh.scale.setScalar(0.0626);
+                this._baseScale = 0.0626;
             } else if (modelKey === 'wolf') {
-                this.mesh.scale.setScalar(0.7);
+                this._baseScale = 0.7;
             } else if (modelKey === 'bear') {
-                this.mesh.scale.setScalar(0.7);
+                this._baseScale = 0.7;
+            } else {
+                this._baseScale = 1.0;
             }
+            this.mesh.scale.setScalar(this._baseScale);
 
             // Enable shadows
             this.mesh.traverse(child => {
@@ -1406,14 +1410,17 @@ export class Character {
                 this.actions['Jump'].setEffectiveTimeScale(jumpTimeScale);
             }
 
-            // Landing squash decay
+            // Landing squash decay (relative to model's base scale)
             if (this._landSquashT > 0) {
                 this._landSquashT = Math.max(0, this._landSquashT - deltaTime * 8);
                 const squash = 1 - this._landSquashT * 0.12;
                 const stretch = 1 + this._landSquashT * 0.06;
-                if (this.mesh) this.mesh.scale.set(stretch, squash, stretch);
-            } else if (this.mesh && this.mesh.scale.y !== 1) {
-                this.mesh.scale.set(1, 1, 1);
+                const bs = this._baseScale || 1;
+                if (this.mesh) this.mesh.scale.set(bs * stretch, bs * squash, bs * stretch);
+            } else if (this.mesh) {
+                const bs = this._baseScale || 1;
+                const sy = this.mesh.scale.y;
+                if (Math.abs(sy - bs) > 0.0001) this.mesh.scale.setScalar(bs);
             }
 
             this.currentAction = this.actions[targetAnimation] || this.currentAction;
