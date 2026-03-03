@@ -432,7 +432,7 @@ export class Character {
             if (modelKey === 'character_3k_mage') {
                 this._baseScale = 7.5;
             } else if (modelKey === 'character_3k_rogue') {
-                this._baseScale = 0.325;
+                this._baseScale = 1.0;
             } else if (modelKey === 'wolf') {
                 this._baseScale = 0.7;
             } else if (modelKey === 'bear') {
