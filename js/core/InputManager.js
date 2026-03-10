@@ -54,13 +54,12 @@ export class InputManager {
     }
     
     onMouseMove(event) {
-        if (document.pointerLockElement) {
-            const maxDelta = 100;
-            this.mouse.deltaX += Math.max(-maxDelta, Math.min(maxDelta, event.movementX));
-            this.mouse.deltaY += Math.max(-maxDelta, Math.min(maxDelta, event.movementY));
-        }
+        // Always track mouse position (no pointer lock — cursor is visible)
         this.mouse.x = event.clientX;
         this.mouse.y = event.clientY;
+        const maxDelta = 100;
+        this.mouse.deltaX += Math.max(-maxDelta, Math.min(maxDelta, event.movementX));
+        this.mouse.deltaY += Math.max(-maxDelta, Math.min(maxDelta, event.movementY));
     }
     
     onMouseDown(event) {
@@ -98,6 +97,14 @@ export class InputManager {
         const teleportKey = (this.keys['KeyV'] || this.keyChars['v'] || this.keys['KeyQ'] || this.keyChars['a']) &&
             !(this.prevKeys['KeyV'] || this.prevKeyChars['v'] || this.prevKeys['KeyQ'] || this.prevKeyChars['a']);
         const healthPotionKey = (this.keys['KeyDigit1'] || this.keyChars['&']) && !(this.prevKeys['KeyDigit1'] || this.prevKeyChars['&']);
+
+        // Charged attack: Shift + left-click hold/release tracking
+        const shiftHeld = this.keys['ShiftLeft'] || this.keys['ShiftRight'];
+        const isCharging = this.mouse.leftClick && shiftHeld;
+        const wasCharging = this._wasCharging || false;
+        const chargedRelease = wasCharging && !isCharging;
+        this._wasCharging = isCharging;
+
         return {
             // Movement - French AZERTY: Z=KeyW, Q=KeyA, D=KeyD
             forward: this.keys['KeyW'] || this.keys['ArrowUp'],
@@ -120,11 +127,14 @@ export class InputManager {
             healthPotion: healthPotionKey, // & = Health potion (AZERTY: KeyDigit1 or key that types '&')
             interact: this.keys['KeyE'],
             
-            // Combat (left=Basic attack, right=Charged attack hold/release)
-            attack: this.mouse.leftClickDown,
-            chargedAttack: this.mouse.rightClick,
-            chargedAttackRelease: this.mouse.rightClickReleased,
+            // Combat (left=Basic attack, Shift+left=Charged attack hold/release)
+            attack: this.mouse.leftClickDown && !shiftHeld,
+            chargedAttack: isCharging,
+            chargedAttackRelease: chargedRelease,
             rightClickDown: this.mouse.rightClickDown,
+
+            // Movement (right-click held = move toward cursor)
+            rightClickMove: this.mouse.rightClick,
             
             // Camera
             mouseDeltaX: this.mouse.deltaX,

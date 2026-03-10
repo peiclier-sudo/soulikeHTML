@@ -31,17 +31,21 @@ export class Character {
         this.jumpForce = stats?.jumpForce ?? 8;
         this.gravity = -25;
 
-        // 3/4 top-down camera settings (hack-and-slash perspective)
-        this.cameraDistance = 14;       // Distance from character (controls zoom level)
-        this.cameraHeight = 12;        // Height above character
-        this.cameraLookAtHeight = 0.5; // Look-at point near character feet
-        this.cameraPitch = 0;          // Not used in fixed camera mode
-        this.cameraYaw = 0;            // Fixed camera yaw (0 = looking along +Z)
+        // 3/4 hack-and-slash camera settings (lower angle = more perspective)
+        this.cameraDistance = 16;       // Distance from character (controls zoom level)
+        this.cameraHeight = 0;         // Not used separately — derived from angle
+        this.cameraLookAtHeight = 1.0; // Look-at point at character waist
+        this.cameraPitch = 0;
+        this.cameraYaw = 0;
         this.pitchLimit = Math.PI / 3;
-        this.cameraSmoothSpeed = 12;    // Smooth camera follow
+        this.cameraSmoothSpeed = 12;
         this._cameraBobTime = 0;
-        this.fixedCameraAngle = Math.PI * 0.32; // ~58 degrees from horizontal (3/4 view)
+        this.fixedCameraAngle = Math.PI * 0.22; // ~40° from horizontal — lower, more dramatic perspective
         this.fixedCameraYaw = Math.PI;  // Camera looks from behind (+Z toward -Z)
+
+        // Right-click-to-move state
+        this._moveTarget = null;        // THREE.Vector3 or null — world position to move toward
+        this._moveTargetThreshold = 0.5; // Stop moving when within this distance
 
         // State
         this.isGrounded = true;
@@ -1104,25 +1108,43 @@ export class Character {
         }
         this._moveVec.set(0, 0, 0);
         const moveVector = this._moveVec;
-        
-        // Fixed screen-relative directions for 3/4 view (camera looks from +Z toward -Z)
+
+        // Fixed screen-relative directions for 3/4 view
         const forward = this._fwd.set(0, 0, -1);
         const right = this._right.set(1, 0, 0);
-
         forward.applyAxisAngle(this._yAxis, this.fixedCameraYaw);
         right.applyAxisAngle(this._yAxis, this.fixedCameraYaw);
-        
-        // Zero out Y component for horizontal movement
         forward.y = 0;
         right.y = 0;
         forward.normalize();
         right.normalize();
-        
-        if (input.forward) moveVector.add(forward);
-        if (input.backward) moveVector.sub(forward);
-        if (input.right) moveVector.add(right);
-        if (input.left) moveVector.sub(right);
-        
+
+        // Right-click-to-move: set target on click, keep moving while held
+        if (input.rightClickMove && input.mouseGroundPos) {
+            this._moveTarget = this._moveTarget || new THREE.Vector3();
+            this._moveTarget.copy(input.mouseGroundPos);
+        }
+
+        // WASD still works as override (clears click-to-move target)
+        const hasWASD = input.forward || input.backward || input.left || input.right;
+        if (hasWASD) {
+            this._moveTarget = null;
+            if (input.forward) moveVector.add(forward);
+            if (input.backward) moveVector.sub(forward);
+            if (input.right) moveVector.add(right);
+            if (input.left) moveVector.sub(right);
+        } else if (this._moveTarget) {
+            // Move toward click target
+            const dx = this._moveTarget.x - this.position.x;
+            const dz = this._moveTarget.z - this.position.z;
+            const dist = Math.sqrt(dx * dx + dz * dz);
+            if (dist > this._moveTargetThreshold) {
+                moveVector.set(dx / dist, 0, dz / dist);
+            } else {
+                this._moveTarget = null; // Arrived
+            }
+        }
+
         if (moveVector.length() > 0) {
             moveVector.normalize();
 
@@ -1140,7 +1162,7 @@ export class Character {
 
             const targetVelX = moveVector.x * speed;
             const targetVelZ = moveVector.z * speed;
-            const moveSmooth = 1 - Math.exp(-16 * deltaTime);  // Quick, smooth velocity blend
+            const moveSmooth = 1 - Math.exp(-16 * deltaTime);
             this.velocity.x += (targetVelX - this.velocity.x) * moveSmooth;
             this.velocity.z += (targetVelZ - this.velocity.z) * moveSmooth;
 
@@ -1148,10 +1170,10 @@ export class Character {
             let diff = targetYaw - this.rotation.y;
             while (diff > Math.PI) diff -= 2 * Math.PI;
             while (diff < -Math.PI) diff += 2 * Math.PI;
-            const rotSmooth = 1 - Math.exp(-12 * deltaTime);   // Quick, smooth rotation
+            const rotSmooth = 1 - Math.exp(-12 * deltaTime);
             this.rotation.y += diff * rotSmooth;
         } else {
-            // Stop immediately when no movement input (no slide/latency)
+            // Stop immediately when no movement input
             this.velocity.x = 0;
             this.velocity.z = 0;
         }
