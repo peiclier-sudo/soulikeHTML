@@ -792,7 +792,7 @@ export class CombatSystem {
         }
 
         const basicClip = this.character.actions?.['Basic attack']?.getClip();
-        let basicTimeScale = this.isDaggerKit ? 8.0 : this.isBowRangerKit ? 2.25 : this.isWolfKit ? 5.5 : this.isBearKit ? 2.5 : 3.8;
+        let basicTimeScale = this.isDaggerKit ? 16.0 : this.isBowRangerKit ? 4.5 : this.isWolfKit ? 11.0 : this.isBearKit ? 5.0 : 7.6;
         // Wolf frenzy attack speed buff
         if (this.isWolfKit && this.gameState.combat.wolfFrenzyRemaining > 0) {
             basicTimeScale *= (this.gameState.combat.wolfFrenzyAttackSpeedMult ?? 1);

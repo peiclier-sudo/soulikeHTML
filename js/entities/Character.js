@@ -21,7 +21,7 @@ export class Character {
         const stats = kit?.stats;
 
         // Character properties
-        this.position = new THREE.Vector3(0, 0, 5);
+        this.position = new THREE.Vector3(0, 0, 10);
         this.rotation = new THREE.Euler(0, Math.PI, 0); // Face -Z toward boss
         this.velocity = new THREE.Vector3();
 
@@ -703,7 +703,7 @@ export class Character {
         const charged = this.actions['Charged attack']?.getClip();
         const chargeDuration = this.gameState.combat.chargeDuration;
         if (basic) {
-            const timeScale = 3.8;
+            const timeScale = 7.6;
             const effectiveBasic = basic.duration / timeScale;
             console.log(`Basic attack: clip=${basic.duration.toFixed(2)}s → plays in ${effectiveBasic.toFixed(2)}s (${timeScale}x speed)`);
         }
@@ -779,7 +779,8 @@ export class Character {
         }
 
         if (this.upperAction) this.upperAction.fadeOut(fadeOutTime);
-        action.reset().setEffectiveTimeScale(1).setEffectiveWeight(1).fadeIn(fadeInTime).play();
+        const animSpeed = (actionName === 'Basic attack') ? 2.0 : 1.0;
+        action.reset().setEffectiveTimeScale(animSpeed).setEffectiveWeight(1).fadeIn(fadeInTime).play();
         this.upperAction = action;
     }
 
