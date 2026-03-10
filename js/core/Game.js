@@ -741,7 +741,7 @@ export class Game {
                     groundPos.z = pz + (groundPos.z - pz) / dist * minDist;
                 }
                 this.combatSystem.updateCrimsonEruptionPreview(groundPos);
-                if (input.attack) {
+                if (input.attack || input.leftClickDown) {
                     if (isBearQ) {
                         this.combatSystem.bearCombat.executeEarthquake(groundPos);
                     } else {
@@ -753,7 +753,8 @@ export class Game {
                     this.crimsonEruptionTargeting = false;
                     this.combatSystem.hideCrimsonEruptionPreview();
                     input.attack = false;
-                } else if (input.pause || input.leftClickDown === true) {
+                    input.leftClickDown = false;
+                } else if (input.pause) {
                     this.crimsonEruptionTargeting = false;
                     this.combatSystem.hideCrimsonEruptionPreview();
                 }
