@@ -848,10 +848,8 @@ export class Game {
         // En mode ciblage, la caméra reste fixe sur le joueur (pas de rotation)
         input.crimsonEruptionTargeting = this.crimsonEruptionTargeting;
 
-        // Compute mouse ground position for right-click-to-move
-        if (input.rightClickMove || input.rightClickDown) {
-            input.mouseGroundPos = this.getMouseGroundPosition(input.mouseScreenX, input.mouseScreenY);
-        }
+        // Always compute mouse ground position — used for aiming and right-click-to-move
+        input.mouseGroundPos = this.getMouseGroundPosition(input.mouseScreenX, input.mouseScreenY);
 
         // Update character with input
         this.character.update(this.deltaTime, input, this.mouseSensitivity);

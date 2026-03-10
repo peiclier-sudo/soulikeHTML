@@ -106,14 +106,9 @@ export class InputManager {
         this._wasCharging = isCharging;
 
         return {
-            // Movement - French AZERTY: Z=KeyW, Q=KeyA, D=KeyD
-            forward: this.keys['KeyW'] || this.keys['ArrowUp'],
-            backward: this.keys['KeyS'] || this.keys['ArrowDown'],
-            left: this.keys['KeyA'] || this.keys['ArrowLeft'],   // Q on AZERTY
-            right: this.keys['KeyD'] || this.keys['ArrowRight'], // D on AZERTY
-            
-            // Actions - Z on AZERTY = KeyW, default fast run when moving
-            run: this.keys['KeyW'],  // Z on French keyboard (KeyW position)
+            // Movement is right-click-to-move (no WASD)
+
+            // Actions
             jump: this.keys['Space'],
             dash: this.keys['KeyR'],   // R = dash forward
             superDash: superDashKey, // é (AZERTY Digit2) = Super Dash
