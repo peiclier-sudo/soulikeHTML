@@ -358,7 +358,7 @@ function startGameWithKit(kitId, savedRun = null) {
 
     document.getElementById('hud').style.display = 'block';
     game.start();
-    requestAnimationFrame(() => canvas.requestPointerLock());
+    // No pointer lock — cursor stays visible for click-to-move
 }
 
 // ─── Menu Buttons ───────────────────────────────────────────────
@@ -367,7 +367,6 @@ function setupMenuButtons() {
     document.getElementById('resume-button')?.addEventListener('click', () => {
         document.getElementById('pause-menu').style.display = 'none';
         game?.resume();
-        document.getElementById('game-canvas').requestPointerLock();
     });
 
     document.getElementById('settings-button')?.addEventListener('click', () => {
@@ -511,10 +510,8 @@ function setupKeyboardShortcuts() {
             } else if (document.getElementById('pause-menu').style.display === 'flex') {
                 document.getElementById('pause-menu').style.display = 'none';
                 game.resume();
-                document.getElementById('game-canvas').requestPointerLock();
             } else {
                 game.pause();
-                document.exitPointerLock();
                 document.getElementById('pause-menu').style.display = 'flex';
             }
         }
@@ -534,13 +531,7 @@ function hideAllScreens() {
     });
 }
 
-// Handle pointer lock changes
-document.addEventListener('pointerlockchange', () => {
-    if (!document.pointerLockElement && game?.isRunning && !game?.isPaused) {
-        game.pause();
-        document.getElementById('pause-menu').style.display = 'flex';
-    }
-});
+// Pointer lock no longer used — cursor stays visible for click-to-move
 
 window.addEventListener('resize', () => { game?.handleResize(); });
 

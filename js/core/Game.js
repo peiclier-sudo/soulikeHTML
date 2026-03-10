@@ -124,7 +124,7 @@ export class Game {
             120
         );
         this.baseFov = 50;
-        this.camera.position.set(0, 12, 10);
+        this.camera.position.set(0, 8, 14);
         this.ultimateFovTime = 0;
 
         // Shift vanishing point above screen center for 3/4 hack-and-slash perspective.
@@ -386,7 +386,7 @@ export class Game {
         this._applyFloorTheme(this.bossNumber);
         this.spawnBoss();
         this.resume();
-        requestAnimationFrame(() => document.getElementById('game-canvas').requestPointerLock());
+        // No pointer lock — cursor stays visible for click-to-move
     }
 
     start() {
@@ -847,6 +847,11 @@ export class Game {
 
         // En mode ciblage, la caméra reste fixe sur le joueur (pas de rotation)
         input.crimsonEruptionTargeting = this.crimsonEruptionTargeting;
+
+        // Compute mouse ground position for right-click-to-move
+        if (input.rightClickMove || input.rightClickDown) {
+            input.mouseGroundPos = this.getMouseGroundPosition(input.mouseScreenX, input.mouseScreenY);
+        }
 
         // Update character with input
         this.character.update(this.deltaTime, input, this.mouseSensitivity);
