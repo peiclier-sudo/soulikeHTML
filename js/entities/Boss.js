@@ -409,20 +409,14 @@ export class Boss extends Enemy {
             this.mesh.position.copy(this.position);
             if (this._bossFloorOffset != null) this.mesh.position.y = this.position.y + this._bossFloorOffset;
 
-            // Boss stagger flinch: scale punch + slight recoil during stagger from heavy hits
+            // Boss stagger flinch: rotation rock only (no scale — scale causes permanent shrink)
             if (this._staggerFlinchT > 0) {
-                this._staggerFlinchT = Math.max(0, this._staggerFlinchT - deltaTime * 6);
-                const flinch = this._staggerFlinchT;
-                const scaleX = 1 + flinch * 0.06;
-                const scaleY = 1 - flinch * 0.08;
-                this.mesh.scale.set(scaleX, scaleY, scaleX);
-                this.mesh.rotation.x = flinch * 0.12;
+                this._staggerFlinchT = Math.max(0, this._staggerFlinchT - deltaTime * 8);
+                this.mesh.rotation.x = this._staggerFlinchT * 0.15;
             }
 
-            // When stagger ends, always reset scale and rotation
             if (this.staggerTimer <= 0) {
                 this._staggerFlinchT = 0;
-                this.mesh.scale.set(1, 1, 1);
                 this.mesh.rotation.x = 0;
             }
 
