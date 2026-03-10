@@ -45,6 +45,7 @@ export class Character {
 
         // Right-click-to-move state
         this._moveTarget = null;        // THREE.Vector3 or null — world position to move toward
+        this._lastMouseGroundPos = null; // Last known cursor ground position for aim direction
         this._moveTargetThreshold = 0.5; // Stop moving when within this distance
 
         // State
@@ -1127,32 +1128,29 @@ export class Character {
             }
         }
 
-        // Character always faces cursor for aiming (rotation follows mouse)
+        // Store cursor ground position for accurate aim direction
+        if (input.mouseGroundPos) {
+            if (!this._lastMouseGroundPos) this._lastMouseGroundPos = new THREE.Vector3();
+            this._lastMouseGroundPos.copy(input.mouseGroundPos);
+        }
+
+        // Character faces cursor instantly for aiming (no smoothing = no lag)
         if (input.mouseGroundPos) {
             const dx = input.mouseGroundPos.x - this.position.x;
             const dz = input.mouseGroundPos.z - this.position.z;
             if (dx * dx + dz * dz > 0.01) {
-                const targetYaw = Math.atan2(dx, dz);
-                let diff = targetYaw - this.rotation.y;
-                while (diff > Math.PI) diff -= 2 * Math.PI;
-                while (diff < -Math.PI) diff += 2 * Math.PI;
-                const rotSmooth = 1 - Math.exp(-20 * deltaTime);
-                this.rotation.y += diff * rotSmooth;
+                this.rotation.y = Math.atan2(dx, dz);
             }
         }
 
         if (moveVector.length() > 0) {
             moveVector.normalize();
 
-            const isRunning = this.gameState.player.stamina > 5;
+            // Always run at full speed — no stamina-gated slowdown
             const vanishMult = (this.gameState?.combat?.vanishRemaining > 0) ? 1.6 : 1;
             const wolfInstinctMult = (this.gameState?.combat?.wolfInstinctRemaining > 0) ? (this.gameState.combat.wolfInstinctSpeedMult ?? 1) : 1;
             const speedBonus = this.gameState?.bonuses?.runSpeed ?? 0;
-            const speed = ((isRunning ? this.runSpeed : this.walkSpeed) + speedBonus) * vanishMult * wolfInstinctMult;
-
-            if (isRunning) {
-                this.gameState.useStamina(10 * deltaTime);
-            }
+            const speed = (this.runSpeed + speedBonus) * vanishMult * wolfInstinctMult;
 
             // Instant velocity — no acceleration lag, full reactivity
             this.velocity.x = moveVector.x * speed;
@@ -1220,7 +1218,7 @@ export class Character {
         } else {
             const t = 1 - this.dashTimer / this.dashDuration;
             const easeOutQuint = 1 - Math.pow(1 - t, 5);
-            const boundary = 18.5;
+            const boundary = 38;
             const dist = this.isSuperDashing ? this.dashDistance * 2.0 : this.dashDistance;
             this.position.x = this.dashStartPos.x + this.dashDirection.x * dist * easeOutQuint;
             this.position.z = this.dashStartPos.z + this.dashDirection.z * dist * easeOutQuint;
@@ -1246,7 +1244,7 @@ export class Character {
             this.isGrounded = true;
         }
 
-        const boundary = 18.5;
+        const boundary = 38;
         this.position.x = Math.max(-boundary, Math.min(boundary, this.position.x));
         this.position.z = Math.max(-boundary, Math.min(boundary, this.position.z));
     }
@@ -2201,14 +2199,22 @@ export class Character {
         return this.position.clone();
     }
 
-    // Get forward/aim direction — always points toward cursor (horizontal plane)
+    // Get forward/aim direction — points directly at cursor position on ground plane
     getForwardDirection() {
-        const aim = new THREE.Vector3(
+        if (this._lastMouseGroundPos) {
+            const dx = this._lastMouseGroundPos.x - this.position.x;
+            const dz = this._lastMouseGroundPos.z - this.position.z;
+            const len = Math.sqrt(dx * dx + dz * dz);
+            if (len > 0.01) {
+                return new THREE.Vector3(dx / len, 0, dz / len);
+            }
+        }
+        // Fallback to rotation-based direction
+        return new THREE.Vector3(
             Math.sin(this.rotation.y),
             0,
             Math.cos(this.rotation.y)
         );
-        return aim;
     }
 
     // Get weapon world position for combat

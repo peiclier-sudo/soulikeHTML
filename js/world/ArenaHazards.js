@@ -21,7 +21,7 @@ export class ArenaHazards {
         this.scene = scene;
         this.ps = particleSystem;
         this.floor = 0;
-        this.boundary = 16;
+        this.boundary = 32;
         this.spawnTimer = 6;
         this._v = new THREE.Vector3();
 

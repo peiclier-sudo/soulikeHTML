@@ -352,7 +352,7 @@ export class Boss extends Enemy {
     }
 
     _clampArena() {
-        const ab = 18.5;
+        const ab = 38;
         this.position.x = Math.max(-ab, Math.min(ab, this.position.x));
         this.position.z = Math.max(-ab, Math.min(ab, this.position.z));
     }
