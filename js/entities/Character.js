@@ -27,7 +27,7 @@ export class Character {
 
         // Movement settings (driven by kit)
         this.walkSpeed = stats?.walkSpeed ?? 8;
-        this.runSpeed = stats?.runSpeed ?? 18;
+        this.runSpeed = stats?.runSpeed ?? 10;
         this.jumpForce = stats?.jumpForce ?? 8;
         this.gravity = -25;
 

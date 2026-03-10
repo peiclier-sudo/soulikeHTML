@@ -98,11 +98,25 @@ export class InputManager {
             !(this.prevKeys['KeyV'] || this.prevKeyChars['v'] || this.prevKeys['KeyQ'] || this.prevKeyChars['a']);
         const healthPotionKey = (this.keys['KeyDigit1'] || this.keyChars['&']) && !(this.prevKeys['KeyDigit1'] || this.prevKeyChars['&']);
 
-        // Charged attack: Shift + right-click hold/release tracking
+        // Charged attack: Shift + right-click hold/release tracking OR left-click hold
         const shiftHeld = this.keys['ShiftLeft'] || this.keys['ShiftRight'];
-        const isCharging = this.mouse.rightClick && shiftHeld;
+        const rightCharging = this.mouse.rightClick && shiftHeld;
+
+        // Left-click hold charging: track hold duration
+        if (this.mouse.leftClick) {
+            this._leftHoldTime = (this._leftHoldTime || 0) + (this._lastDt || 0.016);
+        } else {
+            this._leftHoldTime = 0;
+        }
+        const leftChargeThreshold = 0.3; // seconds before left-click becomes charge
+        const leftCharging = this.mouse.leftClick && this._leftHoldTime >= leftChargeThreshold;
+        const wasLeftCharging = this._wasLeftCharging || false;
+        const leftChargeRelease = wasLeftCharging && !leftCharging;
+        this._wasLeftCharging = leftCharging;
+
+        const isCharging = rightCharging || leftCharging;
         const wasCharging = this._wasCharging || false;
-        const chargedRelease = wasCharging && !isCharging;
+        const chargedRelease = (wasCharging && !isCharging) || leftChargeRelease;
         this._wasCharging = isCharging;
 
         return {
@@ -124,10 +138,11 @@ export class InputManager {
             attack: this.mouse.rightClickDown && !shiftHeld,
             chargedAttack: isCharging,
             chargedAttackRelease: chargedRelease,
-            leftClickDown: this.mouse.leftClickDown,
+            leftClickDown: this.mouse.leftClickDown && !leftCharging,
 
             // Movement (left-click = hold to follow cursor, release to autopilot to last pos)
-            leftClickMove: this.mouse.leftClick,
+            // Suppress movement when left-click is being used for charged attack
+            leftClickMove: this.mouse.leftClick && !leftCharging,
 
             // Camera
             mouseDeltaX: this.mouse.deltaX,
