@@ -322,6 +322,13 @@ export class Game {
             damage: scaled.damage
         });
         this.boss.setGameState(this.gameState);
+        // Screen shake on boss hit
+        this.boss.onDamaged = (dmg) => {
+            const intensity = Math.min(0.04, 0.008 + dmg * 0.0004);
+            this.shakeIntensity = Math.max(this.shakeIntensity, intensity);
+            this.shakeDuration = 0.12;
+            this.shakeTime = 0.12;
+        };
         this.combatSystem.addEnemy(this.boss);
         const label = this.bossNumber > 0
             ? `${this.boss.name}  (Boss ${this.bossNumber + 1})`
@@ -720,19 +727,10 @@ export class Game {
                 : this.combatSystem.crimsonEruptionCooldown <= 0;
             if (input.crimsonEruption && !this.combatSystem.isDaggerKit && !this.combatSystem.isBowRangerKit && !this.combatSystem.isWolfKit && qCooldownReady) {
                 this.crimsonEruptionTargeting = true;
-                const w = this.canvas?.clientWidth || 1;
-                const h = this.canvas?.clientHeight || 1;
-                this._targetingMouseX = w / 2;
-                this._targetingMouseY = h / 2;
             }
             if (this.crimsonEruptionTargeting) {
-                const w = this.canvas?.clientWidth || 1;
-                const h = this.canvas?.clientHeight || 1;
-                this._targetingMouseX = (this._targetingMouseX ?? w / 2) + (input.mouseDeltaX ?? 0);
-                this._targetingMouseY = (this._targetingMouseY ?? h / 2) + (input.mouseDeltaY ?? 0);
-                this._targetingMouseX = Math.max(0, Math.min(w, this._targetingMouseX));
-                this._targetingMouseY = Math.max(0, Math.min(h, this._targetingMouseY));
-                let groundPos = this.getMouseGroundPosition(this._targetingMouseX, this._targetingMouseY);
+                // Use actual cursor position for accurate ground targeting
+                let groundPos = this.getMouseGroundPosition(input.mouseScreenX, input.mouseScreenY);
                 const minDist = 3;
                 const px = this.character.position.x;
                 const pz = this.character.position.z;

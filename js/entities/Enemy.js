@@ -166,19 +166,39 @@ export class Enemy {
                 }
             });
         }
-        const flashColor = this.isBoss ? 0xf8f8ff : 0xff0000;
-        const meshes = this._hitFlashMeshes;
-        const originals = this._hitFlashOriginals;
-        for (let i = 0; i < meshes.length; i++) {
-            meshes[i].material.color.setHex(flashColor);
-        }
-        if (this._hitFlashTimer) clearTimeout(this._hitFlashTimer);
-        this._hitFlashTimer = setTimeout(() => {
+
+        // Dark flash on boss hit — brief black tint to signify impact
+        if (this.isBoss) {
+            const meshes = this._hitFlashMeshes;
+            const originals = this._hitFlashOriginals;
             for (let i = 0; i < meshes.length; i++) {
-                meshes[i].material.color.copy(originals[i]);
+                meshes[i].material.color.setHex(0x111111);
             }
-            this._hitFlashTimer = null;
-        }, 100);
+            if (this._hitFlashTimer) clearTimeout(this._hitFlashTimer);
+            this._hitFlashTimer = setTimeout(() => {
+                for (let i = 0; i < meshes.length; i++) {
+                    meshes[i].material.color.copy(originals[i]);
+                }
+                this._hitFlashTimer = null;
+            }, 80);
+        } else {
+            const flashColor = 0xff0000;
+            const meshes = this._hitFlashMeshes;
+            const originals = this._hitFlashOriginals;
+            for (let i = 0; i < meshes.length; i++) {
+                meshes[i].material.color.setHex(flashColor);
+            }
+            if (this._hitFlashTimer) clearTimeout(this._hitFlashTimer);
+            this._hitFlashTimer = setTimeout(() => {
+                for (let i = 0; i < meshes.length; i++) {
+                    meshes[i].material.color.copy(originals[i]);
+                }
+                this._hitFlashTimer = null;
+            }, 100);
+        }
+
+        // Notify listener (used for screen shake)
+        if (this.onDamaged) this.onDamaged(amount);
 
         if (this.health <= 0) {
             this.die();

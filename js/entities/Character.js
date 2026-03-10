@@ -27,12 +27,12 @@ export class Character {
 
         // Movement settings (driven by kit)
         this.walkSpeed = stats?.walkSpeed ?? 8;
-        this.runSpeed = stats?.runSpeed ?? 14;
+        this.runSpeed = stats?.runSpeed ?? 18;
         this.jumpForce = stats?.jumpForce ?? 8;
         this.gravity = -25;
 
         // 3/4 hack-and-slash camera settings (lower angle = more perspective)
-        this.cameraDistance = 22;       // Distance from character — wide enough to keep boss in view
+        this.cameraDistance = 16;       // Distance from character — zoomed in for action feel
         this.cameraHeight = 0;         // Not used separately — derived from angle
         this.cameraLookAtHeight = 1.0; // Look-at point at character waist
         this.cameraPitch = 0;
@@ -1153,13 +1153,17 @@ export class Character {
             const speedBonus = this.gameState?.bonuses?.runSpeed ?? 0;
             const speed = (this.runSpeed + speedBonus) * vanishMult * wolfInstinctMult;
 
-            // Instant velocity — no acceleration lag, full reactivity
-            this.velocity.x = moveVector.x * speed;
-            this.velocity.z = moveVector.z * speed;
+            // Snappy acceleration — fast ramp-up for dynamic feel
+            const accelFactor = 1 - Math.exp(-28 * deltaTime);
+            this.velocity.x += (moveVector.x * speed - this.velocity.x) * accelFactor;
+            this.velocity.z += (moveVector.z * speed - this.velocity.z) * accelFactor;
         } else {
-            // Quick stop — no floaty deceleration
-            this.velocity.x = 0;
-            this.velocity.z = 0;
+            // Quick deceleration — slight slide then stop
+            const decelFactor = 1 - Math.exp(-20 * deltaTime);
+            this.velocity.x *= (1 - decelFactor);
+            this.velocity.z *= (1 - decelFactor);
+            if (Math.abs(this.velocity.x) < 0.01) this.velocity.x = 0;
+            if (Math.abs(this.velocity.z) < 0.01) this.velocity.z = 0;
         }
 
         // Space = jump only
