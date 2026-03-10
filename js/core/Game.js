@@ -166,10 +166,10 @@ export class Game {
         this._afterimageDamp = 0;        // current smoothed damp value
         this._afterimageTarget = 0;      // target damp value
 
-        // Cinematic vignette — subtle edge darkening for pro look
+        // Cinematic vignette — heavy edge darkening for moody atmosphere
         this.vignettePass = new ShaderPass(VignetteShader);
-        this.vignettePass.uniforms.darkness.value = 1.2;
-        this.vignettePass.uniforms.offset.value = 1.1;
+        this.vignettePass.uniforms.darkness.value = 0.7;
+        this.vignettePass.uniforms.offset.value = 0.85;
         this.composer.addPass(this.vignettePass);
     }
     
