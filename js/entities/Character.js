@@ -536,14 +536,15 @@ export class Character {
         // Direction toward cursor
         const dx = cursorPos.x - ox;
         const dz = cursorPos.z - oz;
-        const dist = Math.sqrt(dx * dx + dz * dz) || 1;
+        const dist = Math.sqrt(dx * dx + dz * dz) || 0.001;
         const nx = dx / dist;
         const nz = dz / dist;
 
-        // Beam: start in front of player, extend toward cursor
+        // Always show beam with minimum length even when cursor is near player
         const startDist = 1.2;
-        const endDist = Math.min(dist, 10); // Cap line length
-        const beamLength = Math.max(0, endDist - startDist);
+        const minLength = 5;
+        const endDist = Math.max(startDist + minLength, Math.min(dist, 10));
+        const beamLength = endDist - startDist;
         const beamWidth = 0.18;
 
         const startX = ox + nx * startDist;
