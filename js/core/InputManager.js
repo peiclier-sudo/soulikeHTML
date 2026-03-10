@@ -98,15 +98,15 @@ export class InputManager {
             !(this.prevKeys['KeyV'] || this.prevKeyChars['v'] || this.prevKeys['KeyQ'] || this.prevKeyChars['a']);
         const healthPotionKey = (this.keys['KeyDigit1'] || this.keyChars['&']) && !(this.prevKeys['KeyDigit1'] || this.prevKeyChars['&']);
 
-        // Charged attack: Shift + left-click hold/release tracking
+        // Charged attack: Shift + right-click hold/release tracking
         const shiftHeld = this.keys['ShiftLeft'] || this.keys['ShiftRight'];
-        const isCharging = this.mouse.leftClick && shiftHeld;
+        const isCharging = this.mouse.rightClick && shiftHeld;
         const wasCharging = this._wasCharging || false;
         const chargedRelease = wasCharging && !isCharging;
         this._wasCharging = isCharging;
 
         return {
-            // Movement is right-click-to-move (no WASD)
+            // Movement: left-click = click-to-move (no WASD)
 
             // Actions
             jump: this.keys['Space'],
@@ -121,22 +121,22 @@ export class InputManager {
             teleport: teleportKey,   // V = Teleport Behind (dagger kit)
             healthPotion: healthPotionKey, // & = Health potion (AZERTY: KeyDigit1 or key that types '&')
             interact: this.keys['KeyE'],
-            
-            // Combat (left=Basic attack, Shift+left=Charged attack hold/release)
-            attack: this.mouse.leftClickDown && !shiftHeld,
+
+            // Combat (right-click = attack, Shift+right = charged attack)
+            attack: this.mouse.rightClickDown && !shiftHeld,
             chargedAttack: isCharging,
             chargedAttackRelease: chargedRelease,
-            rightClickDown: this.mouse.rightClickDown,
+            leftClickDown: this.mouse.leftClickDown,
 
-            // Movement (right-click held = move toward cursor)
-            rightClickMove: this.mouse.rightClick,
-            
+            // Movement (left-click = click-to-move autopilot)
+            leftClickMove: this.mouse.leftClickDown,
+
             // Camera
             mouseDeltaX: this.mouse.deltaX,
             mouseDeltaY: this.mouse.deltaY,
             mouseScreenX: this.mouse.x,
             mouseScreenY: this.mouse.y,
-            
+
             // UI
             inventory: this.keys['KeyI'],
             pause: this.keys['Escape']
