@@ -31,15 +31,17 @@ export class Character {
         this.jumpForce = stats?.jumpForce ?? 8;
         this.gravity = -25;
 
-        // Third-person camera settings (further back for better view)
-        this.cameraDistance = 5;        // Distance behind character
-        this.cameraHeight = 1.2;        // Height above character
-        this.cameraLookAtHeight = 1.75; // Look-at height so character sits at ~25% from bottom of viewport (0=bottom, 100=top of screen)
-        this.cameraPitch = 0.3;         // Initial pitch (looking slightly down)
-        this.cameraYaw = 0;
-        this.pitchLimit = Math.PI / 3;  // Limit vertical rotation
-        this.cameraSmoothSpeed = 18;    // Snappier camera follow for responsive feel
+        // 3/4 top-down camera settings (hack-and-slash perspective)
+        this.cameraDistance = 14;       // Distance from character (controls zoom level)
+        this.cameraHeight = 12;        // Height above character
+        this.cameraLookAtHeight = 0.5; // Look-at point near character feet
+        this.cameraPitch = 0;          // Not used in fixed camera mode
+        this.cameraYaw = 0;            // Fixed camera yaw (0 = looking along +Z)
+        this.pitchLimit = Math.PI / 3;
+        this.cameraSmoothSpeed = 12;    // Smooth camera follow
         this._cameraBobTime = 0;
+        this.fixedCameraAngle = Math.PI * 0.32; // ~58 degrees from horizontal (3/4 view)
+        this.fixedCameraYaw = Math.PI;  // Camera looks from behind (+Z toward -Z)
 
         // State
         this.isGrounded = true;
@@ -1074,35 +1076,23 @@ export class Character {
     }
     
     updateCamera(input, sensitivity, deltaTime = 0.016) {
-        const lookSensitivity = 0.0022 * sensitivity;  // Slightly more responsive
-        const maxAnglePerFrame = 0.22;  // Snappier turn feel
-        const lockCamera = input.crimsonEruptionTargeting === true || input.stalactiteTargeting === true || input.blizzardTargeting === true;
-        const deltaYaw = lockCamera ? 0 : Math.max(-maxAnglePerFrame, Math.min(maxAnglePerFrame, -input.mouseDeltaX * lookSensitivity));
-        const deltaPitch = lockCamera ? 0 : Math.max(-maxAnglePerFrame, Math.min(maxAnglePerFrame, input.mouseDeltaY * lookSensitivity));
-        this.cameraYaw += deltaYaw;
-        this.cameraPitch += deltaPitch;
+        // Fixed 3/4 overhead camera — no mouse rotation, camera follows player
+        const angle = this.fixedCameraAngle;
+        const yaw = this.fixedCameraYaw;
 
+        // Horizontal offset from player (how far behind)
+        const horizontalDist = this.cameraDistance * Math.cos(angle);
+        const verticalDist = this.cameraDistance * Math.sin(angle);
 
-        // Clamp pitch (prevent camera going too high or too low)
-        this.cameraPitch = Math.max(-0.5, Math.min(this.pitchLimit, this.cameraPitch));
-
-        const horizontalDistance = this.cameraDistance * Math.cos(this.cameraPitch);
-        const planarSpeed = Math.hypot(this.velocity.x, this.velocity.z);
-        this._cameraBobTime += deltaTime * (2.5 + planarSpeed * 0.65);
-        const bobAmp = Math.min(0.05, planarSpeed * 0.0045);
-        const bobOffset = Math.sin(this._cameraBobTime) * bobAmp;
-        const verticalDistance = this.cameraDistance * Math.sin(this.cameraPitch) + this.cameraHeight + bobOffset;
-
-        const targetX = this.position.x + horizontalDistance * Math.sin(this.cameraYaw);
-        const targetY = this.position.y + verticalDistance;
-        const targetZ = this.position.z + horizontalDistance * Math.cos(this.cameraYaw);
+        const targetX = this.position.x + horizontalDist * Math.sin(yaw);
+        const targetY = this.position.y + verticalDist;
+        const targetZ = this.position.z + horizontalDist * Math.cos(yaw);
 
         const smoothFactor = 1 - Math.exp(-this.cameraSmoothSpeed * deltaTime);
         this._camTarget.set(targetX, targetY, targetZ);
         this.camera.position.lerp(this._camTarget, smoothFactor);
 
-        const lookBob = Math.cos(this._cameraBobTime * 0.8) * (bobAmp * 0.45);
-        this._lookAt.set(this.position.x, this.position.y + this.cameraLookAtHeight + lookBob, this.position.z);
+        this._lookAt.set(this.position.x, this.position.y + this.cameraLookAtHeight, this.position.z);
         this.camera.lookAt(this._lookAt);
     }
     
@@ -1115,11 +1105,12 @@ export class Character {
         this._moveVec.set(0, 0, 0);
         const moveVector = this._moveVec;
         
+        // Fixed screen-relative directions for 3/4 view (camera looks from +Z toward -Z)
         const forward = this._fwd.set(0, 0, -1);
         const right = this._right.set(1, 0, 0);
-        
-        forward.applyAxisAngle(this._yAxis, this.cameraYaw);
-        right.applyAxisAngle(this._yAxis, this.cameraYaw);
+
+        forward.applyAxisAngle(this._yAxis, this.fixedCameraYaw);
+        right.applyAxisAngle(this._yAxis, this.fixedCameraYaw);
         
         // Zero out Y component for horizontal movement
         forward.y = 0;
