@@ -134,11 +134,8 @@ export class Game {
     }
 
     _applyViewOffset() {
-        const w = window.innerWidth;
-        const h = window.innerHeight;
-        // Subtle VP shift — 10% keeps framing professional without distortion.
-        const vpShift = Math.round(h * 0.10);
-        this.camera.setViewOffset(w, h, 0, -vpShift, w, h);
+        // No VP shift — character stays centered on screen
+        this.camera.clearViewOffset();
     }
     
     initPostProcessing() {

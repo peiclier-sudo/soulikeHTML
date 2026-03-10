@@ -34,7 +34,7 @@ export class Character {
         // 3/4 hack-and-slash camera settings (lower angle = more perspective)
         this.cameraDistance = 20;       // Distance from character — pro hack-and-slash framing
         this.cameraHeight = 0;         // Not used separately — derived from angle
-        this.cameraLookAtHeight = 1.8; // Look-at point at chest/head for better framing
+        this.cameraLookAtHeight = 1.2; // Look-at height — centers character on screen
         this.cameraPitch = 0;
         this.cameraYaw = 0;
         this.pitchLimit = Math.PI / 3;
@@ -489,20 +489,46 @@ export class Character {
             bear:            0xdd8833,
         };
         const color = aimColors[kitId] ?? 0xcccccc;
+        const colorObj = new THREE.Color(color);
 
-        // Thick beam using a stretched plane (WebGL linewidth is unreliable)
-        const beamGeo = new THREE.PlaneGeometry(1, 1);
-        // Rotate plane to lie flat on XZ ground
+        // Main beam — tapered gradient using custom shader
+        const beamGeo = new THREE.PlaneGeometry(1, 1, 1, 8);
         beamGeo.rotateX(-Math.PI / 2);
-        // Shift so origin is at one end (start of beam)
         beamGeo.translate(0, 0, 0.5);
 
-        const beamMat = new THREE.MeshBasicMaterial({
-            color,
+        const beamMat = new THREE.ShaderMaterial({
             transparent: true,
-            opacity: 0.5,
             depthTest: false,
             side: THREE.DoubleSide,
+            uniforms: {
+                uColor: { value: colorObj },
+                uOpacity: { value: 0.5 },
+            },
+            vertexShader: `
+                varying vec2 vUv;
+                void main() {
+                    vUv = uv;
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `,
+            fragmentShader: `
+                uniform vec3 uColor;
+                uniform float uOpacity;
+                varying vec2 vUv;
+                void main() {
+                    // Taper: full width at start, narrow at tip
+                    float taper = 1.0 - vUv.y * 0.7;
+                    float edgeFade = 1.0 - abs(vUv.x - 0.5) * 2.0;
+                    edgeFade = smoothstep(0.0, 0.4, edgeFade);
+                    // Fade out toward tip
+                    float tipFade = 1.0 - smoothstep(0.6, 1.0, vUv.y);
+                    float alpha = uOpacity * edgeFade * tipFade * taper;
+                    // Brighter core
+                    float core = smoothstep(0.3, 0.5, edgeFade);
+                    vec3 col = mix(uColor, uColor * 1.8, core * 0.4);
+                    gl_FragColor = vec4(col, alpha);
+                }
+            `,
         });
         this._aimBeam = new THREE.Mesh(beamGeo, beamMat);
         this._aimBeam.frustumCulled = false;
@@ -510,13 +536,15 @@ export class Character {
         this._aimLineColor = color;
         this.scene.add(this._aimBeam);
 
-        // Glowing dot at beam tip
-        const dotGeo = new THREE.SphereGeometry(0.22, 10, 10);
+        // Glowing crosshair dot at beam tip
+        const dotGeo = new THREE.RingGeometry(0.12, 0.22, 16);
+        dotGeo.rotateX(-Math.PI / 2);
         const dotMat = new THREE.MeshBasicMaterial({
             color,
             transparent: true,
-            opacity: 0.65,
+            opacity: 0.7,
             depthTest: false,
+            side: THREE.DoubleSide,
         });
         this._aimDot = new THREE.Mesh(dotGeo, dotMat);
         this._aimDot.renderOrder = 999;
@@ -526,12 +554,22 @@ export class Character {
     _updateAimLine(input) {
         if (!this._aimBeam) return;
 
+        // Hide aim line during left-click movement
+        const isMovingByClick = input.leftClickMove;
+        if (isMovingByClick) {
+            this._aimBeam.visible = false;
+            this._aimDot.visible = false;
+            return;
+        }
+        this._aimBeam.visible = true;
+        this._aimDot.visible = true;
+
         const cursorPos = input.mouseGroundPos || this._lastMouseGroundPos;
         if (!cursorPos) return;
 
         const ox = this.position.x;
         const oz = this.position.z;
-        const y = this.position.y + 0.15; // Slightly above ground
+        const y = this.position.y + 0.15;
 
         // Direction toward cursor
         const dx = cursorPos.x - ox;
@@ -540,12 +578,10 @@ export class Character {
         const nx = dx / dist;
         const nz = dz / dist;
 
-        // Always show beam with minimum length even when cursor is near player
         const startDist = 1.2;
-        const minLength = 5;
-        const endDist = Math.max(startDist + minLength, Math.min(dist, 10));
+        const endDist = Math.max(startDist + 4, Math.min(dist, 10));
         const beamLength = endDist - startDist;
-        const beamWidth = 0.18;
+        const beamWidth = 0.25;
 
         const startX = ox + nx * startDist;
         const startZ = oz + nz * startDist;
@@ -554,12 +590,12 @@ export class Character {
         this._aimBeam.rotation.y = Math.atan2(nx, nz);
         this._aimBeam.scale.set(beamWidth, 1, beamLength);
 
-        // Dot at tip
+        // Ring at tip
         this._aimDot.position.set(ox + nx * endDist, y, oz + nz * endDist);
 
         // Subtle pulse
         const pulse = 0.4 + 0.15 * Math.sin(this.animationTime * 4);
-        this._aimBeam.material.opacity = pulse;
+        this._aimBeam.material.uniforms.uOpacity.value = pulse;
         this._aimDot.material.opacity = pulse + 0.2;
     }
 
