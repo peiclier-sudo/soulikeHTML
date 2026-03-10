@@ -40,7 +40,7 @@ export class Character {
         this.pitchLimit = Math.PI / 3;
         this.cameraSmoothSpeed = 10;    // Smooth follow without sickness
         this._cameraBobTime = 0;
-        this.fixedCameraAngle = Math.PI * 0.23; // ~41° from horizontal — Diablo/Hades style
+        this.fixedCameraAngle = Math.PI * 0.29; // ~52° from horizontal — higher top-down view
         this.fixedCameraYaw = Math.PI;  // Camera looks from behind (+Z toward -Z)
         this._cameraLeadOffset = new THREE.Vector3(); // Smooth lead toward movement
 
