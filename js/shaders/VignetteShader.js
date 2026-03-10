@@ -10,7 +10,8 @@ export const VignetteShader = {
         darkness: { value: 0.5 },
         offset: { value: 1.0 },
         tintColor: { value: new THREE.Color(0x000000) },
-        lowHealthOverlay: { value: 0.0 }
+        lowHealthOverlay: { value: 0.0 },
+        staminaDepletionOverlay: { value: 0.0 }
     },
     
     vertexShader: `
@@ -28,30 +29,38 @@ export const VignetteShader = {
         uniform float offset;
         uniform vec3 tintColor;
         uniform float lowHealthOverlay;
-        
+        uniform float staminaDepletionOverlay;
+
         varying vec2 vUv;
-        
+
         void main() {
             vec4 texel = texture2D(tDiffuse, vUv);
-            
+
             // Vignette effect
             vec2 uv = (vUv - vec2(0.5)) * vec2(offset);
             float vignette = 1.0 - dot(uv, uv);
             vignette = clamp(pow(vignette, darkness), 0.0, 1.0);
-            
+
             // Apply vignette
             vec3 color = texel.rgb * vignette;
-            
+
             // Low health red overlay
             if (lowHealthOverlay > 0.0) {
                 float pulse = sin(lowHealthOverlay * 3.14159) * 0.5 + 0.5;
                 vec3 redOverlay = vec3(0.5, 0.0, 0.0);
                 color = mix(color, redOverlay, pulse * 0.3 * (1.0 - vignette));
             }
-            
+
+            // Stamina depletion: desaturated grey-green edge vignette when stamina empty
+            if (staminaDepletionOverlay > 0.0) {
+                float edgeFade = 1.0 - vignette;
+                vec3 exhaustOverlay = vec3(0.15, 0.2, 0.12);
+                color = mix(color, exhaustOverlay, staminaDepletionOverlay * edgeFade * 0.45);
+            }
+
             // Tint darker areas
             color = mix(tintColor, color, vignette);
-            
+
             gl_FragColor = vec4(color, texel.a);
         }
     `

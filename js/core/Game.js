@@ -544,6 +544,7 @@ export class Game {
     }
     
     update() {
+        this.inputManager._lastDt = this.deltaTime;
         const input = this.inputManager.getInput();
         // Smooth sensitivity so changing slider while jumping doesn't make aim jump
         const sensLerp = 1 - Math.exp(-12 * this.deltaTime);
@@ -893,6 +894,17 @@ export class Game {
 
         // Adaptive afterimage (skip entirely when post-processing is off)
         if (this.qualitySettings.postProcessing) this._updateAfterimage();
+
+        // Stamina depletion vignette: grey-green edge overlay when stamina is very low
+        if (this.vignettePass) {
+            const stam = this.gameState.player.stamina ?? 0;
+            const maxStam = this.gameState.player.maxStamina ?? 100;
+            const staminaRatio = maxStam > 0 ? stam / maxStam : 1;
+            const threshold = 0.15;
+            const target = staminaRatio < threshold ? (1 - staminaRatio / threshold) : 0;
+            const current = this.vignettePass.uniforms.staminaDepletionOverlay?.value ?? 0;
+            this.vignettePass.uniforms.staminaDepletionOverlay.value = current + (target - current) * Math.min(1, 8 * this.deltaTime);
+        }
 
         // Update boss AI and boss health bar; apply damage + ultimate charge when boss hits player
         if (this.boss) {

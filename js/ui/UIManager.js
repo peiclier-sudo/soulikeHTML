@@ -109,7 +109,7 @@ export class UIManager {
         el.classList.remove('cooldown-ready-pulse');
         void el.offsetWidth;
         el.classList.add('cooldown-ready-pulse');
-        setTimeout(() => el.classList.remove('cooldown-ready-pulse'), 360);
+        setTimeout(() => el.classList.remove('cooldown-ready-pulse'), 520);
 
         if (this.elements.reticule) {
             this.elements.reticule.classList.remove('reticule-flash-ready');

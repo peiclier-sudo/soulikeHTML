@@ -99,8 +99,14 @@ export class InputManager {
         const healthPotionKey = (this.keys['KeyDigit1'] || this.keyChars['&']) && !(this.prevKeys['KeyDigit1'] || this.prevKeyChars['&']);
 
         // Charged attack: hold right-click to charge, release to fire
-        // Right-click tap (down+release) = basic attack
-        const isCharging = this.mouse.rightClick;
+        // Right-click tap (quick press+release) = basic attack
+        if (this.mouse.rightClick) {
+            this._rightHoldTime = (this._rightHoldTime || 0) + (this._lastDt || 0.016);
+        } else {
+            this._rightHoldTime = 0;
+        }
+        const chargeGrace = 0.18; // seconds before hold becomes charge
+        const isCharging = this.mouse.rightClick && this._rightHoldTime >= chargeGrace;
         const wasCharging = this._wasCharging || false;
         const chargedRelease = wasCharging && !isCharging;
         this._wasCharging = isCharging;
