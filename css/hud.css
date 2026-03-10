@@ -280,6 +280,56 @@
     margin-top: 3px;
 }
 
+/* Ultimate Cast Bar */
+.cast-bar {
+    position: absolute;
+    left: 50%;
+    top: 38%;
+    transform: translateX(-50%);
+    width: 280px;
+    z-index: 20;
+    pointer-events: none;
+}
+
+.cast-bar-bg {
+    position: relative;
+    width: 100%;
+    height: 10px;
+    background: rgba(0, 0, 0, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 5px;
+    overflow: hidden;
+    box-shadow: 0 0 12px rgba(0, 0, 0, 0.5);
+}
+
+.cast-bar-fill {
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 100%;
+    width: 0%;
+    border-radius: 4px;
+    background: linear-gradient(180deg, #ff6644 0%, #cc3322 50%, #881111 100%);
+    box-shadow: 0 0 8px rgba(255, 80, 40, 0.6), inset 0 1px 0 rgba(255, 200, 150, 0.3);
+    transition: width 0.05s linear;
+}
+
+.cast-bar-label {
+    display: block;
+    text-align: center;
+    font-size: 0.6rem;
+    color: rgba(255, 220, 180, 0.85);
+    letter-spacing: 0.18rem;
+    margin-top: 4px;
+    text-shadow: 0 0 6px rgba(255, 80, 40, 0.5);
+    animation: castPulse 0.6s ease-in-out infinite alternate;
+}
+
+@keyframes castPulse {
+    from { opacity: 0.7; }
+    to { opacity: 1.0; text-shadow: 0 0 10px rgba(255, 120, 60, 0.8); }
+}
+
 .bar-text {
     position: absolute;
     top: 50%;
