@@ -490,30 +490,32 @@ export class Character {
         };
         const color = aimColors[kitId] ?? 0xcccccc;
 
-        // Line geometry: origin + tip (updated each frame)
-        const positions = new Float32Array(6); // 2 points * 3 components
-        const geometry = new THREE.BufferGeometry();
-        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        // Thick beam using a stretched plane (WebGL linewidth is unreliable)
+        const beamGeo = new THREE.PlaneGeometry(1, 1);
+        // Rotate plane to lie flat on XZ ground
+        beamGeo.rotateX(-Math.PI / 2);
+        // Shift so origin is at one end (start of beam)
+        beamGeo.translate(0, 0, 0.5);
 
-        const material = new THREE.LineBasicMaterial({
+        const beamMat = new THREE.MeshBasicMaterial({
             color,
             transparent: true,
-            opacity: 0.45,
+            opacity: 0.5,
             depthTest: false,
-            linewidth: 1,
+            side: THREE.DoubleSide,
         });
-        this._aimLine = new THREE.Line(geometry, material);
-        this._aimLine.frustumCulled = false;
-        this._aimLine.renderOrder = 999;
+        this._aimBeam = new THREE.Mesh(beamGeo, beamMat);
+        this._aimBeam.frustumCulled = false;
+        this._aimBeam.renderOrder = 999;
         this._aimLineColor = color;
-        this.scene.add(this._aimLine);
+        this.scene.add(this._aimBeam);
 
-        // Glowing dot at line tip
-        const dotGeo = new THREE.SphereGeometry(0.12, 8, 8);
+        // Glowing dot at beam tip
+        const dotGeo = new THREE.SphereGeometry(0.22, 10, 10);
         const dotMat = new THREE.MeshBasicMaterial({
             color,
             transparent: true,
-            opacity: 0.55,
+            opacity: 0.65,
             depthTest: false,
         });
         this._aimDot = new THREE.Mesh(dotGeo, dotMat);
@@ -522,7 +524,7 @@ export class Character {
     }
 
     _updateAimLine(input) {
-        if (!this._aimLine) return;
+        if (!this._aimBeam) return;
 
         const cursorPos = input.mouseGroundPos || this._lastMouseGroundPos;
         if (!cursorPos) return;
@@ -538,26 +540,26 @@ export class Character {
         const nx = dx / dist;
         const nz = dz / dist;
 
-        // Line: start slightly in front of player, extend toward cursor
-        const startDist = 1.0;
-        const endDist = Math.min(dist, 8); // Cap line length
+        // Beam: start in front of player, extend toward cursor
+        const startDist = 1.2;
+        const endDist = Math.min(dist, 10); // Cap line length
+        const beamLength = Math.max(0, endDist - startDist);
+        const beamWidth = 0.18;
 
-        const positions = this._aimLine.geometry.attributes.position.array;
-        positions[0] = ox + nx * startDist;
-        positions[1] = y;
-        positions[2] = oz + nz * startDist;
-        positions[3] = ox + nx * endDist;
-        positions[4] = y;
-        positions[5] = oz + nz * endDist;
-        this._aimLine.geometry.attributes.position.needsUpdate = true;
+        const startX = ox + nx * startDist;
+        const startZ = oz + nz * startDist;
+
+        this._aimBeam.position.set(startX, y, startZ);
+        this._aimBeam.rotation.y = Math.atan2(nx, nz);
+        this._aimBeam.scale.set(beamWidth, 1, beamLength);
 
         // Dot at tip
         this._aimDot.position.set(ox + nx * endDist, y, oz + nz * endDist);
 
         // Subtle pulse
-        const pulse = 0.35 + 0.15 * Math.sin(this.animationTime * 4);
-        this._aimLine.material.opacity = pulse;
-        this._aimDot.material.opacity = pulse + 0.15;
+        const pulse = 0.4 + 0.15 * Math.sin(this.animationTime * 4);
+        this._aimBeam.material.opacity = pulse;
+        this._aimDot.material.opacity = pulse + 0.2;
     }
 
     createFallbackMesh() {
