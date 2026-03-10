@@ -257,6 +257,16 @@ export class Game {
                 this.ultimateBloomDuration = Math.max(this.ultimateBloomDuration, 0.1);
                 // Flash the player model white so the hit is visually obvious
                 this.character?.flashOnHit();
+                // Cancel ultimate cast if hit hard enough (interruptible)
+                if (dmg >= 20 && this.gameState.ultimateCast?.active) {
+                    this.gameState.cancelUltimateCast();
+                    // Reset camera to normal
+                    this.camera.fov = this.baseFov;
+                    this.camera.updateProjectionMatrix();
+                    this._timeScaleTarget = 1.0;
+                    this._timeScaleEaseRate = 12;
+                    if (this.vignettePass) this.vignettePass.uniforms.darkness.value = 0.7;
+                }
             }
             this._prevPlayerHealth = health;
         });
@@ -636,10 +646,95 @@ export class Game {
             this.combatSystem.bearCombat.executeRoar();
         }
 
-        // Ultimate slash spawn (after short delay when F is pressed)
-        // Direction = camera du joueur au moment où il appuie sur F
+        // Ultimate cast channel (1.5s) — camera zoom, slow-mo, particles
         const fc = this.combatSystem?.frostCombat;
+        const castProgress = this.gameState.updateUltimateCast(this.deltaTime);
+        if (castProgress >= 0 && castProgress < 1) {
+            // Camera: zoom in (lower FOV) as cast progresses
+            const zoomAmount = 8 * castProgress;
+            this.camera.fov = this.baseFov - zoomAmount;
+            this.camera.updateProjectionMatrix();
 
+            // Slow-mo ramp: game slows from 0.7 → 0.4 during cast
+            const castSlowMo = 0.7 - castProgress * 0.3;
+            this._timeScaleTarget = castSlowMo;
+            this._timeScaleTimer = 0.1;
+            this._timeScaleEaseRate = 6;
+
+            // Bloom buildup
+            if (this.qualitySettings.postProcessing && this.bloomPass) {
+                this.bloomPass.strength = this.baseBloomStrength + castProgress * 0.8;
+            }
+
+            // Screen shake: subtle growing rumble
+            this.shakeIntensity = Math.max(this.shakeIntensity, 0.005 + castProgress * 0.02);
+            this.shakeDuration = 0.1;
+            this.shakeTime = 0.1;
+
+            // Cast VFX: swirling particles around player, density increases with progress
+            if (Math.random() < 0.15 + castProgress * 0.35) {
+                const pos = this.character.position;
+                const angle = Math.random() * Math.PI * 2;
+                const radius = 0.8 + (1 - castProgress) * 1.2;
+                const color = this._getUltimateCastColor();
+                this.particleSystem.sparkPool.emit(
+                    pos.x + Math.cos(angle) * radius,
+                    pos.y + 0.5 + Math.random() * 1.5,
+                    pos.z + Math.sin(angle) * radius,
+                    -Math.cos(angle) * (3 + castProgress * 4),
+                    2 + Math.random() * 3,
+                    -Math.sin(angle) * (3 + castProgress * 4),
+                    color, 1.0 + castProgress, 0.12 + castProgress * 0.08
+                );
+            }
+
+            // Ground ring telegraph during cast
+            if (this.character.mesh) {
+                // Vignette pulse during cast for dramatic tension
+                if (this.vignettePass) {
+                    this.vignettePass.uniforms.darkness.value = 0.7 + castProgress * 0.3;
+                }
+            }
+        }
+
+        // Cast just completed → explosive release feedback
+        if (castProgress >= 1) {
+            // Snap time back to normal with a brief speed-up
+            this.setTimeScale(1.2, 0.15, 12);
+            // Camera snap: FOV punch outward
+            this.camera.fov = this.baseFov;
+            this.camera.updateProjectionMatrix();
+            this.ultimateFovTime = 0.25;
+            // Massive bloom burst
+            this.ultimateBloomTime = 0.5;
+            this.ultimateBloomDuration = 0.5;
+            // Heavy screen shake on release
+            this.shakeIntensity = 0.08;
+            this.shakeDuration = 0.3;
+            this.shakeTime = 0.3;
+            // Hit stop for dramatic freeze frame
+            this.triggerHitStop(0.06);
+            // Burst of particles on release
+            const pos = this.character.position;
+            const color = this._getUltimateCastColor();
+            for (let i = 0; i < 20; i++) {
+                const a = Math.random() * Math.PI * 2;
+                const spd = 6 + Math.random() * 8;
+                this.particleSystem.sparkPool.emit(
+                    pos.x, pos.y + 1.0, pos.z,
+                    Math.cos(a) * spd, 3 + Math.random() * 5, Math.sin(a) * spd,
+                    color, 1.5, 0.15 + Math.random() * 0.1
+                );
+            }
+            this.particleSystem.addTemporaryLight(
+                this._tmpPosVec.set(pos.x, pos.y + 1, pos.z),
+                this._getUltimateCastColor(), 50, 0.3
+            );
+            // Reset vignette
+            if (this.vignettePass) this.vignettePass.uniforms.darkness.value = 0.7;
+        }
+
+        // Ultimate slash spawn (after cast completes)
         if (this.gameState.requestUltimateSlashSpawn) {
             this.pendingUltimateSlash = 0.05;
             this._tmpDirVec.copy(this.character.getForwardDirection()).normalize();
@@ -1183,6 +1278,19 @@ export class Game {
 
     triggerHitStop(duration = 0.05) {
         this.hitStopTime = Math.max(this.hitStopTime, duration);
+    }
+
+    /** Per-kit color for ultimate cast VFX. */
+    _getUltimateCastColor() {
+        switch (this.kitId) {
+            case 'blood_mage': return 0xcc2222;
+            case 'frost_mage': return 0x44aaff;
+            case 'shadow_assassin': return 0x44ff70;
+            case 'bow_ranger': return 0x8844ff;
+            case 'werewolf': return 0xff6622;
+            case 'bear': return 0xddaa33;
+            default: return 0xcc2222;
+        }
     }
     onProjectileHit(payload = {}) {
         const { charged, isBoss, isUltimate, whipHit, whipWindup, bloodflailCharges, punchFinish, bloodNova, crimsonEruption, daggerSlashImpact, vanishActivated, shadowStepLand, bowRecoilShot, bowDamageZone, bowMultiShot, bowJudgmentArrow, bloodCrescendLaunch, isBowArrow } = payload;

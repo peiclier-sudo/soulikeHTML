@@ -600,7 +600,12 @@ export class CombatSystem {
                 this.crimsonEruptionVfx = null;
             }
         }
-        if (this.gameState.combat.isChargedAttacking) {
+        // Block all combat input during ultimate cast channel
+        if (this.gameState.ultimateCast?.active) {
+            this.gameState.combat.isCharging = false;
+            this.chargeTimer = 0;
+            this.gameState.combat.chargeTimer = 0;
+        } else if (this.gameState.combat.isChargedAttacking) {
             // Brief cooldown after charged attack fires (animation wind-down)
             this.chargedAttackTimer -= deltaTime;
             if (this.chargedAttackTimer <= 0) {

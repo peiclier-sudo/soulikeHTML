@@ -132,6 +132,14 @@ export class GameState {
         // Bow ranger kit: trust charges (max 8), gained on arrow hits
         this.trustCharges = 0;
 
+        // Ultimate casting state (1.5s channel before ultimate fires)
+        this.ultimateCast = {
+            active: false,
+            timer: 0,
+            duration: 1.5,
+            completed: false   // set true when cast finishes — Game reads & clears
+        };
+
         // Gear + talent bonuses (applied by Game.applyStatBonuses after construction)
         this.bonuses = {
             critChance: 0, critMultiplier: 0, backstabMultiplier: 0,
@@ -245,10 +253,38 @@ export class GameState {
     
     useUltimate() {
         if (!this.ultimateTestMode && this.player.ultimateCharge < 100) return false;
-        if (!this.ultimateTestMode) this.player.ultimateCharge = 0;
-        this.requestUltimateSlashSpawn = true; // Game spawns crescent projectile after delay
-        if (!this.ultimateTestMode) this.emit('ultimateChanged', 0);
+        if (this.ultimateCast.active) return false; // already casting
+        // Start the 1.5s cast — don't consume charge or fire yet
+        this.ultimateCast.active = true;
+        this.ultimateCast.timer = 0;
+        this.ultimateCast.completed = false;
+        this.emit('ultimateCastStart');
         return true;
+    }
+
+    /** Called by Game each frame while casting. Returns progress 0-1. */
+    updateUltimateCast(dt) {
+        const cast = this.ultimateCast;
+        if (!cast.active) return -1;
+        cast.timer += dt;
+        const progress = Math.min(1, cast.timer / cast.duration);
+        if (progress >= 1 && !cast.completed) {
+            cast.completed = true;
+            cast.active = false;
+            // NOW consume the charge and request the actual ultimate
+            if (!this.ultimateTestMode) this.player.ultimateCharge = 0;
+            this.requestUltimateSlashSpawn = true;
+            if (!this.ultimateTestMode) this.emit('ultimateChanged', 0);
+            this.emit('ultimateCastComplete');
+        }
+        return progress;
+    }
+
+    cancelUltimateCast() {
+        this.ultimateCast.active = false;
+        this.ultimateCast.timer = 0;
+        this.ultimateCast.completed = false;
+        this.emit('ultimateCastCancel');
     }
 
     // Blood Essence: 0–8 stacks; add on LMB hit (+1), Crimson Eruption hit (+2), life drain (+1 per full second)

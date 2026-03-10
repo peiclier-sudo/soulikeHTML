@@ -34,6 +34,8 @@ export class UIManager {
             deathScreen: document.getElementById('death-screen'),
             ultimateBar: document.getElementById('ultimate-bar'),
             ultimateFill: document.getElementById('ultimate-fill'),
+            castBar: document.getElementById('cast-bar'),
+            castFill: document.getElementById('cast-fill'),
             superDashBar: document.getElementById('superdash-bar'),
             superDashFill: document.getElementById('superdash-fill'),
             noBloodEssence: document.getElementById('no-blood-essence'),
@@ -175,6 +177,7 @@ export class UIManager {
         this.updateHealthBar(this.gameState.player.health);
         this.updateStaminaBar(this.gameState.player.stamina);
         this.updateUltimateBar(this.gameState.player.ultimateCharge);
+        this.updateCastBar();
         this.updateChargeBar();
         this.updateAbilityCooldowns();
         this._updateCombo();
@@ -382,6 +385,40 @@ export class UIManager {
             this.elements.ultimateBar.classList.toggle('ready', ready);
             if (ready && !this._ultimateWasReady) this._pulseCooldownElement(this.elements.ultimateBar);
             this._ultimateWasReady = ready;
+        }
+    }
+
+    updateCastBar() {
+        const cast = this.gameState.ultimateCast;
+        const bar = this.elements.castBar;
+        const fill = this.elements.castFill;
+        if (!bar || !fill) return;
+
+        if (cast.active) {
+            bar.style.display = 'block';
+            const pct = Math.min(100, (cast.timer / cast.duration) * 100);
+            fill.style.width = `${pct}%`;
+            // Per-kit cast bar color
+            if (!this._castBarColored) {
+                const colors = {
+                    blood_mage: ['#ff4433', '#cc2222', '#881111', 'rgba(255,60,40,0.6)'],
+                    frost_mage: ['#66ccff', '#3388dd', '#1155aa', 'rgba(60,150,255,0.6)'],
+                    shadow_assassin: ['#55ff88', '#33cc55', '#117733', 'rgba(60,255,100,0.6)'],
+                    bow_ranger: ['#aa66ff', '#7733cc', '#441188', 'rgba(130,80,255,0.6)'],
+                    werewolf: ['#ff8844', '#cc5522', '#883311', 'rgba(255,120,50,0.6)'],
+                    bear: ['#ffcc44', '#ddaa22', '#886611', 'rgba(255,200,50,0.6)']
+                };
+                const kit = this.gameState.selectedKitId || 'blood_mage';
+                const c = colors[kit] || colors.blood_mage;
+                fill.style.background = `linear-gradient(180deg, ${c[0]} 0%, ${c[1]} 50%, ${c[2]} 100%)`;
+                fill.style.boxShadow = `0 0 8px ${c[3]}, inset 0 1px 0 rgba(255,255,255,0.3)`;
+                this._castBarColored = true;
+            }
+        } else {
+            if (bar.style.display !== 'none') {
+                bar.style.display = 'none';
+                this._castBarColored = false;
+            }
         }
     }
 

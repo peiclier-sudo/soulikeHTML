@@ -1109,32 +1109,83 @@ export class Character {
             this.mesh.visible = (this.gameState?.combat?.vanishRemaining <= 0);
         }
 
-        // Ultimate (F): consume full bar and play Special attack 1 animation
+        // Ultimate (F): start 1.5s cast, then fire ultimate on completion
         const ultimateAction = this.actions['Special attack 1'] || this.actions['Ultimate'];
-        if (input.ultimate && (this.gameState.player.ultimateCharge >= 100 || this.gameState.ultimateTestMode) && !this.isPlayingUltimate) {
+        const castState = this.gameState.ultimateCast;
+
+        // F pressed → begin cast
+        if (input.ultimate && (this.gameState.player.ultimateCharge >= 100 || this.gameState.ultimateTestMode) && !this.isPlayingUltimate && !castState.active) {
+            this.gameState.useUltimate(); // starts the cast
+        }
+
+        // While casting: lock to idle, slow anim, emissive glow
+        if (castState.active) {
+            const p = Math.min(1, castState.timer / castState.duration);
+            // Play slow idle during cast (character channels energy)
+            if (!this._castAnimStarted) {
+                if (ultimateAction) {
+                    const animName = ultimateAction === this.actions['Special attack 1'] ? 'Special attack 1' : 'Ultimate';
+                    if (this.useDissociation) {
+                        this.playLoco('Idle', 0.2);
+                        this.playUpper(animName, 0.15, 0.15);
+                        this.currentUpperState = animName;
+                    } else {
+                        this.fadeToAction(animName, 0.15);
+                        this.currentAnimation = animName;
+                    }
+                    // Play at very slow speed during channel
+                    if (this.actions[animName]) this.actions[animName].setEffectiveTimeScale(0.15);
+                } else if (this.locoOnly) {
+                    this.gameState.combat.isWhipAttacking = true;
+                }
+                this._castAnimStarted = true;
+            }
+
+            // Emissive glow buildup on character mesh
+            if (this.mesh) {
+                this.mesh.traverse(c => {
+                    if (c.isMesh && c.material && !c.userData?.isOutline && 'emissive' in c.material) {
+                        if (!c.userData._origEmissiveHex) c.userData._origEmissiveHex = c.material.emissive.getHex();
+                        if (!c.userData._origEmissiveIntensity) c.userData._origEmissiveIntensity = c.material.emissiveIntensity;
+                        c.material.emissive.setHex(this._getCastGlowColor());
+                        c.material.emissiveIntensity = c.userData._origEmissiveIntensity + p * 1.2;
+                    }
+                });
+            }
+        }
+
+        // Cast completed → play the release animation and mark as playing
+        if (castState.completed && !this.isPlayingUltimate) {
+            this._castAnimStarted = false;
+            this.isPlayingUltimate = true;
             if (ultimateAction) {
-                this.gameState.useUltimate();
-                this.isPlayingUltimate = true;
+                const animName = ultimateAction === this.actions['Special attack 1'] ? 'Special attack 1' : 'Ultimate';
+                if (this.actions[animName]) this.actions[animName].setEffectiveTimeScale(1);
                 const ultimateClip = ultimateAction.getClip();
-                const ultimateSpeed = 4.0; // 2x faster than before (100% increase)
-                this.ultimateAnimTimer = ultimateClip.duration / ultimateSpeed;
+                this.ultimateAnimTimer = ultimateClip.duration / 4.0;
                 if (this.useDissociation) {
-                    this.playLoco('Idle', 0.2);
-                    this.playUpper(ultimateAction === this.actions['Special attack 1'] ? 'Special attack 1' : 'Ultimate', 0.12, 0.12);
-                    this.currentUpperState = ultimateAction === this.actions['Special attack 1'] ? 'Special attack 1' : 'Ultimate';
+                    this.playLoco('Idle', 0.1);
+                    this.playUpper(animName, 0.08, 0.08);
+                    this.currentUpperState = animName;
                 } else {
-                    this.fadeToAction(ultimateAction === this.actions['Special attack 1'] ? 'Special attack 1' : 'Ultimate', 0.1);
-                    this.currentAnimation = ultimateAction === this.actions['Special attack 1'] ? 'Special attack 1' : 'Ultimate';
+                    this.fadeToAction(animName, 0.08);
+                    this.currentAnimation = animName;
                 }
             } else if (this.locoOnly) {
-                // locoOnly models (wolf, bear, rogue): no ultimate animation clip — trigger
-                // procedural 'ability' pose via isWhipAttacking and fire the ultimate dispatch.
-                this.gameState.useUltimate();
-                this.isPlayingUltimate = true;
                 this.ultimateAnimTimer = 0.5;
                 this.gameState.combat.isWhipAttacking = true;
                 this._ultimateLocoTimer = 0.5;
             }
+            // Reset emissive glow
+            this._resetCastGlow();
+            this.gameState.ultimateCast.completed = false;
+        }
+
+        // If cast was cancelled (e.g. stagger), clean up
+        if (!castState.active && this._castAnimStarted) {
+            this._castAnimStarted = false;
+            this._resetCastGlow();
+            if (this.locoOnly) this.gameState.combat.isWhipAttacking = false;
         }
         const whipAction = this.actions['Whip'] || this.actions['Special attack 2'];
         const drainAction = this.actions['Special attack 3'] || this.actions['Special attack 2'] || this.actions['Whip'];
@@ -1176,7 +1227,11 @@ export class Character {
         // Update camera rotation
         this.updateCamera(input, mouseSensitivity, deltaTime);
         
-        if (this.isDashing) {
+        if (this.gameState?.ultimateCast?.active) {
+            // Locked in place during ultimate cast — only apply gravity
+            this.velocity.x *= 0.85;
+            this.velocity.z *= 0.85;
+        } else if (this.isDashing) {
             this.updateDash(deltaTime);
         } else {
             this.updateMovement(deltaTime, input);
@@ -2451,6 +2506,35 @@ export class Character {
             }
             this._hitFlashTimer = null;
         }, 80);
+    }
+
+    /** Per-kit cast glow color for the ultimate channel. */
+    _getCastGlowColor() {
+        const kit = this.gameState?.selectedKitId;
+        switch (kit) {
+            case 'blood_mage': return 0xcc2222;
+            case 'frost_mage': return 0x44aaff;
+            case 'shadow_assassin': return 0x44ff70;
+            case 'bow_ranger': return 0x8844ff;
+            case 'werewolf': return 0xff6622;
+            case 'bear': return 0xddaa33;
+            default: return 0xcc2222;
+        }
+    }
+
+    /** Reset emissive glow after cast ends. */
+    _resetCastGlow() {
+        if (!this.mesh) return;
+        this.mesh.traverse(c => {
+            if (c.isMesh && c.material && !c.userData?.isOutline && 'emissive' in c.material) {
+                if (c.userData._origEmissiveHex != null) {
+                    c.material.emissive.setHex(c.userData._origEmissiveHex);
+                    c.material.emissiveIntensity = c.userData._origEmissiveIntensity ?? 0.33;
+                    delete c.userData._origEmissiveHex;
+                    delete c.userData._origEmissiveIntensity;
+                }
+            }
+        });
     }
 }
 
