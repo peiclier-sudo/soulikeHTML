@@ -22,7 +22,7 @@ export class Character {
 
         // Character properties
         this.position = new THREE.Vector3(0, 0, 5);
-        this.rotation = new THREE.Euler(0, 0, 0);
+        this.rotation = new THREE.Euler(0, Math.PI, 0); // Face -Z toward boss
         this.velocity = new THREE.Vector3();
 
         // Movement settings (driven by kit)
@@ -32,7 +32,7 @@ export class Character {
         this.gravity = -25;
 
         // 3/4 hack-and-slash camera settings (lower angle = more perspective)
-        this.cameraDistance = 16;       // Distance from character (controls zoom level)
+        this.cameraDistance = 26;       // Distance from character — wide enough to keep boss in view
         this.cameraHeight = 0;         // Not used separately — derived from angle
         this.cameraLookAtHeight = 1.0; // Look-at point at character waist
         this.cameraPitch = 0;
@@ -40,7 +40,7 @@ export class Character {
         this.pitchLimit = Math.PI / 3;
         this.cameraSmoothSpeed = 12;
         this._cameraBobTime = 0;
-        this.fixedCameraAngle = Math.PI * 0.22; // ~40° from horizontal — lower, more dramatic perspective
+        this.fixedCameraAngle = Math.PI * 0.28; // ~50° from horizontal — higher to see more arena
         this.fixedCameraYaw = Math.PI;  // Camera looks from behind (+Z toward -Z)
 
         // Right-click-to-move state
