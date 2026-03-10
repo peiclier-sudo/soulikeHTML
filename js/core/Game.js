@@ -688,7 +688,7 @@ export class Game {
                 this.shakeTime = this.shakeDuration;
                 this._blizzardMouseX = null;
                 input.attack = false;
-            } else if (input.pause || input.leftClickDown === true) {
+            } else if (input.pause || input.rightClickDown === true) {
                 fc.cancelBlizzardTargeting();
                 this._blizzardMouseX = null;
                 // Refund ultimate charge since player cancelled
@@ -755,7 +755,7 @@ export class Game {
                     this.crimsonEruptionTargeting = false;
                     this.combatSystem.hideCrimsonEruptionPreview();
                     input.attack = false;
-                } else if (input.pause || input.leftClickDown === true) {
+                } else if (input.pause || input.rightClickDown === true) {
                     this.crimsonEruptionTargeting = false;
                     this.combatSystem.hideCrimsonEruptionPreview();
                 }
@@ -794,7 +794,7 @@ export class Game {
                 this.shakeTime = this.shakeDuration;
                 this._stalactiteMouseX = null;
                 input.attack = false;
-            } else if (input.pause || input.leftClickDown === true) {
+            } else if (input.pause || input.rightClickDown === true) {
                 fc.cancelStalactiteTargeting();
                 this._stalactiteMouseX = null;
             }
