@@ -1109,13 +1109,13 @@ export class Character {
         this._moveVec.set(0, 0, 0);
         const moveVector = this._moveVec;
 
-        // Right-click held = continuously follow cursor, release = keep going to last target
-        if (input.rightClickMove && input.mouseGroundPos) {
+        // Left-click held = continuously follow cursor, release = autopilot to last target
+        if (input.leftClickMove && input.mouseGroundPos) {
             this._moveTarget = this._moveTarget || new THREE.Vector3();
             this._moveTarget.copy(input.mouseGroundPos);
         }
 
-        // Move toward target (set by right-click, persists after release)
+        // Move toward target (persists after release)
         if (this._moveTarget) {
             const dx = this._moveTarget.x - this.position.x;
             const dz = this._moveTarget.z - this.position.z;
@@ -1154,19 +1154,13 @@ export class Character {
                 this.gameState.useStamina(10 * deltaTime);
             }
 
-            const targetVelX = moveVector.x * speed;
-            const targetVelZ = moveVector.z * speed;
-            // Smooth acceleration for fluid movement
-            const moveSmooth = 1 - Math.exp(-10 * deltaTime);
-            this.velocity.x += (targetVelX - this.velocity.x) * moveSmooth;
-            this.velocity.z += (targetVelZ - this.velocity.z) * moveSmooth;
+            // Instant velocity — no acceleration lag, full reactivity
+            this.velocity.x = moveVector.x * speed;
+            this.velocity.z = moveVector.z * speed;
         } else {
-            // Smooth deceleration when stopping
-            const stopSmooth = 1 - Math.exp(-12 * deltaTime);
-            this.velocity.x -= this.velocity.x * stopSmooth;
-            this.velocity.z -= this.velocity.z * stopSmooth;
-            if (Math.abs(this.velocity.x) < 0.01) this.velocity.x = 0;
-            if (Math.abs(this.velocity.z) < 0.01) this.velocity.z = 0;
+            // Quick stop — no floaty deceleration
+            this.velocity.x = 0;
+            this.velocity.z = 0;
         }
 
         // Space = jump only
