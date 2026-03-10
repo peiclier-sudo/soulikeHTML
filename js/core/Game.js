@@ -7,6 +7,8 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { AfterimagePass } from 'three/addons/postprocessing/AfterimagePass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { VignetteShader } from '../shaders/VignetteShader.js';
 
 import { InputManager } from './InputManager.js';
 import { GameState } from './GameState.js';
@@ -118,27 +120,24 @@ export class Game {
     
     initCamera() {
         this.camera = new THREE.PerspectiveCamera(
-            50,
+            56,
             window.innerWidth / window.innerHeight,
             0.1,
             120
         );
-        this.baseFov = 50;
+        this.baseFov = 56;
         this.camera.position.set(0, 8, 14);
         this.ultimateFovTime = 0;
 
         // Shift vanishing point above screen center for 3/4 hack-and-slash perspective.
-        // setViewOffset shifts projection so the ground plane converges to a point
-        // above center, giving the classic top-down action RPG feel.
         this._applyViewOffset();
     }
 
     _applyViewOffset() {
         const w = window.innerWidth;
         const h = window.innerHeight;
-        // Shift view downward so vanishing point sits above screen center.
-        // Offset Y by ~18% of screen height upward (negative offset moves VP up).
-        const vpShift = Math.round(h * 0.18);
+        // Subtle VP shift — 10% keeps framing professional without distortion.
+        const vpShift = Math.round(h * 0.10);
         this.camera.setViewOffset(w, h, 0, -vpShift, w, h);
     }
     
@@ -165,6 +164,12 @@ export class Game {
         this.composer.addPass(this.afterimagePass);
         this._afterimageDamp = 0;        // current smoothed damp value
         this._afterimageTarget = 0;      // target damp value
+
+        // Cinematic vignette — subtle edge darkening for pro look
+        this.vignettePass = new ShaderPass(VignetteShader);
+        this.vignettePass.uniforms.darkness.value = 1.2;
+        this.vignettePass.uniforms.offset.value = 1.1;
+        this.composer.addPass(this.vignettePass);
     }
     
     initSystems() {

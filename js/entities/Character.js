@@ -32,16 +32,17 @@ export class Character {
         this.gravity = -25;
 
         // 3/4 hack-and-slash camera settings (lower angle = more perspective)
-        this.cameraDistance = 16;       // Distance from character — zoomed in for action feel
+        this.cameraDistance = 20;       // Distance from character — pro hack-and-slash framing
         this.cameraHeight = 0;         // Not used separately — derived from angle
-        this.cameraLookAtHeight = 1.0; // Look-at point at character waist
+        this.cameraLookAtHeight = 1.8; // Look-at point at chest/head for better framing
         this.cameraPitch = 0;
         this.cameraYaw = 0;
         this.pitchLimit = Math.PI / 3;
-        this.cameraSmoothSpeed = 12;
+        this.cameraSmoothSpeed = 8;    // Slightly laggy for cinematic weight
         this._cameraBobTime = 0;
-        this.fixedCameraAngle = Math.PI * 0.16; // ~29° from horizontal — classic hack-and-slash perspective
+        this.fixedCameraAngle = Math.PI * 0.23; // ~41° from horizontal — Diablo/Hades style
         this.fixedCameraYaw = Math.PI;  // Camera looks from behind (+Z toward -Z)
+        this._cameraLeadOffset = new THREE.Vector3(); // Smooth lead toward movement
 
         // Right-click-to-move state
         this._moveTarget = null;        // THREE.Vector3 or null — world position to move toward
@@ -1086,19 +1087,30 @@ export class Character {
         const angle = this.fixedCameraAngle;
         const yaw = this.fixedCameraYaw;
 
+        // Camera lead: offset look-at toward movement direction for dynamic feel
+        const leadStrength = 2.5;
+        const leadSmooth = 1 - Math.exp(-4 * deltaTime);
+        const targetLeadX = this.velocity.x * leadStrength / (this.runSpeed || 14);
+        const targetLeadZ = this.velocity.z * leadStrength / (this.runSpeed || 14);
+        this._cameraLeadOffset.x += (targetLeadX - this._cameraLeadOffset.x) * leadSmooth;
+        this._cameraLeadOffset.z += (targetLeadZ - this._cameraLeadOffset.z) * leadSmooth;
+
+        const centerX = this.position.x + this._cameraLeadOffset.x;
+        const centerZ = this.position.z + this._cameraLeadOffset.z;
+
         // Horizontal offset from player (how far behind)
         const horizontalDist = this.cameraDistance * Math.cos(angle);
         const verticalDist = this.cameraDistance * Math.sin(angle);
 
-        const targetX = this.position.x + horizontalDist * Math.sin(yaw);
+        const targetX = centerX + horizontalDist * Math.sin(yaw);
         const targetY = this.position.y + verticalDist;
-        const targetZ = this.position.z + horizontalDist * Math.cos(yaw);
+        const targetZ = centerZ + horizontalDist * Math.cos(yaw);
 
         const smoothFactor = 1 - Math.exp(-this.cameraSmoothSpeed * deltaTime);
         this._camTarget.set(targetX, targetY, targetZ);
         this.camera.position.lerp(this._camTarget, smoothFactor);
 
-        this._lookAt.set(this.position.x, this.position.y + this.cameraLookAtHeight, this.position.z);
+        this._lookAt.set(centerX, this.position.y + this.cameraLookAtHeight, centerZ);
         this.camera.lookAt(this._lookAt);
     }
     
