@@ -408,6 +408,21 @@ export class Boss extends Enemy {
             this.staggerTimer -= deltaTime;
             this.mesh.position.copy(this.position);
             if (this._bossFloorOffset != null) this.mesh.position.y = this.position.y + this._bossFloorOffset;
+
+            // Boss stagger flinch: scale punch + slight recoil during stagger from heavy hits
+            if (this._staggerFlinchT > 0) {
+                this._staggerFlinchT = Math.max(0, this._staggerFlinchT - deltaTime * 6);
+                const flinch = this._staggerFlinchT;
+                const scaleX = 1 + flinch * 0.06;
+                const scaleY = 1 - flinch * 0.08;
+                this.mesh.scale.set(scaleX, scaleY, scaleX);
+                // Rock back slightly during flinch
+                this.mesh.rotation.x = flinch * 0.12;
+            } else {
+                if (this.mesh.scale.x !== 1) this.mesh.scale.set(1, 1, 1);
+                if (this.mesh.rotation.x !== 0) this.mesh.rotation.x = 0;
+            }
+
             if (this.mixer) { this.updateBossAnimation(); this.mixer.update(deltaTime); this._resetRootMotion(); }
             this._updatePool(deltaTime);
             return;

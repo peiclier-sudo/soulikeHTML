@@ -97,6 +97,13 @@ export class Character {
         this._poseE = new THREE.Euler();
         this._isBeastModel = false;  // true for wolf/bear quadruped rigs
         this._landSquashT = 0;       // landing squash timer (1→0)
+        this._jumpStretchT = 0;      // jump takeoff stretch timer (1→0)
+
+        // Coyote time + jump buffer
+        this._coyoteTime = 0;        // time since last grounded (seconds)
+        this._coyoteGrace = 0.12;    // grace period after leaving ground
+        this._jumpBuffer = 0;        // buffered jump input timer
+        this._jumpBufferWindow = 0.15; // pre-land jump buffer window
         this.currentUpperState = 'none'; // Track to avoid resetting every frame
         this.chargedAttackAnimStarted = false; // Only start charged anim once per charge, never replay
         this.isPlayingUltimate = false;
@@ -1315,11 +1322,29 @@ export class Character {
             if (Math.abs(this.velocity.z) < 0.01) this.velocity.z = 0;
         }
 
-        // Space = jump only
-        if (input.jump && this.isGrounded && !this.isDashing) {
+        // Coyote time: track time since last grounded
+        if (this.isGrounded) {
+            this._coyoteTime = 0;
+        } else {
+            this._coyoteTime += deltaTime;
+        }
+
+        // Jump buffer: buffer jump presses for pre-land input
+        if (input.jump) {
+            this._jumpBuffer = this._jumpBufferWindow;
+        } else if (this._jumpBuffer > 0) {
+            this._jumpBuffer -= deltaTime;
+        }
+
+        // Jump with coyote time + jump buffer
+        const canCoyoteJump = this.isGrounded || this._coyoteTime < this._coyoteGrace;
+        if (this._jumpBuffer > 0 && canCoyoteJump && !this.isDashing) {
             const jumpBonus = this.gameState?.bonuses?.jumpForce ?? 0;
             this.velocity.y = this.jumpForce + jumpBonus;
             this.isGrounded = false;
+            this._coyoteTime = this._coyoteGrace; // consume coyote
+            this._jumpBuffer = 0; // consume buffer
+            this._jumpStretchT = 1.0; // takeoff stretch
         }
 
         // Dash toward cursor direction
@@ -1363,6 +1388,7 @@ export class Character {
             this.isDashing = false;
             this.isSuperDashing = false;
             this.gameState.combat.invulnerable = false;
+            if (this.mesh) this.mesh.visible = true; // ensure visible after dash
             const coastSpeed = 3.5;
             this.velocity.x = this.dashDirection.x * coastSpeed;
             this.velocity.z = this.dashDirection.z * coastSpeed;
@@ -1370,6 +1396,11 @@ export class Character {
             const easeOutQuint = 1 - Math.pow(1 - t, 5);
             this.postDashTilt = -0.1 * Math.sin(easeOutQuint * Math.PI);
         } else {
+            // Dash ghost flicker: rapid visibility toggle to show i-frame invincibility
+            if (this.mesh) {
+                const flickerRate = 60; // Hz
+                this.mesh.visible = Math.floor(this.dashTimer * flickerRate) % 2 === 0;
+            }
             const t = 1 - this.dashTimer / this.dashDuration;
             const easeOutQuint = 1 - Math.pow(1 - t, 5);
             const boundary = 38;
@@ -1566,6 +1597,13 @@ export class Character {
                 const stretch = 1 + this._landSquashT * 0.06;
                 const bs = this._baseScale || 1;
                 if (this.mesh) this.mesh.scale.set(bs * stretch, bs * squash, bs * stretch);
+            } else if (this._jumpStretchT > 0) {
+                // Jump takeoff stretch: tall & narrow on launch
+                this._jumpStretchT = Math.max(0, this._jumpStretchT - deltaTime * 10);
+                const stretchY = 1 + this._jumpStretchT * 0.10;
+                const squashXZ = 1 - this._jumpStretchT * 0.05;
+                const bs = this._baseScale || 1;
+                if (this.mesh) this.mesh.scale.set(bs * squashXZ, bs * stretchY, bs * squashXZ);
             } else if (this.mesh) {
                 const bs = this._baseScale || 1;
                 const sy = this.mesh.scale.y;

@@ -167,34 +167,40 @@ export class Enemy {
             });
         }
 
-        // Dark flash on boss hit — brief black tint to signify impact
-        if (this.isBoss) {
-            const meshes = this._hitFlashMeshes;
-            const originals = this._hitFlashOriginals;
+        // White flash on hit — bright impact feedback for all enemies/bosses
+        const meshes = this._hitFlashMeshes;
+        const originals = this._hitFlashOriginals;
+        for (let i = 0; i < meshes.length; i++) {
+            meshes[i].material.color.setHex(0xffffff);
+        }
+        if (this._hitFlashTimer) clearTimeout(this._hitFlashTimer);
+        this._hitFlashTimer = setTimeout(() => {
             for (let i = 0; i < meshes.length; i++) {
-                meshes[i].material.color.setHex(0x111111);
+                meshes[i].material.color.copy(originals[i]);
             }
-            if (this._hitFlashTimer) clearTimeout(this._hitFlashTimer);
-            this._hitFlashTimer = setTimeout(() => {
-                for (let i = 0; i < meshes.length; i++) {
-                    meshes[i].material.color.copy(originals[i]);
-                }
-                this._hitFlashTimer = null;
-            }, 80);
-        } else {
-            const flashColor = 0xff0000;
-            const meshes = this._hitFlashMeshes;
-            const originals = this._hitFlashOriginals;
-            for (let i = 0; i < meshes.length; i++) {
-                meshes[i].material.color.setHex(flashColor);
+            this._hitFlashTimer = null;
+        }, this.isBoss ? 90 : 100);
+
+        // Knockback recoil — push enemy away from damage source
+        if (this._gameState || this._playerRef) {
+            const playerPos = this._playerRef || this._gameState?.character?.position;
+            if (playerPos && this.mesh) {
+                const kb = this.isBoss ? 0.3 : 0.8;
+                const dx = this.position.x - playerPos.x;
+                const dz = this.position.z - playerPos.z;
+                const len = Math.sqrt(dx * dx + dz * dz) || 1;
+                this.position.x += (dx / len) * kb;
+                this.position.z += (dz / len) * kb;
+                // Clamp to arena
+                const ab = 38;
+                this.position.x = Math.max(-ab, Math.min(ab, this.position.x));
+                this.position.z = Math.max(-ab, Math.min(ab, this.position.z));
             }
-            if (this._hitFlashTimer) clearTimeout(this._hitFlashTimer);
-            this._hitFlashTimer = setTimeout(() => {
-                for (let i = 0; i < meshes.length; i++) {
-                    meshes[i].material.color.copy(originals[i]);
-                }
-                this._hitFlashTimer = null;
-            }, 100);
+        }
+
+        // Boss stagger flinch: brief scale punch on heavy hits
+        if (this.isBoss && amount > 30) {
+            this._staggerFlinchT = 1.0;
         }
 
         // Notify listener (used for screen shake)

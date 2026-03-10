@@ -753,6 +753,25 @@ export class CombatSystem {
             posAttr.needsUpdate = true;
             const roRange = co.ringOpacityRange || [0.5, 1.0];
             this.chargeOrb.userData.ringMat.opacity = roRange[0] + (roRange[1] - roRange[0]) * t;
+
+            // Charge visual buildup: pulse emissive on character mesh as charge grows
+            if (this.character?.mesh) {
+                if (!this._chargeGlowMeshes) {
+                    this._chargeGlowMeshes = [];
+                    this._chargeGlowOrigEmissive = [];
+                    this.character.mesh.traverse(child => {
+                        if (child.isMesh && child.material && 'emissiveIntensity' in child.material) {
+                            this._chargeGlowMeshes.push(child);
+                            this._chargeGlowOrigEmissive.push(child.material.emissiveIntensity);
+                        }
+                    });
+                }
+                const glowPulse = 0.5 + 0.5 * Math.sin(this.chargeOrb.userData.orbTime * 8);
+                const glowIntensity = t * (0.8 + 0.6 * glowPulse);
+                for (let i = 0; i < this._chargeGlowMeshes.length; i++) {
+                    this._chargeGlowMeshes[i].material.emissiveIntensity = this._chargeGlowOrigEmissive[i] + glowIntensity;
+                }
+            }
         } else {
             if (this.chargeOrb) {
                 this.scene.remove(this.chargeOrb);
@@ -763,6 +782,14 @@ export class CombatSystem {
                     this.chargeOrb.userData.ringMat.dispose();
                 }
                 this.chargeOrb = null;
+            }
+            // Reset charge glow on character mesh
+            if (this._chargeGlowMeshes) {
+                for (let i = 0; i < this._chargeGlowMeshes.length; i++) {
+                    this._chargeGlowMeshes[i].material.emissiveIntensity = this._chargeGlowOrigEmissive[i];
+                }
+                this._chargeGlowMeshes = null;
+                this._chargeGlowOrigEmissive = null;
             }
         }
     }
@@ -801,6 +828,14 @@ export class CombatSystem {
         this.attackDuration = basicClip?.duration ? basicClip.duration / basicTimeScale : beastFallback;
         this.attackTimer = this.attackDuration;
         this._meleeHitThisSwing = false;
+
+        // Attack lunge: slide player forward toward aim direction on basic attack
+        if (this.character && !this.character.isDashing) {
+            const fwd = this.character.getForwardDirection();
+            const lungeDistance = this.isWolfKit ? 1.8 : this.isBearKit ? 1.2 : this.isDaggerKit ? 2.0 : this.isBowRangerKit ? 0.4 : 1.4;
+            this.character.velocity.x += fwd.x * lungeDistance * 12;
+            this.character.velocity.z += fwd.z * lungeDistance * 12;
+        }
 
         // Increment combo or reset
         const now = performance.now() / 1000;
