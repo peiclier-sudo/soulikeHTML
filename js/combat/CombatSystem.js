@@ -49,7 +49,7 @@ export class CombatSystem {
         // Kit-driven basic/charged projectile params
         this.basicDamage = basic.damage ?? 20;
         this.basicSpeed = basic.speed ?? 20;
-        this.basicRadius = basic.radius ?? 0.25;
+        this.basicRadius = basic.radius ?? 0.45;
         this.basicLifetime = basic.lifetime ?? 1.5;
         this.chargedDamage = charged.damage ?? 55;
         this.chargedSpeed = charged.speed ?? 20;
