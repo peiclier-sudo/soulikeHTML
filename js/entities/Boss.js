@@ -416,11 +416,14 @@ export class Boss extends Enemy {
                 const scaleX = 1 + flinch * 0.06;
                 const scaleY = 1 - flinch * 0.08;
                 this.mesh.scale.set(scaleX, scaleY, scaleX);
-                // Rock back slightly during flinch
                 this.mesh.rotation.x = flinch * 0.12;
-            } else {
-                if (this.mesh.scale.x !== 1) this.mesh.scale.set(1, 1, 1);
-                if (this.mesh.rotation.x !== 0) this.mesh.rotation.x = 0;
+            }
+
+            // When stagger ends, always reset scale and rotation
+            if (this.staggerTimer <= 0) {
+                this._staggerFlinchT = 0;
+                this.mesh.scale.set(1, 1, 1);
+                this.mesh.rotation.x = 0;
             }
 
             if (this.mixer) { this.updateBossAnimation(); this.mixer.update(deltaTime); this._resetRootMotion(); }
