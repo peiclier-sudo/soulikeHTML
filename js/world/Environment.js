@@ -5,7 +5,7 @@
 
 import * as THREE from 'three';
 
-const ARENA_HALF = 28;
+const ARENA_HALF = 45;
 const WALL_HEIGHT = 14;
 
 // Grid tuning
