@@ -98,16 +98,14 @@ export class InputManager {
             !(this.prevKeys['KeyV'] || this.prevKeyChars['v'] || this.prevKeys['KeyQ'] || this.prevKeyChars['a']);
         const healthPotionKey = (this.keys['KeyDigit1'] || this.keyChars['&']) && !(this.prevKeys['KeyDigit1'] || this.prevKeyChars['&']);
 
-        // Charged attack: Shift + right-click hold/release tracking
+        // Charged attack: Shift + left-click hold/release tracking
         const shiftHeld = this.keys['ShiftLeft'] || this.keys['ShiftRight'];
-        const isCharging = this.mouse.rightClick && shiftHeld;
+        const isCharging = this.mouse.leftClick && shiftHeld;
         const wasCharging = this._wasCharging || false;
         const chargedRelease = wasCharging && !isCharging;
         this._wasCharging = isCharging;
 
         return {
-            // Movement: left-click = click-to-move (no WASD)
-
             // Actions
             jump: this.keys['Space'],
             dash: this.keys['KeyR'],   // R = dash forward
@@ -122,14 +120,14 @@ export class InputManager {
             healthPotion: healthPotionKey, // & = Health potion (AZERTY: KeyDigit1 or key that types '&')
             interact: this.keys['KeyE'],
 
-            // Combat (right-click = attack, Shift+right = charged attack)
-            attack: this.mouse.rightClickDown && !shiftHeld,
+            // Combat (left-click = attack, Shift+left = charged attack)
+            attack: this.mouse.leftClickDown && !shiftHeld,
             chargedAttack: isCharging,
             chargedAttackRelease: chargedRelease,
-            leftClickDown: this.mouse.leftClickDown,
+            rightClickDown: this.mouse.rightClickDown,
 
-            // Movement (left-click = click-to-move autopilot)
-            leftClickMove: this.mouse.leftClickDown,
+            // Movement (right-click = hold to follow cursor, release to autopilot to last pos)
+            rightClickMove: this.mouse.rightClick,
 
             // Camera
             mouseDeltaX: this.mouse.deltaX,

@@ -32,7 +32,7 @@ export class Character {
         this.gravity = -25;
 
         // 3/4 hack-and-slash camera settings (lower angle = more perspective)
-        this.cameraDistance = 26;       // Distance from character — wide enough to keep boss in view
+        this.cameraDistance = 22;       // Distance from character — wide enough to keep boss in view
         this.cameraHeight = 0;         // Not used separately — derived from angle
         this.cameraLookAtHeight = 1.0; // Look-at point at character waist
         this.cameraPitch = 0;
@@ -40,7 +40,7 @@ export class Character {
         this.pitchLimit = Math.PI / 3;
         this.cameraSmoothSpeed = 12;
         this._cameraBobTime = 0;
-        this.fixedCameraAngle = Math.PI * 0.28; // ~50° from horizontal — higher to see more arena
+        this.fixedCameraAngle = Math.PI * 0.16; // ~29° from horizontal — classic hack-and-slash perspective
         this.fixedCameraYaw = Math.PI;  // Camera looks from behind (+Z toward -Z)
 
         // Right-click-to-move state
@@ -1109,13 +1109,13 @@ export class Character {
         this._moveVec.set(0, 0, 0);
         const moveVector = this._moveVec;
 
-        // Left-click = set autopilot move target (click once, character walks there)
-        if (input.leftClickMove && input.mouseGroundPos) {
+        // Right-click held = continuously follow cursor, release = keep going to last target
+        if (input.rightClickMove && input.mouseGroundPos) {
             this._moveTarget = this._moveTarget || new THREE.Vector3();
             this._moveTarget.copy(input.mouseGroundPos);
         }
 
-        // Move toward click target (autopilot)
+        // Move toward target (set by right-click, persists after release)
         if (this._moveTarget) {
             const dx = this._moveTarget.x - this.position.x;
             const dz = this._moveTarget.z - this.position.z;
@@ -1156,12 +1156,17 @@ export class Character {
 
             const targetVelX = moveVector.x * speed;
             const targetVelZ = moveVector.z * speed;
-            const moveSmooth = 1 - Math.exp(-16 * deltaTime);
+            // Smooth acceleration for fluid movement
+            const moveSmooth = 1 - Math.exp(-10 * deltaTime);
             this.velocity.x += (targetVelX - this.velocity.x) * moveSmooth;
             this.velocity.z += (targetVelZ - this.velocity.z) * moveSmooth;
         } else {
-            this.velocity.x = 0;
-            this.velocity.z = 0;
+            // Smooth deceleration when stopping
+            const stopSmooth = 1 - Math.exp(-12 * deltaTime);
+            this.velocity.x -= this.velocity.x * stopSmooth;
+            this.velocity.z -= this.velocity.z * stopSmooth;
+            if (Math.abs(this.velocity.x) < 0.01) this.velocity.x = 0;
+            if (Math.abs(this.velocity.z) < 0.01) this.velocity.z = 0;
         }
 
         // Space = jump only
