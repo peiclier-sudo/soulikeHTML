@@ -104,6 +104,11 @@ export class Character {
         this._coyoteGrace = 0.12;    // grace period after leaving ground
         this._jumpBuffer = 0;        // buffered jump input timer
         this._jumpBufferWindow = 0.15; // pre-land jump buffer window
+
+        // Double jump
+        this._airJumpsUsed = 0;      // how many air jumps used this airborne phase
+        this._maxAirJumps = 1;       // max extra jumps while airborne
+        this._doubleJumpForce = 7;   // slightly weaker than ground jump
         this.currentUpperState = 'none'; // Track to avoid resetting every frame
         this.chargedAttackAnimStarted = false; // Only start charged anim once per charge, never replay
         this.isPlayingUltimate = false;
@@ -1325,6 +1330,7 @@ export class Character {
         // Coyote time: track time since last grounded
         if (this.isGrounded) {
             this._coyoteTime = 0;
+            this._airJumpsUsed = 0; // reset double jump on landing
         } else {
             this._coyoteTime += deltaTime;
         }
@@ -1336,15 +1342,24 @@ export class Character {
             this._jumpBuffer -= deltaTime;
         }
 
-        // Jump with coyote time + jump buffer
+        // Jump with coyote time + jump buffer + double jump
         const canCoyoteJump = this.isGrounded || this._coyoteTime < this._coyoteGrace;
-        if (this._jumpBuffer > 0 && canCoyoteJump && !this.isDashing) {
-            const jumpBonus = this.gameState?.bonuses?.jumpForce ?? 0;
-            this.velocity.y = this.jumpForce + jumpBonus;
-            this.isGrounded = false;
-            this._coyoteTime = this._coyoteGrace; // consume coyote
-            this._jumpBuffer = 0; // consume buffer
-            this._jumpStretchT = 1.0; // takeoff stretch
+        if (this._jumpBuffer > 0 && !this.isDashing) {
+            if (canCoyoteJump) {
+                // Ground jump (or coyote)
+                const jumpBonus = this.gameState?.bonuses?.jumpForce ?? 0;
+                this.velocity.y = this.jumpForce + jumpBonus;
+                this.isGrounded = false;
+                this._coyoteTime = this._coyoteGrace; // consume coyote
+                this._jumpBuffer = 0;
+                this._jumpStretchT = 1.0;
+            } else if (this._airJumpsUsed < this._maxAirJumps) {
+                // Double jump: weaker force, reset vertical velocity first
+                this.velocity.y = this._doubleJumpForce;
+                this._airJumpsUsed++;
+                this._jumpBuffer = 0;
+                this._jumpStretchT = 1.0;
+            }
         }
 
         // Dash toward cursor direction
