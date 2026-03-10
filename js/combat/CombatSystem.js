@@ -1037,6 +1037,7 @@ export class CombatSystem {
         bladeShape.quadraticCurveTo(len * 0.15, -width * 0.65, len * 0.5, 0);
         const geom = new THREE.ShapeGeometry(bladeShape, 10);
         geom.rotateX(-Math.PI / 2);
+        geom.rotateY(-Math.PI / 2); // tip points along +Z (travel direction)
 
         const group = new THREE.Group();
         group.position.copy(startPos);
@@ -1064,6 +1065,7 @@ export class CombatSystem {
         flameShape.quadraticCurveTo(fLen * 0.1, -fWidth * 0.7, fLen * 0.4, 0);
         const flameGeom = new THREE.ShapeGeometry(flameShape, 8);
         flameGeom.rotateX(-Math.PI / 2);
+        flameGeom.rotateY(-Math.PI / 2);
         const flameMat = new THREE.MeshBasicMaterial({
             color: 0x22cc55,
             transparent: true,
@@ -1073,13 +1075,14 @@ export class CombatSystem {
             blending: THREE.AdditiveBlending
         });
         const flameMesh = new THREE.Mesh(flameGeom, flameMat);
-        flameMesh.scale.set(1.2, 1.0, 1.3);
+        flameMesh.scale.set(1.3, 1.0, 1.2);
         flameMesh.position.y = 0.05;
         group.add(flameMesh);
 
         // Outer glow — wider diffuse halo
         const glowGeom = new THREE.ShapeGeometry(bladeShape, 10);
         glowGeom.rotateX(-Math.PI / 2);
+        glowGeom.rotateY(-Math.PI / 2);
         const glowMat = new THREE.MeshBasicMaterial({
             color: 0x0b5a1a,
             transparent: true,
@@ -1089,7 +1092,7 @@ export class CombatSystem {
             blending: THREE.AdditiveBlending
         });
         const glowMesh = new THREE.Mesh(glowGeom, glowMat);
-        glowMesh.scale.set(1.6, 1.0, 2.0);
+        glowMesh.scale.set(2.0, 1.0, 1.6);
         group.add(glowMesh);
 
         this.scene.add(group);
@@ -1131,6 +1134,7 @@ export class CombatSystem {
             bladeShape.quadraticCurveTo(len * 0.15, -width * 0.65, len * 0.5, 0);
             const geom = new THREE.ShapeGeometry(bladeShape, 10);
             geom.rotateX(-Math.PI / 2);
+            geom.rotateY(-Math.PI / 2); // tip points along +Z (travel direction)
 
             const group = new THREE.Group();
             group.position.copy(startPos);
@@ -1158,6 +1162,7 @@ export class CombatSystem {
             flameShape.quadraticCurveTo(fLen * 0.1, -fWidth * 0.7, fLen * 0.4, 0);
             const flameGeom = new THREE.ShapeGeometry(flameShape, 8);
             flameGeom.rotateX(-Math.PI / 2);
+            flameGeom.rotateY(-Math.PI / 2);
             const flameMat = new THREE.MeshBasicMaterial({
                 color: 0x33dd66,
                 transparent: true,
@@ -1167,13 +1172,14 @@ export class CombatSystem {
                 blending: THREE.AdditiveBlending
             });
             const flameMesh = new THREE.Mesh(flameGeom, flameMat);
-            flameMesh.scale.set(1.3, 1.0, 1.4);
+            flameMesh.scale.set(1.4, 1.0, 1.3);
             flameMesh.position.y = 0.05;
             group.add(flameMesh);
 
             // Wide diffuse glow
             const glowGeom = new THREE.ShapeGeometry(bladeShape, 10);
             glowGeom.rotateX(-Math.PI / 2);
+            glowGeom.rotateY(-Math.PI / 2);
             const glowMat = new THREE.MeshBasicMaterial({
                 color: 0x0b5a1a,
                 transparent: true,
@@ -1183,7 +1189,7 @@ export class CombatSystem {
                 blending: THREE.AdditiveBlending
             });
             const glow = new THREE.Mesh(glowGeom, glowMat);
-            glow.scale.set(1.6, 1.0, 2.0);
+            glow.scale.set(2.0, 1.0, 1.6);
             group.add(glow);
 
             this.scene.add(group);

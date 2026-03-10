@@ -6,15 +6,8 @@
 import * as THREE from 'three';
 
 const TRAIL_POINTS = 26;
-const VORTEX_RINGS = 3;
-const VORTEX_POINTS_PER_RING = 18;
 const SPARK_COUNT = 56;
 const FADEOUT_DURATION = 0.4;
-
-// Ghost afterimage settings
-const GHOST_COUNT = 6;
-const GHOST_FADE = 0.28;
-const GHOST_INTERVAL = 0.052;
 
 // Per-kit dash color palettes: { bright, mid, dark }
 const KIT_DASH_COLORS = {
@@ -64,37 +57,6 @@ export function createDashVFX(scene, opts = {}) {
     const colorCrimson = new THREE.Color(COL_BRIGHT);
     const colorDark = new THREE.Color(COL_DARK);
     const colorMid = new THREE.Color(COL_MID);
-    const _right = new THREE.Vector3();
-    const _up = new THREE.Vector3();
-    const _worldUp = new THREE.Vector3(0, 1, 0);
-
-    // —— Vortex: rings of particles around the character, spiral
-    const vortexCount = VORTEX_RINGS * VORTEX_POINTS_PER_RING;
-    const vortexPositions = new Float32Array(vortexCount * 3);
-    const vortexBaseAngle = new Float32Array(vortexCount);
-    const vortexRing = new Float32Array(vortexCount);
-    for (let r = 0; r < VORTEX_RINGS; r++) {
-        for (let i = 0; i < VORTEX_POINTS_PER_RING; i++) {
-            const idx = r * VORTEX_POINTS_PER_RING + i;
-            vortexBaseAngle[idx] = (i / VORTEX_POINTS_PER_RING) * Math.PI * 2 + r * 0.7;
-            vortexRing[idx] = r;
-        }
-    }
-    const vortexGeo = new THREE.BufferGeometry();
-    vortexGeo.setAttribute('position', new THREE.BufferAttribute(vortexPositions, 3));
-    const vortexMat = new THREE.PointsMaterial({
-        size: 0.12,
-        color: COL_BRIGHT,
-        transparent: true,
-        opacity: 0.85,
-        sizeAttenuation: true,
-        depthWrite: false,
-        blending: THREE.AdditiveBlending
-    });
-    const vortexMesh = new THREE.Points(vortexGeo, vortexMat);
-    vortexMesh.frustumCulled = false;
-    scene.add(vortexMesh);
-    let vortexAngle = 0;
 
     // —— Sparks: burst outward from center
     const sparkPositions = new Float32Array(SPARK_COUNT * 3);
@@ -125,27 +87,6 @@ export function createDashVFX(scene, opts = {}) {
     scene.add(sparkMesh);
     const sparkBasePos = new THREE.Vector3();
 
-    // —— Ghost afterimages: pool of semi-transparent capsules
-    const ghostGeo = new THREE.CapsuleGeometry(0.22, 0.85, 2, 6);
-    const ghosts = [];
-    for (let i = 0; i < GHOST_COUNT; i++) {
-        const mat = new THREE.MeshBasicMaterial({
-            color: COL_BRIGHT,
-            transparent: true,
-            opacity: 0,
-            blending: THREE.AdditiveBlending,
-            depthWrite: false,
-            side: THREE.DoubleSide
-        });
-        const mesh = new THREE.Mesh(ghostGeo, mat);
-        mesh.visible = false;
-        mesh.frustumCulled = false;
-        scene.add(mesh);
-        ghosts.push({ mesh, mat, life: 0, active: false });
-    }
-    let ghostTimer = 0;
-    let ghostIdx = 0;
-
     // —— Motion blur streak: elongated quad stretched behind the player
     const streakGeo = new THREE.PlaneGeometry(1, 1);
     const streakMat = new THREE.MeshBasicMaterial({
@@ -164,26 +105,10 @@ export function createDashVFX(scene, opts = {}) {
     const _streakDir = new THREE.Vector3();
 
     function update(dt, position, direction, progress, isDashing) {
-        vortexAngle += dt * 14;
-
-        // Always tick ghost fade regardless of dash state
-        for (const g of ghosts) {
-            if (!g.active) continue;
-            g.life -= dt;
-            if (g.life <= 0) {
-                g.active = false;
-                g.mesh.visible = false;
-            } else {
-                const t = g.life / GHOST_FADE;
-                g.mat.opacity = 0.45 * t * t; // quadratic fade
-            }
-        }
-
         if (fadeOutTimer >= 0) {
             fadeOutTimer -= dt;
             const alpha = Math.max(0, fadeOutTimer / FADEOUT_DURATION);
             trailMat.opacity = 0.9 * alpha;
-            vortexMat.opacity = 0.85 * alpha;
             sparkMat.opacity = 0.95 * alpha;
             streakMat.opacity = 0.2 * alpha;
             streakMesh.visible = alpha > 0.01;
@@ -212,24 +137,6 @@ export function createDashVFX(scene, opts = {}) {
             trailGeo.getAttribute('position').needsUpdate = true;
             trailGeo.getAttribute('color').needsUpdate = true;
 
-            // Vortex: rings around position, perpendicular to dash direction (reuse vectors)
-            if (Math.abs(direction.y) < 0.99) {
-                _right.crossVectors(direction, _worldUp).normalize();
-                _up.crossVectors(_right, direction).normalize();
-            } else {
-                _right.set(1, 0, 0);
-                _up.set(0, 0, 1);
-            }
-            const radius = 0.5 + progress * 0.4;
-            for (let i = 0; i < vortexCount; i++) {
-                const a = vortexBaseAngle[i] + vortexAngle + vortexRing[i] * 0.5;
-                const r = radius * (0.6 + 0.4 * vortexRing[i] / VORTEX_RINGS);
-                vortexPositions[i * 3] = position.x + _right.x * r * Math.cos(a) + _up.x * r * Math.sin(a);
-                vortexPositions[i * 3 + 1] = position.y + 0.4 + _right.y * r * Math.cos(a) + _up.y * r * Math.sin(a);
-                vortexPositions[i * 3 + 2] = position.z + _right.z * r * Math.cos(a) + _up.z * r * Math.sin(a);
-            }
-            vortexGeo.getAttribute('position').needsUpdate = true;
-
             // Sparks: emit from position, move outward over time
             sparkBasePos.copy(position);
             sparkBasePos.y += 0.4;
@@ -242,25 +149,11 @@ export function createDashVFX(scene, opts = {}) {
             }
             sparkGeo.getAttribute('position').needsUpdate = true;
 
-            // Ghost afterimages: spawn at intervals
-            ghostTimer += dt;
-            if (ghostTimer >= GHOST_INTERVAL) {
-                ghostTimer -= GHOST_INTERVAL;
-                const g = ghosts[ghostIdx % GHOST_COUNT];
-                g.mesh.position.set(position.x, position.y + 0.65, position.z);
-                g.mesh.rotation.set(0, Math.atan2(direction.x, direction.z), 0);
-                g.mat.opacity = 0.45;
-                g.mesh.visible = true;
-                g.life = GHOST_FADE;
-                g.active = true;
-                ghostIdx++;
-            }
-
             // Motion blur streak: stretched quad behind the player
             _streakDir.copy(direction);
             _streakDir.y = 0;
             if (_streakDir.lengthSq() > 0.0001) _streakDir.normalize();
-            const streakLen = 2.5 + progress * 3.5; // grows as dash progresses
+            const streakLen = 2.5 + progress * 3.5;
             const streakWidth = 0.35 + progress * 0.15;
             streakMesh.scale.set(streakLen, streakWidth, 1);
             streakMesh.position.set(
@@ -268,7 +161,6 @@ export function createDashVFX(scene, opts = {}) {
                 position.y + 0.55,
                 position.z - _streakDir.z * streakLen * 0.45
             );
-            // Orient: yaw first (Y), then pitch flat (X) via YXZ euler order
             streakMesh.rotation.set(-Math.PI / 2, Math.atan2(_streakDir.x, _streakDir.z), 0);
             const streakAlpha = 0.18 + progress * 0.12;
             streakMat.opacity = streakAlpha;
@@ -284,17 +176,9 @@ export function createDashVFX(scene, opts = {}) {
         scene.remove(trailMesh);
         trailGeo.dispose();
         trailMat.dispose();
-        scene.remove(vortexMesh);
-        vortexGeo.dispose();
-        vortexMat.dispose();
         scene.remove(sparkMesh);
         sparkGeo.dispose();
         sparkMat.dispose();
-        for (const g of ghosts) {
-            scene.remove(g.mesh);
-            g.mat.dispose();
-        }
-        ghostGeo.dispose();
         scene.remove(streakMesh);
         streakGeo.dispose();
         streakMat.dispose();
