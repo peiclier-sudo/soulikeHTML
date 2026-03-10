@@ -56,7 +56,7 @@ export class Boss extends Enemy {
 
         if (template) {
             const model = SkeletonUtils.clone(template);
-            model.scale.setScalar(5.25);
+            model.scale.setScalar(4.0);
             model.visible = true;
             model.traverse((child) => {
                 if (child.isMesh && child.material) {
