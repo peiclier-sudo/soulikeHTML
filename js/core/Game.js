@@ -113,19 +113,33 @@ export class Game {
         this.scene = new THREE.Scene();
         this.scene.background = new THREE.Color(0x080c14);
 
-        this.scene.fog = new THREE.FogExp2(0x080c14, 0.02);
+        this.scene.fog = new THREE.FogExp2(0x080c14, 0.012);
     }
     
     initCamera() {
         this.camera = new THREE.PerspectiveCamera(
-            70,
+            50,
             window.innerWidth / window.innerHeight,
             0.1,
-            80
+            120
         );
-        this.baseFov = 70;
-        this.camera.position.set(0, 1.7, 5);
+        this.baseFov = 50;
+        this.camera.position.set(0, 12, 10);
         this.ultimateFovTime = 0;
+
+        // Shift vanishing point above screen center for 3/4 hack-and-slash perspective.
+        // setViewOffset shifts projection so the ground plane converges to a point
+        // above center, giving the classic top-down action RPG feel.
+        this._applyViewOffset();
+    }
+
+    _applyViewOffset() {
+        const w = window.innerWidth;
+        const h = window.innerHeight;
+        // Shift view downward so vanishing point sits above screen center.
+        // Offset Y by ~18% of screen height upward (negative offset moves VP up).
+        const vpShift = Math.round(h * 0.18);
+        this.camera.setViewOffset(w, h, 0, -vpShift, w, h);
     }
     
     initPostProcessing() {
@@ -1071,6 +1085,7 @@ export class Game {
         const width = window.innerWidth;
         const height = window.innerHeight;
         this.camera.aspect = width / height;
+        this._applyViewOffset();
         this.camera.updateProjectionMatrix();
         this.renderer.setSize(width, height);
         this.composer.setSize(width, height);
@@ -1296,10 +1311,11 @@ export class Game {
             const time = this.elapsedTime + this.shakeSeed;
 
             // Low-frequency sine shake: smooth, weighty, no jitter.
+            // For 3/4 view, shake on X (screen-left/right) and Z (screen-up/down) with less Y.
             this.targetShakeOffset.set(
                 amt * (Math.sin(time * 14.0) * 0.75 + Math.sin(time * 23.0 + 1.2) * 0.25),
-                amt * (Math.sin(time * 17.0 + 2.0) * 0.85 + Math.sin(time * 27.0 + 0.35) * 0.15),
-                amt * (Math.sin(time * 11.0 + 0.65) * 0.12)
+                amt * (Math.sin(time * 17.0 + 2.0) * 0.2),
+                amt * (Math.sin(time * 11.0 + 0.65) * 0.7 + Math.sin(time * 19.0 + 0.9) * 0.3)
             );
         }
 
