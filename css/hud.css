@@ -41,12 +41,12 @@
 }
 
 .health-bar {
-    bottom: 100px;
+    top: 20px;
     left: 24px;
 }
 
 .stamina-bar {
-    bottom: 74px;
+    top: 46px;
     left: 24px;
 }
 
@@ -587,7 +587,7 @@
 /* Boss Health Bar */
 #boss-health {
     position: absolute;
-    bottom: 100px;
+    top: 20px;
     left: 50%;
     transform: translateX(-50%);
     width: 600px;
