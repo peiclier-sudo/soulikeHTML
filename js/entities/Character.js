@@ -438,15 +438,15 @@ export class Character {
             // Scale models to match each other
             // _baseScale is used by landing-squash so it can restore the correct size
             if (modelKey === 'character_3k_mage') {
-                this._baseScale = 15.0;
+                this._baseScale = 11.25;
             } else if (modelKey === 'character_3k_rogue') {
-                this._baseScale = 2.0;
+                this._baseScale = 1.0;
             } else if (modelKey === 'wolf') {
-                this._baseScale = 1.4;
+                this._baseScale = 1.05;
             } else if (modelKey === 'bear') {
-                this._baseScale = 1.4;
+                this._baseScale = 1.05;
             } else {
-                this._baseScale = 2.0;
+                this._baseScale = 1.5;
             }
             this.mesh.scale.setScalar(this._baseScale);
 
