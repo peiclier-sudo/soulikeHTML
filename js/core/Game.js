@@ -308,11 +308,11 @@ export class Game {
 
     spawnBoss() {
         const spawns = [
-            new THREE.Vector3(0, 0, -8),
-            new THREE.Vector3(5, 0, -7),
-            new THREE.Vector3(-5, 0, -6),
-            new THREE.Vector3(4, 0, -5),
-            new THREE.Vector3(-3, 0, -9)
+            new THREE.Vector3(0, 0, -14),
+            new THREE.Vector3(5, 0, -13),
+            new THREE.Vector3(-5, 0, -12),
+            new THREE.Vector3(4, 0, -11),
+            new THREE.Vector3(-3, 0, -15)
         ];
         const pos = spawns[Math.floor(Math.random() * spawns.length)];
         const scaled = RunProgress.getBossConfig(this.bossNumber);
