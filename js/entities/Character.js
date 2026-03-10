@@ -26,8 +26,8 @@ export class Character {
         this.velocity = new THREE.Vector3();
 
         // Movement settings (driven by kit)
-        this.walkSpeed = stats?.walkSpeed ?? 4;
-        this.runSpeed = stats?.runSpeed ?? 8;
+        this.walkSpeed = stats?.walkSpeed ?? 8;
+        this.runSpeed = stats?.runSpeed ?? 14;
         this.jumpForce = stats?.jumpForce ?? 8;
         this.gravity = -25;
 
@@ -1109,7 +1109,25 @@ export class Character {
         this._moveVec.set(0, 0, 0);
         const moveVector = this._moveVec;
 
-        // Character always faces the cursor ground position
+        // Left-click = set autopilot move target (click once, character walks there)
+        if (input.leftClickMove && input.mouseGroundPos) {
+            this._moveTarget = this._moveTarget || new THREE.Vector3();
+            this._moveTarget.copy(input.mouseGroundPos);
+        }
+
+        // Move toward click target (autopilot)
+        if (this._moveTarget) {
+            const dx = this._moveTarget.x - this.position.x;
+            const dz = this._moveTarget.z - this.position.z;
+            const dist = Math.sqrt(dx * dx + dz * dz);
+            if (dist > this._moveTargetThreshold) {
+                moveVector.set(dx / dist, 0, dz / dist);
+            } else {
+                this._moveTarget = null; // Arrived
+            }
+        }
+
+        // Character always faces cursor for aiming (rotation follows mouse)
         if (input.mouseGroundPos) {
             const dx = input.mouseGroundPos.x - this.position.x;
             const dz = input.mouseGroundPos.z - this.position.z;
@@ -1120,16 +1138,6 @@ export class Character {
                 while (diff < -Math.PI) diff += 2 * Math.PI;
                 const rotSmooth = 1 - Math.exp(-20 * deltaTime);
                 this.rotation.y += diff * rotSmooth;
-            }
-        }
-
-        // Right-click held = move toward cursor
-        if (input.rightClickMove && input.mouseGroundPos) {
-            const dx = input.mouseGroundPos.x - this.position.x;
-            const dz = input.mouseGroundPos.z - this.position.z;
-            const dist = Math.sqrt(dx * dx + dz * dz);
-            if (dist > this._moveTargetThreshold) {
-                moveVector.set(dx / dist, 0, dz / dist);
             }
         }
 
