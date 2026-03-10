@@ -94,6 +94,10 @@ export class ParticleSystem {
         this.emberPool = new InstancedPool(scene, emberGeo, 250);
         this.healPool  = new InstancedPool(scene, healGeo, 40);
 
+        // Green flame pool — larger soft quads, upward drift, slow fade
+        const flameGeo = new THREE.PlaneGeometry(0.28, 0.28);
+        this.flamePool = new InstancedPool(scene, flameGeo, 350);
+
         // Individual mesh pools (smoke + shield aura — few active, complex behavior)
         this.pools = { smoke: [], shieldAura: [] };
         this.activeParticles = [];            // smoke only
@@ -468,6 +472,60 @@ export class ParticleSystem {
         }
     }
 
+    /** Green flame burst — layered fire effect with bright core + dark outer wisps */
+    emitGreenFlame(position, count = 20, spread = 1.0) {
+        const n = Math.floor(count * this.qualityMultiplier);
+        for (let i = 0; i < n; i++) {
+            const theta = Math.random() * Math.PI * 2;
+            const r = Math.random() * spread;
+            const speed = 1.5 + Math.random() * 3;
+            // Bright inner core flames (60%)
+            const isBright = Math.random() < 0.6;
+            const color = isBright
+                ? (Math.random() > 0.5 ? 0x44ff70 : 0x33ff77)  // bright poison green
+                : (Math.random() > 0.5 ? 0x1a8833 : 0x0b5a1a); // dark outer wisps
+            const scale = isBright ? (1.0 + Math.random() * 0.8) : (0.6 + Math.random() * 0.5);
+            this.flamePool.emit(
+                position.x + Math.cos(theta) * r,
+                position.y + Math.random() * 0.3,
+                position.z + Math.sin(theta) * r,
+                Math.cos(theta) * speed * 0.3,
+                1.5 + Math.random() * 2.5,  // upward
+                Math.sin(theta) * speed * 0.3,
+                color, scale, 0.3 + Math.random() * 0.35
+            );
+        }
+        // Hot white-green sparks shooting out of the flame
+        const sparkN = Math.floor(n * 0.3);
+        for (let i = 0; i < sparkN; i++) {
+            const theta = Math.random() * Math.PI * 2;
+            const speed = 6 + Math.random() * 8;
+            this.sparkPool.emit(
+                position.x, position.y, position.z,
+                Math.cos(theta) * speed, Math.random() * 5 + 3, Math.sin(theta) * speed,
+                Math.random() > 0.4 ? 0xaaffbb : 0x55ff88, 0.7, 0.25 + Math.random() * 0.2
+            );
+        }
+    }
+
+    /** Continuous green flame trail — fewer particles, tighter spread, for projectile trails */
+    emitGreenFlameTrail(position, count = 5) {
+        const n = Math.max(1, Math.floor(count * this.qualityMultiplier));
+        for (let i = 0; i < n; i++) {
+            const color = Math.random() > 0.4 ? 0x44ff70 : (Math.random() > 0.5 ? 0x1a8833 : 0x33ff77);
+            const scale = 0.6 + Math.random() * 0.6;
+            this.flamePool.emit(
+                position.x + (Math.random() - 0.5) * 0.5,
+                position.y + (Math.random() - 0.5) * 0.3,
+                position.z + (Math.random() - 0.5) * 0.5,
+                (Math.random() - 0.5) * 1.2,
+                1.0 + Math.random() * 1.5,
+                (Math.random() - 0.5) * 1.2,
+                color, scale, 0.25 + Math.random() * 0.25
+            );
+        }
+    }
+
     emitShadowStepBurst(position, count = 35) {
         const n = Math.floor(count * this.qualityMultiplier);
         for (let i = 0; i < n; i++) {
@@ -717,10 +775,11 @@ export class ParticleSystem {
     // ─── Main update ────────────────────────────────────────────
 
     update(deltaTime) {
-        // Update instanced pools (spark, ember, heal)
+        // Update instanced pools (spark, ember, heal, flame)
         this._updateSparkPool(deltaTime);
         this._updateEmberPool(deltaTime);
         this._updateHealPool(deltaTime);
+        this._updateFlamePool(deltaTime);
 
         // Update individual smoke particles
         let writeIdx = 0;
@@ -858,6 +917,36 @@ export class ParticleSystem {
         this._syncPoolToGPU(pool, 'heal');
     }
 
+    // ─── Instanced pool update — flame (green fire) ───────────
+
+    _updateFlamePool(dt) {
+        const pool = this.flamePool;
+        let write = 0;
+        for (let read = 0; read < pool.count; read++) {
+            pool.life[read] += dt;
+            if (pool.life[read] >= pool.maxLife[read]) continue;
+
+            // Flame physics: gentle upward drift, slight horizontal drag, no gravity
+            pool.vy[read] += 2.5 * dt; // float upward (fire rises)
+            pool.vx[read] *= 0.94;
+            pool.vz[read] *= 0.94;
+            pool.px[read] += pool.vx[read] * dt;
+            pool.py[read] += pool.vy[read] * dt;
+            pool.pz[read] += pool.vz[read] * dt;
+
+            if (write !== read) {
+                pool.px[write] = pool.px[read]; pool.py[write] = pool.py[read]; pool.pz[write] = pool.pz[read];
+                pool.vx[write] = pool.vx[read]; pool.vy[write] = pool.vy[read]; pool.vz[write] = pool.vz[read];
+                pool.cr[write] = pool.cr[read]; pool.cg[write] = pool.cg[read]; pool.cb[write] = pool.cb[read];
+                pool.baseScale[write] = pool.baseScale[read];
+                pool.life[write] = pool.life[read]; pool.maxLife[write] = pool.maxLife[read];
+            }
+            write++;
+        }
+        pool.count = write;
+        this._syncPoolToGPU(pool, 'flame');
+    }
+
     // ─── GPU sync: write instanceMatrix + instanceColor ─────────
 
     _syncPoolToGPU(pool, type) {
@@ -880,6 +969,13 @@ export class ParticleSystem {
                 const pulse = 0.7 + 0.3 * Math.sin(pool.life[i] * 12 + i * 0.5);
                 eff = fadeAlpha * pulse;
                 s = pool.baseScale[i];
+            } else if (type === 'flame') {
+                // Flame: grows as it rises, flickers, fades softly
+                const flicker = 0.7 + 0.3 * Math.sin(pool.life[i] * 18 + i * 1.7);
+                eff = fadeAlpha * flicker;
+                // Expand as flame rises: start small, grow to full, shrink at end
+                const growCurve = lifeRatio < 0.3 ? lifeRatio / 0.3 : 1 - (lifeRatio - 0.3) / 0.7;
+                s = pool.baseScale[i] * (0.4 + 1.2 * growCurve);
             } else { // heal
                 eff = 0.95 * fadeAlpha;
                 s = pool.baseScale[i];
@@ -910,6 +1006,7 @@ export class ParticleSystem {
         this.sparkPool.clear();
         this.emberPool.clear();
         this.healPool.clear();
+        this.flamePool.clear();
         for (const p of this.activeParticles) { p.visible = false; p.userData.active = false; }
         this.activeParticles.length = 0;
         for (const p of this.activeShieldAuraParticles) { p.visible = false; p.userData.active = false; this.pools.shieldAura.push(p); }

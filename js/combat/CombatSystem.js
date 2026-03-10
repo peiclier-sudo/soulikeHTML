@@ -1031,13 +1031,9 @@ export class CombatSystem {
         const bladeShape = new THREE.Shape();
         const len = bv.bladeLen ?? 3.2;
         const width = bv.bladeWidth ?? 0.55;
-        // Tip (sharp point forward)
         bladeShape.moveTo(len * 0.5, 0);
-        // Top edge — slight outward curve
         bladeShape.quadraticCurveTo(len * 0.15, width * 0.65, -len * 0.5, width * 0.25);
-        // Tail (flat back)
         bladeShape.lineTo(-len * 0.5, -width * 0.25);
-        // Bottom edge — mirror curve
         bladeShape.quadraticCurveTo(len * 0.15, -width * 0.65, len * 0.5, 0);
         const geom = new THREE.ShapeGeometry(bladeShape, 10);
         geom.rotateX(-Math.PI / 2);
@@ -1047,9 +1043,9 @@ export class CombatSystem {
         group.lookAt(startPos.clone().add(dir));
         group.rotateZ(slashAngle);
 
-        // Core blade
+        // Core blade — brighter, hotter green
         const mat = new THREE.MeshBasicMaterial({
-            color: bv.coreColor ?? 0x33ff77,
+            color: 0x55ffaa,
             transparent: true,
             opacity: 0.95,
             side: THREE.DoubleSide,
@@ -1058,25 +1054,49 @@ export class CombatSystem {
         });
         group.add(new THREE.Mesh(geom, mat));
 
-        // Outer glow
+        // Inner flame layer — wider, softer, flickering core
+        const flameShape = new THREE.Shape();
+        const fLen = len * 0.85;
+        const fWidth = width * 1.4;
+        flameShape.moveTo(fLen * 0.4, 0);
+        flameShape.quadraticCurveTo(fLen * 0.1, fWidth * 0.7, -fLen * 0.5, fWidth * 0.15);
+        flameShape.lineTo(-fLen * 0.5, -fWidth * 0.15);
+        flameShape.quadraticCurveTo(fLen * 0.1, -fWidth * 0.7, fLen * 0.4, 0);
+        const flameGeom = new THREE.ShapeGeometry(flameShape, 8);
+        flameGeom.rotateX(-Math.PI / 2);
+        const flameMat = new THREE.MeshBasicMaterial({
+            color: 0x22cc55,
+            transparent: true,
+            opacity: 0.45,
+            side: THREE.DoubleSide,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending
+        });
+        const flameMesh = new THREE.Mesh(flameGeom, flameMat);
+        flameMesh.scale.set(1.2, 1.0, 1.3);
+        flameMesh.position.y = 0.05;
+        group.add(flameMesh);
+
+        // Outer glow — wider diffuse halo
         const glowGeom = new THREE.ShapeGeometry(bladeShape, 10);
         glowGeom.rotateX(-Math.PI / 2);
         const glowMat = new THREE.MeshBasicMaterial({
-            color: bv.glowColor ?? 0x22cc66,
+            color: 0x0b5a1a,
             transparent: true,
-            opacity: 0.3,
+            opacity: 0.2,
             side: THREE.DoubleSide,
             depthWrite: false,
             blending: THREE.AdditiveBlending
         });
         const glowMesh = new THREE.Mesh(glowGeom, glowMat);
-        glowMesh.scale.set(bv.glowScale ?? 1.35, 1.0, 1.6);
+        glowMesh.scale.set(1.6, 1.0, 2.0);
         group.add(glowMesh);
 
         this.scene.add(group);
 
+        // Green flame burst on launch
         if (this.particleSystem) {
-            this.particleSystem.emitPoisonBurst(startPos.clone(), bv.launchSparks ?? 6);
+            this.particleSystem.emitGreenFlame(startPos.clone(), 14, 0.6);
         }
 
         this.projectiles.push({
@@ -1087,12 +1107,12 @@ export class CombatSystem {
             isDaggerBlade: true,
             isDaggerSlash: true,
             hitSet: new Set(),
-            materials: [mat, glowMat],
-            geometries: [geom, glowGeom]
+            materials: [mat, flameMat, glowMat],
+            geometries: [geom, flameGeom, glowGeom]
         });
     }
 
-    /** Charged attack: twin crossing blades (X pattern) with bigger VFX */
+    /** Charged attack: twin crossing blades (X pattern) with green flame VFX */
     spawnDaggerChargedSlash() {
         const vp = this._vfx.projectile || {};
         const cv = vp.charged || {};
@@ -1117,8 +1137,9 @@ export class CombatSystem {
             group.lookAt(startPos.clone().add(dir));
             group.rotateZ(side * spreadAngle);
 
+            // Hot white-green core
             const mat = new THREE.MeshBasicMaterial({
-                color: cv.coreColor ?? 0x55ff90,
+                color: 0x77ffbb,
                 transparent: true,
                 opacity: 0.95,
                 side: THREE.DoubleSide,
@@ -1127,18 +1148,42 @@ export class CombatSystem {
             });
             group.add(new THREE.Mesh(geom, mat));
 
+            // Inner flame layer
+            const flameShape = new THREE.Shape();
+            const fLen = len * 0.85;
+            const fWidth = width * 1.5;
+            flameShape.moveTo(fLen * 0.4, 0);
+            flameShape.quadraticCurveTo(fLen * 0.1, fWidth * 0.7, -fLen * 0.5, fWidth * 0.15);
+            flameShape.lineTo(-fLen * 0.5, -fWidth * 0.15);
+            flameShape.quadraticCurveTo(fLen * 0.1, -fWidth * 0.7, fLen * 0.4, 0);
+            const flameGeom = new THREE.ShapeGeometry(flameShape, 8);
+            flameGeom.rotateX(-Math.PI / 2);
+            const flameMat = new THREE.MeshBasicMaterial({
+                color: 0x33dd66,
+                transparent: true,
+                opacity: 0.5,
+                side: THREE.DoubleSide,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending
+            });
+            const flameMesh = new THREE.Mesh(flameGeom, flameMat);
+            flameMesh.scale.set(1.3, 1.0, 1.4);
+            flameMesh.position.y = 0.05;
+            group.add(flameMesh);
+
+            // Wide diffuse glow
             const glowGeom = new THREE.ShapeGeometry(bladeShape, 10);
             glowGeom.rotateX(-Math.PI / 2);
             const glowMat = new THREE.MeshBasicMaterial({
-                color: cv.glowColor ?? 0x22cc66,
+                color: 0x0b5a1a,
                 transparent: true,
-                opacity: 0.35,
+                opacity: 0.25,
                 side: THREE.DoubleSide,
                 depthWrite: false,
                 blending: THREE.AdditiveBlending
             });
             const glow = new THREE.Mesh(glowGeom, glowMat);
-            glow.scale.set(cv.glowScale ?? 1.3, 1.0, 1.5);
+            glow.scale.set(1.6, 1.0, 2.0);
             group.add(glow);
 
             this.scene.add(group);
@@ -1151,13 +1196,14 @@ export class CombatSystem {
                 isDaggerSlash: true,
                 isChargedSlash: true,
                 hitSet: new Set(),
-                materials: [mat, glowMat],
-                geometries: [geom, glowGeom]
+                materials: [mat, flameMat, glowMat],
+                geometries: [geom, flameGeom, glowGeom]
             });
         }
 
+        // Big green flame burst on launch
         if (this.particleSystem) {
-            this.particleSystem.emitPoisonBurst(startPos.clone(), cv.launchSparks ?? 16);
+            this.particleSystem.emitGreenFlame(startPos.clone(), 28, 1.0);
             this.particleSystem.emitShadowStepBurst(startPos.clone(), cv.launchEmbers ?? 12);
         }
         if (this.onProjectileHit) this.onProjectileHit({ daggerSlashImpact: true });
@@ -1180,7 +1226,10 @@ export class CombatSystem {
         this.gameState.addUltimateCharge('basic');
         this.gameState.addPoisonCharge(poisonGain);
         this.gameState.emit('damageNumber', { position: hitPos.clone(), damage, isCritical, isBackstab, anchorId: this._getDamageAnchorId(enemy) });
-        if (this.particleSystem?.emitPoisonBurst) this.particleSystem.emitPoisonBurst(hitPos.clone(), 18);
+        if (this.particleSystem) {
+            this.particleSystem.emitGreenFlame(hitPos.clone(), 18, 0.8);
+            this.particleSystem.emitPoisonBurst(hitPos.clone(), 10);
+        }
         if (this.onProjectileHit) this.onProjectileHit({ daggerBladeHit: true, daggerSlashImpact: true });
     }
 
@@ -1284,12 +1333,23 @@ export class CombatSystem {
                     this.particleSystem.emitSparks(p.mesh.position.clone(), 1);
                 }
             } else if (p.isDaggerBlade) {
-                // Animate slash: scale outward and fade
+                // Animate slash: scale outward and fade, with green flame trail
                 if (p.isDaggerSlash) {
                     const expandT = Math.min(1, p.lifetime / (p.maxLifetime * 0.5));
                     const scale = 0.6 + 0.6 * expandT;
                     p.mesh.scale.setScalar(scale);
-                    p.materials.forEach(m => { m.opacity = (m === p.materials[0] ? 0.92 : 0.45) * lifePct; });
+                    // Flicker the flame layer for fire effect
+                    const flicker = 0.7 + 0.3 * Math.sin(p.lifetime * 30);
+                    p.materials.forEach((m, idx) => {
+                        if (idx === 0) m.opacity = 0.92 * lifePct;
+                        else if (idx === 1) m.opacity = 0.45 * lifePct * flicker; // flame layer flickers
+                        else m.opacity = 0.2 * lifePct;
+                    });
+                    // Emit green flame trail every frame
+                    if (this.particleSystem && p.lifetime > 0.02) {
+                        const trailCount = p.isChargedSlash ? 4 : 2;
+                        this.particleSystem.emitGreenFlameTrail(p.mesh.position.clone(), trailCount);
+                    }
                 } else if (p.mesh.material) {
                     p.mesh.material.opacity = 0.85 * lifePct;
                 }
@@ -1317,7 +1377,7 @@ export class CombatSystem {
                         const bowExpire = epVfx.expireSparks ?? {};
                         this.particleSystem.emitSparks(p.mesh.position.clone(), p.isCharged ? (bowExpire.charged ?? 6) : (bowExpire.basic ?? 3));
                     } else if (p.isDaggerBlade) {
-                        this.particleSystem.emitPoisonBurst?.(p.mesh.position.clone(), 8);
+                        this.particleSystem.emitGreenFlame?.(p.mesh.position.clone(), 10, 0.4);
                     } else if (p.isFrost) {
                         this.particleSystem.emitIceBurst(p.mesh.position, p.isCharged ? 8 : 3);
                     } else {
