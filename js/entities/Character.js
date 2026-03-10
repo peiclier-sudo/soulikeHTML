@@ -38,7 +38,7 @@ export class Character {
         this.cameraPitch = 0;
         this.cameraYaw = 0;
         this.pitchLimit = Math.PI / 3;
-        this.cameraSmoothSpeed = 8;    // Slightly laggy for cinematic weight
+        this.cameraSmoothSpeed = 10;    // Smooth follow without sickness
         this._cameraBobTime = 0;
         this.fixedCameraAngle = Math.PI * 0.23; // ~41° from horizontal — Diablo/Hades style
         this.fixedCameraYaw = Math.PI;  // Camera looks from behind (+Z toward -Z)
@@ -438,15 +438,15 @@ export class Character {
             // Scale models to match each other
             // _baseScale is used by landing-squash so it can restore the correct size
             if (modelKey === 'character_3k_mage') {
-                this._baseScale = 7.5;
+                this._baseScale = 15.0;
             } else if (modelKey === 'character_3k_rogue') {
-                this._baseScale = 1.0;
+                this._baseScale = 2.0;
             } else if (modelKey === 'wolf') {
-                this._baseScale = 0.7;
+                this._baseScale = 1.4;
             } else if (modelKey === 'bear') {
-                this._baseScale = 0.7;
+                this._baseScale = 1.4;
             } else {
-                this._baseScale = 1.0;
+                this._baseScale = 2.0;
             }
             this.mesh.scale.setScalar(this._baseScale);
 
@@ -1087,9 +1087,9 @@ export class Character {
         const angle = this.fixedCameraAngle;
         const yaw = this.fixedCameraYaw;
 
-        // Camera lead: offset look-at toward movement direction for dynamic feel
-        const leadStrength = 2.5;
-        const leadSmooth = 1 - Math.exp(-4 * deltaTime);
+        // Camera lead: subtle offset toward movement direction
+        const leadStrength = 1.2;
+        const leadSmooth = 1 - Math.exp(-3 * deltaTime);
         const targetLeadX = this.velocity.x * leadStrength / (this.runSpeed || 14);
         const targetLeadZ = this.velocity.z * leadStrength / (this.runSpeed || 14);
         this._cameraLeadOffset.x += (targetLeadX - this._cameraLeadOffset.x) * leadSmooth;
