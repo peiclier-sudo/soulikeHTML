@@ -98,9 +98,9 @@ export class InputManager {
             !(this.prevKeys['KeyV'] || this.prevKeyChars['v'] || this.prevKeys['KeyQ'] || this.prevKeyChars['a']);
         const healthPotionKey = (this.keys['KeyDigit1'] || this.keyChars['&']) && !(this.prevKeys['KeyDigit1'] || this.prevKeyChars['&']);
 
-        // Charged attack: Shift + right-click hold/release tracking
-        const shiftHeld = this.keys['ShiftLeft'] || this.keys['ShiftRight'];
-        const isCharging = this.mouse.rightClick && shiftHeld;
+        // Charged attack: hold right-click to charge, release to fire
+        // Right-click tap (down+release) = basic attack
+        const isCharging = this.mouse.rightClick;
         const wasCharging = this._wasCharging || false;
         const chargedRelease = wasCharging && !isCharging;
         this._wasCharging = isCharging;
@@ -121,7 +121,7 @@ export class InputManager {
             interact: this.keys['KeyE'],
 
             // Combat (right-click = attack, Shift+right = charged attack)
-            attack: this.mouse.rightClickDown && !shiftHeld,
+            attack: this.mouse.rightClickDown,
             chargedAttack: isCharging,
             chargedAttackRelease: chargedRelease,
             leftClickDown: this.mouse.leftClickDown,
