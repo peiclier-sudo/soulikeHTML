@@ -111,15 +111,15 @@ export class Game {
         this.renderer.shadowMap.enabled = true;
         this.renderer.shadowMap.type = THREE.BasicShadowMap;
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        this.renderer.toneMappingExposure = 0.95;
+        this.renderer.toneMappingExposure = 0.7;
         this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     }
 
     initScene() {
         this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0x080c14);
+        this.scene.background = new THREE.Color(0x040810);
 
-        this.scene.fog = new THREE.FogExp2(0x080c14, 0.012);
+        this.scene.fog = new THREE.FogExp2(0x040810, 0.016);
     }
     
     initCamera() {

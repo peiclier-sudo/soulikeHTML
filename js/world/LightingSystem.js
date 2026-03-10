@@ -6,13 +6,13 @@
 
 import * as THREE from 'three';
 
-// Per-floor lighting presets: [hemisphere sky, hemisphere ground, key color, rim color]
+// Per-floor lighting presets — dark cinematic palette
 const FLOOR_LIGHTING = [
-    { sky: 0x3a4462, ground: 0x1a1510, key: 0xb0c8ff, rim: 0xc8b8ff }, // 0: default cool
-    { sky: 0x2a3a6a, ground: 0x101820, key: 0x88bbff, rim: 0x99aaff }, // 1: cold blue
-    { sky: 0x5a4232, ground: 0x201408, key: 0xffcc88, rim: 0xffaa66 }, // 2: amber forge
-    { sky: 0x4a2028, ground: 0x1a0808, key: 0xff8888, rim: 0xff6666 }, // 3: crimson
-    { sky: 0x302050, ground: 0x0a0614, key: 0xcc99ff, rim: 0xaa77ff }, // 4+: void purple
+    { sky: 0x1a2230, ground: 0x0a0808, key: 0x7090cc, rim: 0x8070aa }, // 0: default cool
+    { sky: 0x141e3a, ground: 0x080c14, key: 0x5588bb, rim: 0x6677aa }, // 1: cold blue
+    { sky: 0x2a1e14, ground: 0x100a04, key: 0xcc9960, rim: 0xbb7744 }, // 2: amber forge
+    { sky: 0x28101a, ground: 0x0e0404, key: 0xcc5555, rim: 0xaa4444 }, // 3: crimson
+    { sky: 0x18102a, ground: 0x06040c, key: 0x8866bb, rim: 0x7755aa }, // 4+: void purple
 ];
 
 export class LightingSystem {
@@ -25,12 +25,12 @@ export class LightingSystem {
     }
 
     setupMainLights() {
-        // Hemisphere replaces ambient + fill + kicker: warm ground, cool sky
-        this.hemisphereLight = new THREE.HemisphereLight(0x3a4462, 0x1a1510, 1.1);
+        // Hemisphere: dark ground, muted sky — low fill for cinematic shadows
+        this.hemisphereLight = new THREE.HemisphereLight(0x1a2230, 0x0a0808, 0.55);
         this.scene.add(this.hemisphereLight);
 
-        // Strong cool key — main dramatic source, only shadow caster
-        this.keyLight = new THREE.DirectionalLight(0xb0c8ff, 2.6);
+        // Key light — lower intensity for dramatic contrast, only shadow caster
+        this.keyLight = new THREE.DirectionalLight(0x7090cc, 1.6);
         this.keyLight.position.set(5, 14, -7);
         this.keyLight.castShadow = true;
         this.keyLight.shadow.mapSize.width = this.shadowResolution;
@@ -45,13 +45,13 @@ export class LightingSystem {
         this.keyLight.shadow.normalBias = 0.02;
         this.scene.add(this.keyLight);
 
-        // Purple-white rim for silhouette pop
-        this.rimLight = new THREE.DirectionalLight(0xc8b8ff, 0.72);
+        // Rim light — muted for silhouette pop without washing out
+        this.rimLight = new THREE.DirectionalLight(0x8070aa, 0.35);
         this.rimLight.position.set(-12, 8, -10);
         this.scene.add(this.rimLight);
 
-        // Top-down white for readability, no shadow
-        this.topLight = new THREE.DirectionalLight(0xffffff, 0.85);
+        // Top-down — dim for readability without flattening
+        this.topLight = new THREE.DirectionalLight(0xcccccc, 0.3);
         this.topLight.position.set(0.5, 15, 0.5);
         this.topLight.castShadow = false;
         this.scene.add(this.topLight);
@@ -83,9 +83,9 @@ export class LightingSystem {
     }
 
     setBrightness(multiplier) {
-        this.hemisphereLight.intensity = 1.1 * multiplier;
-        this.keyLight.intensity = 2.6 * multiplier;
-        if (this.rimLight) this.rimLight.intensity = 0.72 * multiplier;
-        if (this.topLight) this.topLight.intensity = 0.85 * multiplier;
+        this.hemisphereLight.intensity = 0.55 * multiplier;
+        this.keyLight.intensity = 1.6 * multiplier;
+        if (this.rimLight) this.rimLight.intensity = 0.35 * multiplier;
+        if (this.topLight) this.topLight.intensity = 0.3 * multiplier;
     }
 }

@@ -564,25 +564,63 @@ export class Boss extends Enemy {
         this.activeAttackTimer = 0;
         this.state = 'idle';
         this.attackCooldown = 0.15;
+
+        // Reset any emissive glow from charged smash
+        if (this.mesh) {
+            this.mesh.traverse(c => {
+                if (c.isMesh && c.material && !c.userData?.isOutline && 'emissive' in c.material) {
+                    c.material.emissiveIntensity = 0.33;
+                }
+            });
+        }
     }
 
     // ===================== PUNCH =====================
 
     _tickPunch(dt, t, playerPos) {
+        const windEnd = 0.5;
         const hitStart = 0.58, hitEnd = 0.9;
 
-        if (t < 0.28 && playerPos) {
-            // Short backward windup before the punch.
-            this._tmpVec.subVectors(this.position, playerPos).normalize();
-            this._tmpVec.y = 0;
-            this.position.addScaledVector(this._tmpVec, this.speed * 0.14 * dt);
-            this._clampArena();
-        } else if (t < hitStart * 0.5) {
-            if (playerPos) {
+        // Wind-up phase: telegraph ring grows, boss backs away then lunges
+        if (t < windEnd) {
+            const p = t / windEnd;
+            // Back away first, then lunge forward
+            if (t < 0.3 && playerPos) {
+                this._tmpVec.subVectors(this.position, playerPos).normalize();
+                this._tmpVec.y = 0;
+                this.position.addScaledVector(this._tmpVec, this.speed * 0.14 * dt);
+                this._clampArena();
+            } else if (playerPos) {
                 this._tmpVec.subVectors(playerPos, this.position).normalize();
                 this._tmpVec.y = 0;
                 this.position.addScaledVector(this._tmpVec, this.speed * 0.5 * dt);
                 this._clampArena();
+            }
+
+            // Early telegraph: growing orange ring from the start
+            this._ringMesh.visible = true;
+            this._ringMesh.position.set(this.position.x, 0.14, this.position.z);
+            this._ringMat.color.setHex(0xff8833);
+            const pulseFreq = 6 + p * 14; // accelerating pulse
+            const pulse = 0.5 + 0.5 * Math.sin(t * pulseFreq);
+            this._ringMesh.scale.setScalar(0.3 + p * this.hitRadius * 0.42);
+            this._ringMat.opacity = (0.06 + p * 0.12) * (0.4 + 0.6 * pulse);
+
+            // Light buildup at fist
+            this._getFistPos(this._tmpVec);
+            this._light.position.copy(this._tmpVec);
+            this._light.intensity = p * 5;
+            this._light.color.setHex(0xff8833);
+
+            // Sparse warning particles during buildup
+            if (Math.random() < 0.06 * p) {
+                const s = this.hitRadius * 0.3;
+                this._spawnParticle(
+                    this.position.x + (Math.random() - 0.5) * s, 0.2,
+                    this.position.z + (Math.random() - 0.5) * s,
+                    0, 1 + Math.random() * 2, 0,
+                    0.08, 0.3 + Math.random() * 0.2, 0xffaa44
+                );
             }
         }
 
@@ -591,14 +629,13 @@ export class Boss extends Enemy {
             this._light.position.copy(this._tmpVec);
             this._light.intensity = 6 + 3 * Math.sin(t * 20);
             this._light.color.setHex(0xff8833);
-            // Warmup telegraph ring — orange for punch (fast, frontal)
-            if (!this._ringMesh.visible) this._ringMesh.visible = true;
+            this._ringMesh.visible = true;
             this._ringMesh.position.set(this.position.x, 0.14, this.position.z);
             this._ringMat.color.setHex(0xff8833);
-            this._ringMat.opacity = 0.15;
+            this._ringMat.opacity = 0.2;
             this._ringMesh.scale.setScalar(this.hitRadius * 0.42);
 
-            if (Math.random() < 0.12) {
+            if (Math.random() < 0.15) {
                 const s = this.hitRadius * 0.3;
                 this._spawnParticle(
                     this._tmpVec.x + (Math.random() - 0.5) * s,
@@ -635,19 +672,59 @@ export class Boss extends Enemy {
     // ===================== REVERSE PUNCH =====================
 
     _tickReversePunch(dt, t, playerPos) {
+        const windEnd = 0.55;
         const hitStart = 0.68;
         const hitEnd = 1.06;
 
-        if (t < hitStart * 0.45 && playerPos) {
-            this._tmpVec.subVectors(playerPos, this.position).normalize();
-            this._tmpVec.y = 0;
-            this.position.addScaledVector(this._tmpVec, this.speed * 0.28 * dt);
-            this._clampArena();
-        }
+        // Wind-up phase: telegraph ring + feint movement
+        if (t < windEnd) {
+            const p = t / windEnd;
 
-        if (t > 0.35 && t < 0.8) {
-            // Give reverse punch extra body twist for readability.
-            this.mesh.rotation.y += dt * 1.8;
+            // Feint: strafe sideways then lunge — tricky, less predictable direction
+            if (t < 0.3 && playerPos) {
+                this._getForward(this._tmpDir);
+                const rightX = -this._tmpDir.z;
+                const rightZ = this._tmpDir.x;
+                this.position.x += rightX * this._strafeDir * this.speed * 0.35 * dt;
+                this.position.z += rightZ * this._strafeDir * this.speed * 0.35 * dt;
+                this._clampArena();
+            } else if (playerPos) {
+                this._tmpVec.subVectors(playerPos, this.position).normalize();
+                this._tmpVec.y = 0;
+                this.position.addScaledVector(this._tmpVec, this.speed * 0.4 * dt);
+                this._clampArena();
+            }
+
+            // Body twist telegraph — winds up rotation before strike
+            if (t > 0.25) {
+                this.mesh.rotation.y += dt * 1.8;
+            }
+
+            // Early telegraph: growing violet ring
+            this._ringMesh.visible = true;
+            this._ringMesh.position.set(this.position.x, 0.16, this.position.z);
+            this._ringMat.color.setHex(0x8866ff);
+            const pulseFreq = 5 + p * 16;
+            const pulse = 0.5 + 0.5 * Math.sin(t * pulseFreq);
+            this._ringMesh.scale.setScalar(0.25 + p * this.hitRadius * 0.52);
+            this._ringMat.opacity = (0.05 + p * 0.13) * (0.35 + 0.65 * pulse);
+
+            // Light buildup at fist — violet glow
+            this._getFistPos(this._tmpVec);
+            this._light.position.copy(this._tmpVec);
+            this._light.intensity = p * 6;
+            this._light.color.setHex(0x8866ff);
+
+            // Sparse violet sparks during wind-up
+            if (Math.random() < 0.05 * p) {
+                const s = this.hitRadius * 0.3;
+                this._spawnParticle(
+                    this.position.x + (Math.random() - 0.5) * s, 0.2,
+                    this.position.z + (Math.random() - 0.5) * s,
+                    0, 1.2 + Math.random() * 2, 0,
+                    0.08, 0.3 + Math.random() * 0.2, 0xaa88ff
+                );
+            }
         }
 
         if (t >= hitStart && t <= hitEnd) {
@@ -655,14 +732,13 @@ export class Boss extends Enemy {
             this._light.position.copy(this._tmpVec);
             this._light.intensity = 8 + 4 * Math.sin(t * 22);
             this._light.color.setHex(0x8866ff);
-            // Telegraph ring — blue-violet for reverse punch (wider, unexpected)
-            if (!this._ringMesh.visible) this._ringMesh.visible = true;
+            this._ringMesh.visible = true;
             this._ringMesh.position.set(this.position.x, 0.16, this.position.z);
             this._ringMat.color.setHex(0x8866ff);
-            this._ringMat.opacity = 0.18;
+            this._ringMat.opacity = 0.22;
             this._ringMesh.scale.setScalar(this.hitRadius * 0.52);
 
-            if (Math.random() < 0.12) {
+            if (Math.random() < 0.15) {
                 const s = this.hitRadius * 0.36;
                 this._spawnParticle(
                     this._tmpVec.x + (Math.random() - 0.5) * s,
@@ -692,46 +768,70 @@ export class Boss extends Enemy {
     // ===================== CHARGED SMASH =====================
 
     _tickChargedSmash(dt, t, playerPos) {
-        const windStart = 0.0;
         const windEnd = 1.2;
         const hitStart = 1.28;
         const hitEnd = 1.6;
 
-        if (t >= windStart && t < windEnd) {
-            // Charged pressure: walk the boss forward slowly while building VFX.
-            if (playerPos) {
+        if (t < windEnd) {
+            const p = t / windEnd;
+
+            // Phase 1 (0-0.6): slow menacing approach, gathering energy
+            // Phase 2 (0.6-1.2): stop moving, intensify VFX — danger imminent
+            if (t < 0.6 && playerPos) {
                 this._tmpVec.subVectors(playerPos, this.position).normalize();
                 this._tmpVec.y = 0;
                 this.position.addScaledVector(this._tmpVec, this.speed * 0.18 * dt);
                 this._clampArena();
             }
 
-            const p = (t - windStart) / (windEnd - windStart);
-            const pulse = 0.5 + 0.5 * Math.sin(t * 24);
-            this._light.position.set(this.position.x, (this._bossHeight ?? 2.5) * 0.65, this.position.z);
-            this._light.intensity = 3 + p * 14 + pulse * 3;
-            this._light.color.setHex(0xff2222);
+            // Accelerating pulse — heartbeat-like rhythm warns the player
+            const pulseFreq = 8 + p * 20;
+            const pulse = 0.5 + 0.5 * Math.sin(t * pulseFreq);
 
-            // Telegraph ring — red for charged smash (AoE, devastating)
+            // Light: starts dim red, builds to blinding
+            this._light.position.set(this.position.x, (this._bossHeight ?? 2.5) * 0.65, this.position.z);
+            this._light.intensity = 2 + p * 16 + pulse * 4;
+            this._light.color.setHex(p < 0.5 ? 0xff4422 : 0xff2222);
+
+            // Telegraph ring — grows from small to AoE radius, pulses faster
             this._ringMesh.visible = true;
             this._ringMesh.position.set(this.position.x, 0.15, this.position.z);
-            this._ringMesh.scale.setScalar(0.45 + p * (this.hitRadius * 0.42));
-            this._ringMat.opacity = 0.2 + p * 0.18;
+            const targetScale = (this.hitRadius + 7.5) * 0.55;
+            this._ringMesh.scale.setScalar(0.3 + p * targetScale);
             this._ringMat.color.setHex(0xff2222);
-            // Telegraph pulse: the faster it pulses, the closer the slam.
-            const pulseAlpha = 0.2 + 0.8 * (0.5 + 0.5 * Math.sin(t * (10 + p * 16)));
-            this._ringMat.opacity *= pulseAlpha;
+            const pulseAlpha = 0.2 + 0.8 * (0.5 + 0.5 * Math.sin(t * (10 + p * 18)));
+            this._ringMat.opacity = (0.08 + p * 0.3) * pulseAlpha;
 
-            if (Math.random() < 0.1) {
+            // Boss mesh emissive glow — red energy building in body
+            if (this.mesh) {
+                this.mesh.traverse(c => {
+                    if (c.isMesh && c.material && !c.userData?.isOutline) {
+                        if ('emissive' in c.material) {
+                            c.material.emissive.setHex(0xff2222);
+                            c.material.emissiveIntensity = 0.1 + p * 0.6;
+                        }
+                    }
+                });
+            }
+
+            // Phase 2: more particles, danger flash
+            const spawnRate = t < 0.6 ? 0.08 : 0.18;
+            if (Math.random() < spawnRate) {
                 const a = Math.random() * Math.PI * 2;
-                const r = this.hitRadius * (0.35 + Math.random() * 0.5);
+                const r = this.hitRadius * (0.3 + Math.random() * 0.6);
                 this._spawnParticle(
                     this.position.x + Math.cos(a) * r,
-                    0.25 + Math.random() * 1.4,
+                    0.25 + Math.random() * 1.6,
                     this.position.z + Math.sin(a) * r,
-                    Math.cos(a) * (2 + Math.random() * 2), 2 + Math.random() * 3, Math.sin(a) * (2 + Math.random() * 2),
-                    0.1 + Math.random() * 0.08, 0.35 + Math.random() * 0.25, 0xff4444
+                    Math.cos(a) * (1.5 + Math.random() * 2.5), 2.5 + Math.random() * 3, Math.sin(a) * (1.5 + Math.random() * 2.5),
+                    0.1 + Math.random() * 0.1, 0.35 + Math.random() * 0.3, p < 0.5 ? 0xff6644 : 0xff3333
                 );
+            }
+
+            // Danger flash at 80% wind-up — brief bright warning
+            if (p > 0.8 && p < 0.85) {
+                this._ringMat.opacity = 0.5;
+                this._light.intensity = 25;
             }
         }
 
@@ -749,17 +849,42 @@ export class Boss extends Enemy {
             this._ringMesh.visible = true;
             this._ringMesh.position.set(this.position.x, 0.16, this.position.z);
             this._ringMesh.scale.setScalar((this.hitRadius + 7.5) * 0.55);
-            this._ringMat.opacity = 0.4;
+            this._ringMat.opacity = 0.45;
             this._ringMat.color.setHex(0xff2222);
-            this._light.intensity = 20;
+            this._light.intensity = 22;
+
+            // Impact burst particles
+            if (t < hitStart + 0.1) {
+                for (let i = 0; i < 3; i++) {
+                    const a = Math.random() * Math.PI * 2;
+                    const r = this.hitRadius * 0.5;
+                    this._spawnParticle(
+                        this.position.x + Math.cos(a) * r, 0.3,
+                        this.position.z + Math.sin(a) * r,
+                        Math.cos(a) * 6, 4 + Math.random() * 3, Math.sin(a) * 6,
+                        0.15, 0.4, 0xff4444
+                    );
+                }
+            }
         }
 
         if (t > hitEnd) {
             const ft = Math.min(1, (t - hitEnd) / Math.max(0.2, this._attackDuration - hitEnd));
-            this._light.intensity = 20 * (1 - ft);
-            this._ringMat.opacity = 0.4 * (1 - ft);
+            this._light.intensity = 22 * (1 - ft);
+            this._ringMat.opacity = 0.45 * (1 - ft);
             this._ringMesh.scale.multiplyScalar(1 + dt * 1.3);
             if (ft >= 1) this._ringMesh.visible = false;
+
+            // Reset boss emissive after smash
+            if (this.mesh) {
+                this.mesh.traverse(c => {
+                    if (c.isMesh && c.material && !c.userData?.isOutline) {
+                        if ('emissive' in c.material) {
+                            c.material.emissiveIntensity = 0.33;
+                        }
+                    }
+                });
+            }
         }
     }
 
@@ -773,24 +898,26 @@ export class Boss extends Enemy {
             switch (this.activeAttack) {
                 case ATK.PUNCH:
                     targetAnim = 'Attack';
-                    if (this.activeAttackTimer < 0.28) timeScale = 0.78;
-                    else if (this.activeAttackTimer < 0.92) timeScale = 1.68;
-                    else timeScale = 0.88;
+                    // Slow wind-up telegraph → fast strike → recovery
+                    if (this.activeAttackTimer < 0.5) timeScale = 0.55;
+                    else if (this.activeAttackTimer < 0.9) timeScale = 2.0;
+                    else timeScale = 0.85;
                     break;
                 case ATK.REVERSE:
                     targetAnim = this.actions['ReversePunch'] ? 'ReversePunch' : 'Attack';
-                    if (this.activeAttackTimer < 0.36) timeScale = 0.76;
-                    else if (this.activeAttackTimer < 1.05) timeScale = 1.72;
-                    else timeScale = 0.86;
+                    // Feint wind-up → violent spin strike → recovery
+                    if (this.activeAttackTimer < 0.55) timeScale = 0.5;
+                    else if (this.activeAttackTimer < 1.06) timeScale = 1.85;
+                    else timeScale = 0.82;
                     break;
                 case ATK.CHARGED:
                     targetAnim = this.actions['Charged']
                         ? 'Charged'
                         : (this.actions['ReversePunch'] ? 'ReversePunch' : 'Attack');
-                    // Slow windup then violent release.
-                    if (this.activeAttackTimer < 1.1) timeScale = 0.52;
-                    else if (this.activeAttackTimer < 1.68) timeScale = 2.25;
-                    else timeScale = 0.9;
+                    // Very slow menacing windup → explosive release → lingering recovery
+                    if (this.activeAttackTimer < 1.2) timeScale = 0.42;
+                    else if (this.activeAttackTimer < 1.6) timeScale = 2.5;
+                    else timeScale = 0.8;
                     break;
             }
         } else if (this.state === 'chase') {
