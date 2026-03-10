@@ -466,12 +466,98 @@ export class Character {
             // Setup animation system
             this.setupAnimations();
 
+            // Create aim direction line (Hades-style)
+            this._createAimLine();
+
             console.log('Character mesh created successfully');
         } else {
             console.warn('No character model available, creating fallback');
             // Create a simple fallback mesh so player can still move
             this.createFallbackMesh();
         }
+    }
+
+    _createAimLine() {
+        // Kit-specific aim line color
+        const kitId = this.gameState.selectedKit?.id;
+        const aimColors = {
+            blood_mage:      0xcc2222,
+            frost_mage:      0x66ccff,
+            shadow_assassin: 0x44dd66,
+            bow_ranger:      0xddaa33,
+            werewolf:        0x8866cc,
+            bear:            0xdd8833,
+        };
+        const color = aimColors[kitId] ?? 0xcccccc;
+
+        // Line geometry: origin + tip (updated each frame)
+        const positions = new Float32Array(6); // 2 points * 3 components
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+        const material = new THREE.LineBasicMaterial({
+            color,
+            transparent: true,
+            opacity: 0.45,
+            depthTest: false,
+            linewidth: 1,
+        });
+        this._aimLine = new THREE.Line(geometry, material);
+        this._aimLine.frustumCulled = false;
+        this._aimLine.renderOrder = 999;
+        this._aimLineColor = color;
+        this.scene.add(this._aimLine);
+
+        // Glowing dot at line tip
+        const dotGeo = new THREE.SphereGeometry(0.12, 8, 8);
+        const dotMat = new THREE.MeshBasicMaterial({
+            color,
+            transparent: true,
+            opacity: 0.55,
+            depthTest: false,
+        });
+        this._aimDot = new THREE.Mesh(dotGeo, dotMat);
+        this._aimDot.renderOrder = 999;
+        this.scene.add(this._aimDot);
+    }
+
+    _updateAimLine(input) {
+        if (!this._aimLine) return;
+
+        const cursorPos = input.mouseGroundPos || this._lastMouseGroundPos;
+        if (!cursorPos) return;
+
+        const ox = this.position.x;
+        const oz = this.position.z;
+        const y = this.position.y + 0.15; // Slightly above ground
+
+        // Direction toward cursor
+        const dx = cursorPos.x - ox;
+        const dz = cursorPos.z - oz;
+        const dist = Math.sqrt(dx * dx + dz * dz) || 1;
+        const nx = dx / dist;
+        const nz = dz / dist;
+
+        // Line: start slightly in front of player, extend toward cursor
+        const startDist = 1.0;
+        const endDist = Math.min(dist, 8); // Cap line length
+
+        const positions = this._aimLine.geometry.attributes.position.array;
+        positions[0] = ox + nx * startDist;
+        positions[1] = y;
+        positions[2] = oz + nz * startDist;
+        positions[3] = ox + nx * endDist;
+        positions[4] = y;
+        positions[5] = oz + nz * endDist;
+        this._aimLine.geometry.attributes.position.needsUpdate = true;
+
+        // Dot at tip
+        this._aimDot.position.set(ox + nx * endDist, y, oz + nz * endDist);
+
+        // Subtle pulse
+        const pulse = 0.35 + 0.15 * Math.sin(this.animationTime * 4);
+        this._aimLine.material.opacity = pulse;
+        this._aimDot.material.opacity = pulse + 0.15;
     }
 
     createFallbackMesh() {
@@ -1061,7 +1147,10 @@ export class Character {
         
         // Update mesh position
         this.updateMesh();
-        
+
+        // Update aim direction line
+        this._updateAimLine(input);
+
         // Update animation
         this.updateAnimation(deltaTime, input);
 
@@ -1147,8 +1236,17 @@ export class Character {
             this._lastMouseGroundPos.copy(input.mouseGroundPos);
         }
 
-        // Character faces cursor instantly for aiming (no smoothing = no lag)
-        if (input.mouseGroundPos) {
+        // Character faces movement direction when moving, cursor when idle
+        const isMoving = moveVector.length() > 0;
+        if (isMoving) {
+            // Face movement direction with smooth interpolation
+            const targetYaw = Math.atan2(moveVector.x, moveVector.z);
+            let diff = targetYaw - this.rotation.y;
+            while (diff > Math.PI) diff -= Math.PI * 2;
+            while (diff < -Math.PI) diff += Math.PI * 2;
+            this.rotation.y += diff * Math.min(1, 15 * deltaTime);
+        } else if (input.mouseGroundPos) {
+            // Idle: face cursor for aiming
             const dx = input.mouseGroundPos.x - this.position.x;
             const dz = input.mouseGroundPos.z - this.position.z;
             if (dx * dx + dz * dz > 0.01) {
