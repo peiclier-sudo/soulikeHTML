@@ -97,7 +97,7 @@ export class AssetLoader {
             const characterGltf = await this.loadGLTF(characterUrl);
             const model = characterGltf.scene;
 
-            model.scale.setScalar(1.0);
+            model.scale.setScalar(2.0);
 
             // Enable shadows on all meshes
             model.traverse((child) => {
@@ -216,7 +216,7 @@ export class AssetLoader {
         try {
             const gltf = await this.loadGLTF(rogueUrl);
             const model = gltf.scene;
-            model.scale.setScalar(0.75);
+            model.scale.setScalar(1.5);
 
             model.traverse((child) => {
                 if (child.isMesh) {
@@ -338,7 +338,7 @@ export class AssetLoader {
         try {
             const gltf = await this.loadGLTF(url);
             const model = gltf.scene;
-            model.scale.setScalar(1.0);
+            model.scale.setScalar(2.0);
 
             model.traverse((child) => {
                 if (child.isMesh) {
@@ -397,7 +397,7 @@ export class AssetLoader {
         try {
             const gltf = await this.loadGLTF(url);
             const model = gltf.scene;
-            model.scale.setScalar(1.0);
+            model.scale.setScalar(2.0);
 
             model.traverse((child) => {
                 if (child.isMesh) {
@@ -515,7 +515,7 @@ export class AssetLoader {
         try {
             const gltf = await this.loadGLTF(bossUrl);
             const model = gltf.scene;
-            model.scale.setScalar(1.0);
+            model.scale.setScalar(2.0);
             model.traverse((child) => {
                 if (child.isMesh) {
                     if (child.geometry?.isBufferGeometry) {
