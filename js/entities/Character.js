@@ -1109,53 +1109,39 @@ export class Character {
         this._moveVec.set(0, 0, 0);
         const moveVector = this._moveVec;
 
-        // Fixed screen-relative directions for 3/4 view
-        const forward = this._fwd.set(0, 0, -1);
-        const right = this._right.set(1, 0, 0);
-        forward.applyAxisAngle(this._yAxis, this.fixedCameraYaw);
-        right.applyAxisAngle(this._yAxis, this.fixedCameraYaw);
-        forward.y = 0;
-        right.y = 0;
-        forward.normalize();
-        right.normalize();
-
-        // Right-click-to-move: set target on click, keep moving while held
-        if (input.rightClickMove && input.mouseGroundPos) {
-            this._moveTarget = this._moveTarget || new THREE.Vector3();
-            this._moveTarget.copy(input.mouseGroundPos);
+        // Character always faces the cursor ground position
+        if (input.mouseGroundPos) {
+            const dx = input.mouseGroundPos.x - this.position.x;
+            const dz = input.mouseGroundPos.z - this.position.z;
+            if (dx * dx + dz * dz > 0.01) {
+                const targetYaw = Math.atan2(dx, dz);
+                let diff = targetYaw - this.rotation.y;
+                while (diff > Math.PI) diff -= 2 * Math.PI;
+                while (diff < -Math.PI) diff += 2 * Math.PI;
+                const rotSmooth = 1 - Math.exp(-20 * deltaTime);
+                this.rotation.y += diff * rotSmooth;
+            }
         }
 
-        // WASD still works as override (clears click-to-move target)
-        const hasWASD = input.forward || input.backward || input.left || input.right;
-        if (hasWASD) {
-            this._moveTarget = null;
-            if (input.forward) moveVector.add(forward);
-            if (input.backward) moveVector.sub(forward);
-            if (input.right) moveVector.add(right);
-            if (input.left) moveVector.sub(right);
-        } else if (this._moveTarget) {
-            // Move toward click target
-            const dx = this._moveTarget.x - this.position.x;
-            const dz = this._moveTarget.z - this.position.z;
+        // Right-click held = move toward cursor
+        if (input.rightClickMove && input.mouseGroundPos) {
+            const dx = input.mouseGroundPos.x - this.position.x;
+            const dz = input.mouseGroundPos.z - this.position.z;
             const dist = Math.sqrt(dx * dx + dz * dz);
             if (dist > this._moveTargetThreshold) {
                 moveVector.set(dx / dist, 0, dz / dist);
-            } else {
-                this._moveTarget = null; // Arrived
             }
         }
 
         if (moveVector.length() > 0) {
             moveVector.normalize();
 
-            // Default fast run when moving; Vanish (dagger C) gives +60% speed
             const isRunning = this.gameState.player.stamina > 5;
             const vanishMult = (this.gameState?.combat?.vanishRemaining > 0) ? 1.6 : 1;
             const wolfInstinctMult = (this.gameState?.combat?.wolfInstinctRemaining > 0) ? (this.gameState.combat.wolfInstinctSpeedMult ?? 1) : 1;
             const speedBonus = this.gameState?.bonuses?.runSpeed ?? 0;
             const speed = ((isRunning ? this.runSpeed : this.walkSpeed) + speedBonus) * vanishMult * wolfInstinctMult;
 
-            // Drain stamina while running
             if (isRunning) {
                 this.gameState.useStamina(10 * deltaTime);
             }
@@ -1165,15 +1151,7 @@ export class Character {
             const moveSmooth = 1 - Math.exp(-16 * deltaTime);
             this.velocity.x += (targetVelX - this.velocity.x) * moveSmooth;
             this.velocity.z += (targetVelZ - this.velocity.z) * moveSmooth;
-
-            const targetYaw = Math.atan2(moveVector.x, moveVector.z);
-            let diff = targetYaw - this.rotation.y;
-            while (diff > Math.PI) diff -= 2 * Math.PI;
-            while (diff < -Math.PI) diff += 2 * Math.PI;
-            const rotSmooth = 1 - Math.exp(-12 * deltaTime);
-            this.rotation.y += diff * rotSmooth;
         } else {
-            // Stop immediately when no movement input
             this.velocity.x = 0;
             this.velocity.z = 0;
         }
@@ -1185,20 +1163,19 @@ export class Character {
             this.isGrounded = false;
         }
 
+        // Dash toward cursor direction
+        const cursorDir = this._fwd.set(Math.sin(this.rotation.y), 0, Math.cos(this.rotation.y));
+
         // é (AZERTY Digit2) = Super Dash
         if (input.superDash && this.superDashCooldown <= 0 && !this.isDashing && this.gameState.useStamina(this.superDashStaminaCost)) {
-            const dashDir = moveVector.length() > 0 ? moveVector.clone().normalize() : forward;
-            this.startDash(dashDir, true);
+            this.startDash(cursorDir, true);
             this.gameState.combat.nextAttackDamageMultiplier = 2.0;
         }
 
-        // R = dash in movement direction (or forward if not moving)
+        // R = dash toward cursor
         if (input.dash && this.dashCooldown <= 0 &&
             this.gameState.useStamina(this.dashStaminaCost)) {
-            const dashDir = moveVector.length() > 0
-                ? moveVector.clone().normalize()
-                : forward;
-            this.startDash(dashDir, false);
+            this.startDash(cursorDir, false);
         }
     }
 
@@ -2217,33 +2194,13 @@ export class Character {
         return this.position.clone();
     }
 
-    // Get forward/aim direction from camera; never shoot downward (into the floor)
+    // Get forward/aim direction — always points toward cursor (horizontal plane)
     getForwardDirection() {
-        // When in air, use yaw/pitch only so aim stays consistent (no wobble from position.y change)
-        if (!this.isGrounded) {
-            const aim = new THREE.Vector3(0, 0, -1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.cameraYaw);
-            const right = new THREE.Vector3(0, 1, 0).cross(aim).normalize();
-            if (right.lengthSq() > 0.0001) aim.applyAxisAngle(right, this.cameraPitch);
-            if (aim.y < 0) {
-                aim.y = 0;
-                if (aim.lengthSq() < 0.0001) aim.set(0, 0, -1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.cameraYaw);
-                aim.normalize();
-            }
-            return aim;
-        }
-        const lookAtPoint = new THREE.Vector3(
-            this.position.x,
-            this.position.y + this.cameraLookAtHeight,
-            this.position.z
+        const aim = new THREE.Vector3(
+            Math.sin(this.rotation.y),
+            0,
+            Math.cos(this.rotation.y)
         );
-        const aim = lookAtPoint.clone().sub(this.camera.position).normalize();
-        if (aim.y < 0) {
-            aim.y = 0;
-            if (aim.lengthSq() < 0.0001) {
-                aim.set(0, 0, -1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.cameraYaw);
-            }
-            aim.normalize();
-        }
         return aim;
     }
 
