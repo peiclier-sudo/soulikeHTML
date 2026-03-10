@@ -66,6 +66,10 @@ export class Game {
         this.lastPunchOffset = new THREE.Vector3(0, 0, 0);
         this.shakeSeed = Math.random() * 1000;
         this.punchDecay = 0.82;
+
+        // Boss off-screen arrow indicator
+        this._bossArrow = null;
+        this._createBossArrow();
         this._shieldCenter = new THREE.Vector3();
         this._tmpGroundResult = new THREE.Vector3();
         this._tmpDirVec = new THREE.Vector3();
@@ -895,6 +899,7 @@ export class Game {
             if (this.boss.isAlive) {
                 this.boss.update(this.deltaTime, this.character.position);
                 this.uiManager.updateBossHealth(this.boss.health, this.boss.maxHealth);
+                this._updateBossArrow();
                 // Boss wind-up time-slow: slight slow-mo during telegraph for tension
                 this._updateBossWindUpTimeSlow();
             } else if (!this._bossDeathPending) {
@@ -1329,6 +1334,68 @@ export class Game {
         this.camera.position.add(this.lastShakeOffset);
     }
     
+    _createBossArrow() {
+        const arrow = document.createElement('div');
+        arrow.id = 'boss-direction-arrow';
+        arrow.innerHTML = `<svg width="40" height="40" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+            <polygon points="20,4 36,32 20,24 4,32" fill="white" fill-opacity="0.85" stroke="rgba(0,0,0,0.4)" stroke-width="1.5"/>
+        </svg>`;
+        Object.assign(arrow.style, {
+            position: 'fixed',
+            zIndex: '1000',
+            pointerEvents: 'none',
+            display: 'none',
+            filter: 'drop-shadow(0 0 6px rgba(255,255,255,0.5))',
+            transition: 'opacity 0.15s',
+        });
+        document.body.appendChild(arrow);
+        this._bossArrow = arrow;
+    }
+
+    _updateBossArrow() {
+        if (!this._bossArrow || !this.boss || !this.boss.isAlive) {
+            if (this._bossArrow) this._bossArrow.style.display = 'none';
+            return;
+        }
+
+        // Project boss position to screen
+        const bossPos = this.boss.position.clone();
+        bossPos.y += 1.5;
+        bossPos.project(this.camera);
+
+        const hw = window.innerWidth / 2;
+        const hh = window.innerHeight / 2;
+        const sx = bossPos.x * hw + hw;
+        const sy = -bossPos.y * hh + hh;
+
+        const margin = 50;
+        const onScreen = bossPos.z < 1 &&
+            sx > margin && sx < window.innerWidth - margin &&
+            sy > margin && sy < window.innerHeight - margin;
+
+        if (onScreen) {
+            this._bossArrow.style.display = 'none';
+            return;
+        }
+
+        this._bossArrow.style.display = 'block';
+
+        // Direction from screen center to boss screen position
+        const dx = sx - hw;
+        const dy = sy - hh;
+        const angle = Math.atan2(dy, dx);
+
+        // Clamp to screen edge with padding
+        const pad = 45;
+        const edgeX = Math.max(pad, Math.min(window.innerWidth - pad, hw + Math.cos(angle) * (hw - pad)));
+        const edgeY = Math.max(pad, Math.min(window.innerHeight - pad, hh + Math.sin(angle) * (hh - pad)));
+
+        const rotation = angle * (180 / Math.PI) + 90; // SVG points up, rotate to direction
+        this._bossArrow.style.left = `${edgeX - 20}px`;
+        this._bossArrow.style.top = `${edgeY - 20}px`;
+        this._bossArrow.style.transform = `rotate(${rotation}deg)`;
+    }
+
     applyPunchPush() {
         this.camera.position.sub(this.lastPunchOffset);
         this.lastPunchOffset.multiplyScalar(this.punchDecay);
