@@ -544,6 +544,7 @@ export class Game {
     }
     
     update() {
+        this.inputManager._lastDt = this.deltaTime;
         const input = this.inputManager.getInput();
         // Smooth sensitivity so changing slider while jumping doesn't make aim jump
         const sensLerp = 1 - Math.exp(-12 * this.deltaTime);
