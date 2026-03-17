@@ -585,10 +585,16 @@ export class Character {
         const nx = dx / dist;
         const nz = dz / dist;
 
-        const startDist = 1.2;
-        const endDist = Math.max(startDist + 4, Math.min(dist, 10));
-        const beamLength = endDist - startDist;
-        const beamWidth = 0.25;
+        // Match aim line to actual melee attack range & cone width
+        const weaponRange = this.gameState?.equipment?.weapon?.range || 2.5;
+        const kitId = this.gameState?.selectedKit?.id;
+        const isBeast = (kitId === 'werewolf' || kitId === 'bear');
+        // Visual width proportional to kit swing arc (beast swings wider)
+        const beamWidth = isBeast ? weaponRange * 0.7 : weaponRange * 0.45;
+
+        const startDist = 0.6;
+        const endDist = startDist + weaponRange;
+        const beamLength = weaponRange;
 
         const startX = ox + nx * startDist;
         const startZ = oz + nz * startDist;
