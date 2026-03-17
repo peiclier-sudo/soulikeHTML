@@ -19,6 +19,7 @@ import { CombatSystem } from '../combat/CombatSystem.js';
 import { ParticleSystem } from '../effects/ParticleSystem.js';
 import { UIManager } from '../ui/UIManager.js';
 import { Boss } from '../entities/Boss.js';
+import { RogueBoss } from '../entities/RogueBoss.js';
 import { RunProgress } from './RunProgress.js';
 import { setBloodFireQuality } from '../shaders/BloodFireShader.js';
 import { setIceQuality } from '../shaders/IceShader.js';
@@ -325,11 +326,23 @@ export class Game {
         ];
         const pos = spawns[Math.floor(Math.random() * spawns.length)];
         const scaled = RunProgress.getBossConfig(this.bossNumber);
-        this.boss = new Boss(this.scene, pos, {
-            assets: this.assetLoader.assets,
-            health: scaled.health,
-            damage: scaled.damage
-        });
+
+        // Alternate between minotaur boss and rogue boss (odd floors = rogue)
+        const useRogue = this.bossNumber % 2 === 1 && this.assetLoader.assets?.models?.character_3k_rogue;
+        if (useRogue) {
+            this.boss = new RogueBoss(this.scene, pos, {
+                assets: this.assetLoader.assets,
+                health: scaled.health,
+                damage: scaled.damage
+            });
+        } else {
+            this.boss = new Boss(this.scene, pos, {
+                assets: this.assetLoader.assets,
+                health: scaled.health,
+                damage: scaled.damage
+            });
+        }
+
         this.boss.setGameState(this.gameState);
         // Screen shake on boss hit
         this.boss.onDamaged = (dmg) => {
