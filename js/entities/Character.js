@@ -31,17 +31,17 @@ export class Character {
         this.jumpForce = stats?.jumpForce ?? 8;
         this.gravity = -25;
 
-        // 3/4 hack-and-slash camera settings (lower angle = more perspective)
-        this.cameraDistance = 20;       // Distance from character — pro hack-and-slash framing
+        // Isometric camera settings (No Rest for the Wicked style)
+        this.cameraDistance = 28;       // Distance from character — ortho so this is position only
         this.cameraHeight = 0;         // Not used separately — derived from angle
-        this.cameraLookAtHeight = 1.2; // Look-at height — centers character on screen
+        this.cameraLookAtHeight = 0.8; // Look-at height — slightly above feet
         this.cameraPitch = 0;
         this.cameraYaw = 0;
         this.pitchLimit = Math.PI / 3;
         this.cameraSmoothSpeed = 10;    // Smooth follow without sickness
         this._cameraBobTime = 0;
-        this.fixedCameraAngle = Math.PI * 0.29; // ~52° from horizontal — higher top-down view
-        this.fixedCameraYaw = Math.PI;  // Camera looks from behind (+Z toward -Z)
+        this.fixedCameraAngle = Math.PI * 0.22; // ~40° from horizontal — isometric top-down
+        this.fixedCameraYaw = Math.PI * 0.875;  // Slight diagonal offset (~158°) for isometric feel
         this._cameraLeadOffset = new THREE.Vector3(); // Smooth lead toward movement
 
         // Right-click-to-move state
