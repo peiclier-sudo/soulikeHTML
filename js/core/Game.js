@@ -123,14 +123,14 @@ export class Game {
     }
     
     initCamera() {
-        // Death's Door style perspective camera — steep top-down, tight framing
+        // Hades style perspective camera — wide arena view, steep angle
         this.camera = new THREE.PerspectiveCamera(
-            40,
+            50,
             window.innerWidth / window.innerHeight,
             0.1,
             200
         );
-        this.baseFov = 40;
+        this.baseFov = 50;
         this.camera.position.set(0, 8, 14);
         this.ultimateFovTime = 0;
     }
