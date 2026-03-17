@@ -788,26 +788,26 @@ export class Boss extends Enemy {
             const pulseFreq = 8 + p * 20;
             const pulse = 0.5 + 0.5 * Math.sin(t * pulseFreq);
 
-            // Light: starts dim red, builds to blinding
+            // Light: starts dim, builds to blinding white
             this._light.position.set(this.position.x, (this._bossHeight ?? 2.5) * 0.65, this.position.z);
             this._light.intensity = 2 + p * 16 + pulse * 4;
-            this._light.color.setHex(p < 0.5 ? 0xff4422 : 0xff2222);
+            this._light.color.setHex(p < 0.5 ? 0xffddaa : 0xffffff);
 
             // Telegraph ring — grows from small to AoE radius, pulses faster
             this._ringMesh.visible = true;
             this._ringMesh.position.set(this.position.x, 0.15, this.position.z);
             const targetScale = (this.hitRadius + 7.5) * 0.55;
             this._ringMesh.scale.setScalar(0.3 + p * targetScale);
-            this._ringMat.color.setHex(0xff2222);
+            this._ringMat.color.setHex(0xffffff);
             const pulseAlpha = 0.2 + 0.8 * (0.5 + 0.5 * Math.sin(t * (10 + p * 18)));
             this._ringMat.opacity = (0.08 + p * 0.3) * pulseAlpha;
 
-            // Boss mesh emissive glow — red energy building in body
+            // Boss mesh emissive glow — white energy building in body
             if (this.mesh) {
                 this.mesh.traverse(c => {
                     if (c.isMesh && c.material && !c.userData?.isOutline) {
                         if ('emissive' in c.material) {
-                            c.material.emissive.setHex(0xff2222);
+                            c.material.emissive.setHex(0xffffff);
                             c.material.emissiveIntensity = 0.1 + p * 0.6;
                         }
                     }
@@ -824,7 +824,7 @@ export class Boss extends Enemy {
                     0.25 + Math.random() * 1.6,
                     this.position.z + Math.sin(a) * r,
                     Math.cos(a) * (1.5 + Math.random() * 2.5), 2.5 + Math.random() * 3, Math.sin(a) * (1.5 + Math.random() * 2.5),
-                    0.1 + Math.random() * 0.1, 0.35 + Math.random() * 0.3, p < 0.5 ? 0xff6644 : 0xff3333
+                    0.1 + Math.random() * 0.1, 0.35 + Math.random() * 0.3, p < 0.5 ? 0xffddaa : 0xffffff
                 );
             }
 
@@ -850,7 +850,7 @@ export class Boss extends Enemy {
             this._ringMesh.position.set(this.position.x, 0.16, this.position.z);
             this._ringMesh.scale.setScalar((this.hitRadius + 7.5) * 0.55);
             this._ringMat.opacity = 0.45;
-            this._ringMat.color.setHex(0xff2222);
+            this._ringMat.color.setHex(0xffffff);
             this._light.intensity = 22;
 
             // Impact burst particles
@@ -862,7 +862,7 @@ export class Boss extends Enemy {
                         this.position.x + Math.cos(a) * r, 0.3,
                         this.position.z + Math.sin(a) * r,
                         Math.cos(a) * 6, 4 + Math.random() * 3, Math.sin(a) * 6,
-                        0.15, 0.4, 0xff4444
+                        0.15, 0.4, 0xffffff
                     );
                 }
             }
