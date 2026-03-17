@@ -123,17 +123,16 @@ export class Game {
     }
     
     initCamera() {
-        // Isometric orthographic camera (No Rest for the Wicked style)
-        const aspect = window.innerWidth / window.innerHeight;
-        this.orthoSize = 14;  // Half-height of visible world units
-        const h = this.orthoSize;
-        const w = h * aspect;
-        this.camera = new THREE.OrthographicCamera(-w, w, h, -h, 0.1, 200);
-        this.baseZoom = 1.0;
-        this.camera.zoom = this.baseZoom;
+        // Death's Door style perspective camera — steep top-down, tight framing
+        this.camera = new THREE.PerspectiveCamera(
+            40,
+            window.innerWidth / window.innerHeight,
+            0.1,
+            200
+        );
+        this.baseFov = 40;
         this.camera.position.set(0, 8, 14);
         this.ultimateFovTime = 0;
-        this.camera.updateProjectionMatrix();
     }
     
     initPostProcessing() {
@@ -255,7 +254,7 @@ export class Game {
                 if (dmg >= 20 && this.gameState.ultimateCast?.active) {
                     this.gameState.cancelUltimateCast();
                     // Reset camera to normal
-                    this.camera.zoom = this.baseZoom;
+                    this.camera.fov = this.baseFov;
                     this.camera.updateProjectionMatrix();
                     this._timeScaleTarget = 1.0;
                     this._timeScaleEaseRate = 12;
@@ -644,9 +643,9 @@ export class Game {
         const fc = this.combatSystem?.frostCombat;
         const castProgress = this.gameState.updateUltimateCast(this.deltaTime);
         if (castProgress >= 0 && castProgress < 1) {
-            // Camera: zoom in as cast progresses (ortho zoom)
-            const zoomAmount = 0.15 * castProgress;
-            this.camera.zoom = this.baseZoom + zoomAmount;
+            // Camera: zoom in (lower FOV) as cast progresses
+            const zoomAmount = 6 * castProgress;
+            this.camera.fov = this.baseFov - zoomAmount;
             this.camera.updateProjectionMatrix();
 
             // Slow-mo ramp: game slows from 0.7 → 0.4 during cast
@@ -695,8 +694,8 @@ export class Game {
         if (castProgress >= 1) {
             // Snap time back to normal with a brief speed-up
             this.setTimeScale(1.2, 0.15, 12);
-            // Camera snap: zoom punch outward
-            this.camera.zoom = this.baseZoom;
+            // Camera snap: FOV punch outward
+            this.camera.fov = this.baseFov;
             this.camera.updateProjectionMatrix();
             this.ultimateFovTime = 0.25;
             // Massive bloom burst
@@ -969,15 +968,15 @@ export class Game {
         } else if (this.ultimateBloomTime > 0) {
             this.ultimateBloomTime = Math.max(0, this.ultimateBloomTime - this.deltaTime);
         }
-        // Zoom punch with smooth ease-out (zoom out briefly on ultimate release)
+        // FOV punch with smooth ease-out
         if (this.ultimateFovTime > 0) {
             this.ultimateFovTime = Math.max(0, this.ultimateFovTime - this.deltaTime);
             const t = this.ultimateFovTime / 0.25;
             const eased = t * t;
-            this.camera.zoom = this.baseZoom - 0.12 * eased;
+            this.camera.fov = this.baseFov + 8 * eased;
             this.camera.updateProjectionMatrix();
-        } else if (this.ultimateFovTime === 0 && this.camera.zoom !== this.baseZoom) {
-            this.camera.zoom = this.baseZoom;
+        } else if (this.ultimateFovTime === 0 && this.camera.fov !== this.baseFov) {
+            this.camera.fov = this.baseFov;
             this.camera.updateProjectionMatrix();
         }
 
@@ -1194,13 +1193,7 @@ export class Game {
     handleResize() {
         const width = window.innerWidth;
         const height = window.innerHeight;
-        const aspect = width / height;
-        const h = this.orthoSize;
-        const w = h * aspect;
-        this.camera.left = -w;
-        this.camera.right = w;
-        this.camera.top = h;
-        this.camera.bottom = -h;
+        this.camera.aspect = width / height;
         this.camera.updateProjectionMatrix();
         this.renderer.setSize(width, height);
         this.composer.setSize(width, height);

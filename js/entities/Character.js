@@ -31,17 +31,17 @@ export class Character {
         this.jumpForce = stats?.jumpForce ?? 8;
         this.gravity = -25;
 
-        // Isometric camera settings (No Rest for the Wicked style)
-        this.cameraDistance = 28;       // Distance from character — ortho so this is position only
+        // Death's Door style camera — steep top-down, tight perspective framing
+        this.cameraDistance = 18;       // Close to character for intimate framing
         this.cameraHeight = 0;         // Not used separately — derived from angle
-        this.cameraLookAtHeight = 0.8; // Look-at height — slightly above feet
+        this.cameraLookAtHeight = 0.6; // Look-at slightly above ground
         this.cameraPitch = 0;
         this.cameraYaw = 0;
         this.pitchLimit = Math.PI / 3;
-        this.cameraSmoothSpeed = 10;    // Smooth follow without sickness
+        this.cameraSmoothSpeed = 8;     // Slightly slower follow for cinematic feel
         this._cameraBobTime = 0;
-        this.fixedCameraAngle = Math.PI * 0.22; // ~40° from horizontal — isometric top-down
-        this.fixedCameraYaw = Math.PI * 0.875;  // Slight diagonal offset (~158°) for isometric feel
+        this.fixedCameraAngle = Math.PI * 0.33; // ~59° from horizontal — steep Death's Door angle
+        this.fixedCameraYaw = Math.PI;  // Camera behind player
         this._cameraLeadOffset = new THREE.Vector3(); // Smooth lead toward movement
 
         // Right-click-to-move state
