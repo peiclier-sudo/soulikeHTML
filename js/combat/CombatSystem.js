@@ -834,10 +834,10 @@ export class CombatSystem {
         this.attackTimer = this.attackDuration;
         this._meleeHitThisSwing = false;
 
-        // Attack lunge: slide player forward toward aim direction on basic attack
+        // Attack lunge: subtle slide forward toward aim direction on basic attack
         if (this.character && !this.character.isDashing) {
             const fwd = this.character.getForwardDirection();
-            const lungeDistance = this.isWolfKit ? 1.8 : this.isBearKit ? 1.2 : this.isDaggerKit ? 2.0 : this.isBowRangerKit ? 0.4 : 1.4;
+            const lungeDistance = this.isWolfKit ? 0.3 : this.isBearKit ? 0.2 : this.isDaggerKit ? 0.35 : this.isBowRangerKit ? 0.1 : 0.25;
             this.character.velocity.x += fwd.x * lungeDistance * 12;
             this.character.velocity.z += fwd.z * lungeDistance * 12;
         }

@@ -49,7 +49,7 @@ export class Game {
         };
 
         // Adaptive quality: auto-lower DPR when FPS drops, raise when stable
-        this._adaptiveDpr = Math.min(window.devicePixelRatio, 0.85);
+        this._adaptiveDpr = Math.min(window.devicePixelRatio, 1.5);
         this._lowFpsFrames = 0;
         this._highFpsFrames = 0;
         this._qualityPromoted = false;  // true once we've tried promoting
@@ -99,7 +99,7 @@ export class Game {
     initRenderer() {
         this.renderer = new THREE.WebGLRenderer({
             canvas: this.canvas,
-            antialias: false,
+            antialias: true,
             alpha: false,
             powerPreference: 'high-performance',
             stencil: false,
@@ -1138,7 +1138,7 @@ export class Game {
             this._highFpsFrames++;
             this._lowFpsFrames = 0;
             if (this._highFpsFrames >= 8) {
-                const maxDpr = Math.min(window.devicePixelRatio, 1.0);
+                const maxDpr = Math.min(window.devicePixelRatio, 2.0);
                 if (this._adaptiveDpr < maxDpr) {
                     this._adaptiveDpr = Math.min(maxDpr, this._adaptiveDpr + 0.05);
                     this.renderer.setPixelRatio(this._adaptiveDpr);
@@ -1228,8 +1228,8 @@ export class Game {
     updateShadowQuality(quality) {
         const resolutions = {
             low: 0,
-            medium: 128,
-            high: 256
+            medium: 512,
+            high: 1024
         };
         const resolution = resolutions[quality] ?? 128;
         this.lightingSystem?.setShadowsEnabled(resolution > 0);
